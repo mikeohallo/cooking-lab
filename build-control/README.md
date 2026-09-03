@@ -49,6 +49,53 @@ These files record controlled high-level acceptance information only — status,
 acceptance date, implementation commit, verified artefact hashes and a short
 outcome statement. They are not a substitute for the implementation report.
 
+## Unattended operation
+
+Milestone work may also be carried out unattended by a local runner. This does
+not change any of the roles, the handoff sequence or the acceptance rules above —
+it only changes who types the prompt.
+
+```
+ChatGPT Build Control commits a controlled prompt to GitHub
+  -> activates exactly one queue instruction
+  -> the local Cooking Lab runner detects and validates it
+  -> the runner launches one bounded, non-interactive Claude Code child
+  -> Claude performs only the authorised work, commits it,
+     writes its Build Control report and commits that, then pushes origin/main
+  -> ChatGPT Build Watch reviews the report
+```
+
+The runner **never invents work**. It can execute only a tracked Markdown prompt
+under `build-control/prompts/` that a queue commit has explicitly activated, and
+the queue file itself never carries commands.
+
+| Path | Purpose |
+|---|---|
+| `build-control/prompts/` | tracked, executable Build Control prompts |
+| `build-control/queue/NEXT_RUN.json` | the single active instruction (zero or one) |
+| `build-control/queue/NEXT_RUN.schema.json` | the queue schema |
+| `build-control/runner/` | runner and machine-wide protocol documentation |
+| `scripts/build-control-runner.ps1` | the runner |
+| `scripts/build-control-gate.ps1` | deny-by-default permission gate for the child |
+
+Build Control publishes work in **two commits**: commit A adds the prompt, then
+commit B activates `NEXT_RUN.json` with `expected_base_commit` set to A. The
+runner verifies that B's first parent is A and that the prompt's git blob
+SHA-256 matches `prompt_sha256`, so an activation always names the exact prompt
+revision it authorises.
+
+Unattended runs are additionally bounded by machine-wide rules that keep Cooking
+Lab from colliding with Project A or with Mike working manually — a shared
+execution lease, a global pause switch, and manual-Claude-session detection.
+
+- Operating instructions, queue protocol, duplicate protection, permission model
+  and git safety: **[`runner/README.md`](runner/README.md)**
+- Machine-wide cross-application coordination:
+  **[`runner/CROSS_APP_PROTOCOL.md`](runner/CROSS_APP_PROTOCOL.md)**
+
+Pause all unattended application builds at any time by creating
+`C:\Projects\.app-build-control\PAUSE_UNATTENDED`; resume by deleting it.
+
 ## Rules
 
 - **Pushing is not acceptance.** No milestone is considered accepted merely
@@ -64,3 +111,9 @@ outcome statement. They are not a substitute for the implementation report.
 - **Report honestly.** Record what was actually observed. Never claim a check,
   build or physical device state that was not genuinely verified; state clearly
   what remains pending.
+- **Unattended runs obey the same boundaries.** The runner may never authorise
+  production signing, signing keys, secrets, external or cloud accounts and
+  services, architecture or scope decisions, destructive data operations,
+  release acceptance, tags, public distribution, Play Store actions,
+  machine-wide toolchain changes or any physical device action. When a run
+  reaches one of these it stops and reports **HUMAN ACTION REQUIRED**.

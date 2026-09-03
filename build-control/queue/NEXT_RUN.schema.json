@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mikeohallo/cooking-lab/build-control/queue/NEXT_RUN.schema.json",
+  "title": "Cooking Lab Build Control queue instruction",
+  "description": "The single active unattended instruction. It may only activate a tracked prompt file under build-control/prompts/. It never carries commands, arguments or scripts of its own.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "instruction_id",
+    "prompt_path",
+    "prompt_sha256",
+    "expected_base_commit",
+    "milestone",
+    "scope",
+    "allow_unattended"
+  ],
+  "properties": {
+    "instruction_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{3,120}$",
+      "description": "Unique, stable identifier. Never reuse an id for a different prompt or base commit; the runner refuses that as a duplicate-execution hazard."
+    },
+    "prompt_path": {
+      "type": "string",
+      "pattern": "^build-control/prompts/[A-Za-z0-9._-]+\\.md$",
+      "description": "Repository-relative, forward-slashed path to a tracked Markdown prompt. Absolute paths, '..' traversal, symlinks and any path outside build-control/prompts/ are rejected."
+    },
+    "prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the prompt's git blob content (git cat-file blob <commit>:<prompt_path>), not of the checked-out file. Blob content is machine-independent; working-tree bytes are not, because core.autocrlf is enabled on this machine."
+    },
+    "expected_base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full SHA of commit A: the commit that published this exact prompt revision. The commit that activates this queue file must have A as its first parent."
+    },
+    "milestone": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Milestone label, e.g. 'M1', or 'RUNNER' for infrastructure self-tests."
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short human-readable description of the bounded work. Documentation for the audit trail; the runner does not act on it."
+    },
+    "allow_unattended": {
+      "type": "boolean",
+      "description": "Must be exactly true for the runner to act. false (or an absent queue file) means there is no pending executable instruction."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free text for the audit trail. Never interpreted or executed."
+    }
+  }
+}

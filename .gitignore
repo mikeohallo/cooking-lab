@@ -46,3 +46,8 @@ Thumbs.db
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+# --- Build Control runner (local only) --------------------------------------
+# Runner locks, child process records, consumed-instruction state and logs.
+# Never committed; never holds credentials or tokens.
+.build-control-local/
