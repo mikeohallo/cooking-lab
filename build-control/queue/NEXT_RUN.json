@@ -1,10 +1,10 @@
 {
-  "instruction_id": "runner-self-test-002",
+  "instruction_id": "none",
   "prompt_path": "build-control/prompts/RUNNER_SELF_TEST.md",
-  "prompt_sha256": "53c1a9b1197e0c44ae967dd84feafb755d6dabacff881afd3391eee68a39eba8",
-  "expected_base_commit": "97c6d22c2f759c0a074475d7e70a64ee41c45f9a",
-  "milestone": "RUNNER",
-  "scope": "Runner setup self-test (re-run after the exit-code capture fix): inspect repository state, probe the permission gate, write a local evidence file, and exit.",
-  "allow_unattended": true,
-  "notes": "Second controlled self-test. runner-self-test-001 is retained locally as FAILED evidence of the defect this fix addresses."
+  "prompt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_base_commit": "0000000000000000000000000000000000000000",
+  "milestone": "NONE",
+  "scope": "No pending instruction.",
+  "allow_unattended": false,
+  "notes": "Inactive. The runner treats allow_unattended=false as 'nothing is authorised' and does not launch Claude. To activate work, Build Control commits the prompt (commit A), then commits this file (commit B) with allow_unattended=true, expected_base_commit set to A, and prompt_sha256 set to the SHA-256 of `git cat-file blob A:<prompt_path>`. See build-control/runner/README.md."
 }
