@@ -1,10 +1,10 @@
 {
-  "instruction_id": "none",
+  "instruction_id": "runner-self-test-001",
   "prompt_path": "build-control/prompts/RUNNER_SELF_TEST.md",
-  "prompt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-  "expected_base_commit": "0000000000000000000000000000000000000000",
-  "milestone": "NONE",
-  "scope": "No pending instruction.",
-  "allow_unattended": false,
-  "notes": "Inactive. The runner treats allow_unattended=false as 'nothing is authorised' and does not launch Claude. To activate work, Build Control commits the prompt (commit A), then commits this file (commit B) with allow_unattended=true and expected_base_commit set to A."
+  "prompt_sha256": "53c1a9b1197e0c44ae967dd84feafb755d6dabacff881afd3391eee68a39eba8",
+  "expected_base_commit": "9c85480330733b8dcdb9fd245eef5d108f55c489",
+  "milestone": "RUNNER",
+  "scope": "Runner setup self-test: inspect repository state, probe the permission gate, write a local evidence file, and exit. No application source, build, device or external infrastructure.",
+  "allow_unattended": true,
+  "notes": "Controlled self-test of the unattended runner. Not a milestone. Stood down again after the test."
 }
