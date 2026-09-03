@@ -1,10 +1,10 @@
 {
-  "instruction_id": "runner-self-test-001",
+  "instruction_id": "runner-self-test-002",
   "prompt_path": "build-control/prompts/RUNNER_SELF_TEST.md",
   "prompt_sha256": "53c1a9b1197e0c44ae967dd84feafb755d6dabacff881afd3391eee68a39eba8",
-  "expected_base_commit": "9c85480330733b8dcdb9fd245eef5d108f55c489",
+  "expected_base_commit": "97c6d22c2f759c0a074475d7e70a64ee41c45f9a",
   "milestone": "RUNNER",
-  "scope": "Runner setup self-test: inspect repository state, probe the permission gate, write a local evidence file, and exit. No application source, build, device or external infrastructure.",
+  "scope": "Runner setup self-test (re-run after the exit-code capture fix): inspect repository state, probe the permission gate, write a local evidence file, and exit.",
   "allow_unattended": true,
-  "notes": "Controlled self-test of the unattended runner. Not a milestone. Stood down again after the test."
+  "notes": "Second controlled self-test. runner-self-test-001 is retained locally as FAILED evidence of the defect this fix addresses."
 }
