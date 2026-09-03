@@ -1,0 +1,12 @@
+{
+  "production": {
+    "name": "Cooking Lab",
+    "androidPackage": "com.cookinglab.personal",
+    "showsTestIndicator": false
+  },
+  "test": {
+    "name": "Cooking Lab Test",
+    "androidPackage": "com.cookinglab.personal.test",
+    "showsTestIndicator": true
+  }
+}

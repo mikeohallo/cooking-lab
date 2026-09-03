@@ -1,0 +1,48 @@
+# --- Dependencies -----------------------------------------------------------
+node_modules/
+
+# --- Expo -------------------------------------------------------------------
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# --- Continuous Native Generation -------------------------------------------
+# Native projects are generated build output, not authoritative configuration.
+# All native config belongs in app.config.ts / config plugins.
+/android/
+/ios/
+
+# --- Native / build artefacts ------------------------------------------------
+*.apk
+*.aab
+*.keystore
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+build/
+.gradle/
+
+# --- Local environment / secrets --------------------------------------------
+.env
+.env.*
+!.env.example
+*.local
+secrets.json
+google-services.json
+GoogleService-Info.plist
+
+# --- Tooling caches ----------------------------------------------------------
+coverage/
+.eslintcache
+*.tsbuildinfo
+
+# --- OS / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
