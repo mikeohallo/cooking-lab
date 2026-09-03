@@ -719,6 +719,10 @@ function Invoke-BoundedClaude {
                           -RedirectStandardError $errFile `
                           -NoNewWindow -PassThru
 
+    # Touch the handle once while the process is alive. Start-Process -PassThru
+    # otherwise discards it on exit and ExitCode reads back as $null.
+    try { $null = $proc.Handle } catch { }
+
     Write-RunnerLog -Level 'RUN' -Message "child Claude pid $($proc.Id)"
     Update-GlobalLockHeartbeat -ChildPid $proc.Id
 
@@ -741,7 +745,9 @@ function Invoke-BoundedClaude {
     }
 
     $proc.WaitForExit()
-    $exitCode = $proc.ExitCode
+    $proc.Refresh()
+    $exitCode = $null
+    try { $exitCode = $proc.ExitCode } catch { }
     $ended    = Get-UtcNowString
 
     Write-RunnerLog -Level 'RUN' -Message "child Claude exited with code $exitCode"
@@ -932,10 +938,22 @@ function Invoke-RunnerCycle {
         $headAfter  = (Invoke-Git @('rev-parse', 'HEAD')).Text
         $statusAfter= (Invoke-Git @('status', '--porcelain')).Text
 
+        # An unreadable exit code is not itself a failure: fall back to the
+        # child's own reported outcome rather than condemning a good run.
         $finalStatus = 'COMPLETED'
-        if ($run.TimedOut -or $run.ExitCode -ne 0 -or $outcome.IsError -eq $true) { $finalStatus = 'FAILED' }
+        if ($run.TimedOut) {
+            $finalStatus = 'FAILED'
+        } elseif ($null -ne $run.ExitCode -and $run.ExitCode -ne 0) {
+            $finalStatus = 'FAILED'
+        } elseif ($outcome.IsError -eq $true) {
+            $finalStatus = 'FAILED'
+        } elseif ($null -eq $run.ExitCode -and $outcome.IsError -ne $false) {
+            $finalStatus = 'FAILED'
+        }
 
         $notes = @()
+        $notes += "exit_code=$(if ($null -eq $run.ExitCode) { 'unreadable' } else { $run.ExitCode })"
+        $notes += "child_is_error=$($outcome.IsError)"
         $notes += "head_before=$headBefore"
         $notes += "head_after=$headAfter"
         if (-not [string]::IsNullOrWhiteSpace($statusAfter)) {
