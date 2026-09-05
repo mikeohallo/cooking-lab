@@ -214,25 +214,105 @@ tool call that would normally prompt is simply **allowed** — even under
 
 `scripts/build-control-gate.ps1` closes that gap. It is a `PreToolUse` hook, so
 it is enforced by the runner rather than decided by the model, and it is a
-**fail-closed allowlist** in five layers:
+**fail-closed allowlist** in six layers:
 
 1. **Path safety.** Every file-touching call must resolve inside this
-   repository; other application repositories are denied by absolute path.
+   repository; other application repositories are denied by absolute path;
+   secret-bearing paths are denied to reads as well as writes; control-plane
+   paths are denied to writes.
 2. **Shell syntax.** Command substitution `$( )`, backticks, process
    substitution, parameter and variable expansion, heredocs, redirection and
    backgrounding are refused outright, so an allowed command cannot carry a
    disallowed one inside it. Single-quoted spans are treated as literal, as
    bash does.
 3. **Content denials.** References to another application repository, to the
-   coordination directory, to `.git/` paths, to Claude settings flags, or to any
-   permission bypass.
-4. **Per-segment allowlist.** The command is split on `;`, `&&`, `||` and `|`,
-   and **every** segment must clear the command-position denials and match an
-   allow pattern — an allowed prefix cannot smuggle a tail.
-5. **npm verification.** See below.
+   coordination directory, to `.git/` or `node_modules/` paths, to Claude
+   settings flags, to any permission bypass — and any path form that leaves the
+   repository: drive-absolute, UNC, root-absolute, `~`, `..` traversal, or
+   `%VAR%` expansion.
+4. **Per-segment dispatch.** The command is split on `;`, `&&`, `||` and `|`,
+   and **every** segment must be a `git` or `npm` call — an allowed prefix
+   cannot smuggle a tail.
+5. **git validation.** Subcommand allowlist, per-subcommand flag allowlist, and
+   every path argument proved repository-contained.
+6. **npm validation.** Pinned script bodies, no pre/post lifecycle scripts, and
+   the resolved package, version and binary verified against their pins.
 
 An internal gate error fails **closed** (exit 2 blocks the call). Denials are
 recorded in the child's JSON output and counted in the runner log.
+
+### There is no general shell
+
+Bash exists for exactly two purposes: the git operations the protocol requires,
+and the three approved quality checks. **Nothing else is on the allowlist** — no
+`echo`, `cat`, `ls`, `find`, `grep`, `sed`, `mkdir`, `cp`, `mv`, `rm`, `node`,
+`npx`, `certutil`, `sha256sum`, PowerShell cmdlet, or any other general command.
+
+That is deliberate. Repository inspection is the `Read`, `Glob` and `Grep`
+tools' job and file changes are the `Write`/`Edit` tools' job, and both of those
+are path-confined by layer 1. A general-purpose command kept for convenience is
+a general-purpose command available for escape, so none are kept.
+
+Specifically refused: writing arbitrary files, creating directories, copying or
+moving files, symlinks and junctions, permission changes, launching other
+executables, inspecting unrelated machine directories, and changing the working
+directory.
+
+### Repository confinement
+
+No child tool may read or write outside `C:\Projects\cooking-lab`. The
+coordination directory `C:\Projects\.app-build-control\` belongs to the
+**runner**; the child may never reference it at all.
+
+Path arguments are validated as paths, not merely matched by command name.
+Every one is checked for drive-absolute (`C:\…`), UNC (`\\server\…`, `//host/…`),
+root-absolute, `~` home expansion, `..` traversal and `%VAR%` expansion, then
+resolved and proved to land inside the repository. That applies to `Read`,
+`Glob`, `Grep`, `Write`, `Edit` and to every path argument of every permitted
+git command.
+
+### Allowed git operations
+
+| Subcommand | Bounded form |
+|---|---|
+| `status`, `diff`, `log`, `show` | inspection flags only; path arguments confined |
+| `rev-parse`, `rev-list`, `ls-files` | inspection flags only |
+| `fetch` | exactly `git fetch origin` (+ `--prune`) |
+| `add` | `-A`, `.`, or confined repository paths |
+| `commit` | `-m` messages only |
+| `push` | exactly `git push origin main` |
+
+Anything else is refused. A token beginning with `-` in the subcommand position
+is refused outright, which removes `-C`, `--git-dir`, `--work-tree`, `-c` and
+`--exec-path` — every mechanism for moving or reconfiguring the repository
+context — in one rule. Also refused: `git config` (read or write), remotes,
+hooks, aliases as subcommands, branch creation, history rewriting, force
+operations, `apply`, `submodule`, `worktree`, tagging, `--amend`, `-a`, `-F`,
+and `--output=` flags that would write a file.
+
+### Git hooks cannot fire
+
+A `git commit` or `git push` by the unattended child must not run a
+pre-existing local hook — a hook is arbitrary code the queue never authorised,
+and `.git/hooks` may already contain one.
+
+The runner creates a controlled, empty hooks directory at
+`.build-control-local/githooks/` and points git at it for everything it
+launches, using `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_0` / `GIT_CONFIG_VALUE_0`.
+That is process-environment configuration: **no config file is written**, so
+Mike's global and manual Git configuration is untouched, and the system
+`credential.helper` that authenticates pushes to GitHub is not displaced.
+
+The runner fails closed if that directory is not empty, and asserts that
+`core.hooksPath` actually resolved to it before launching. All three properties
+— hook suppressed, no config file written, credentials intact — are verified
+empirically by the self-test.
+
+Aliases are the one thing this cannot neutralise: `[alias] status = !adb devices`
+would expand an allowed word into arbitrary code, and environment configuration
+cannot clear an alias. So the runner instead **refuses to launch** while any
+alias shadows an allowed git subcommand, and reports it as a repository
+precondition failure.
 
 ### npm is not a loophole
 
@@ -249,41 +329,88 @@ Each allowed name is **pinned** to the exact command it must still resolve to in
 | `typecheck` | `tsc --noEmit` |
 | `lint` | `eslint .` |
 
-Before allowing the call, the gate reads `package.json` and compares. If a
-script body has changed, the call is denied and Build Control must re-pin it.
-That closes the indirect path where an allowed name is edited to run something
-else. Extra arguments (`npm run lint -- --fix`) are refused, as are
-`npm install`, `npm ci`, `npm exec`, `npm publish` and every other subcommand.
+Extra arguments (`npm run lint -- --fix`) are refused, as are `npm install`,
+`npm ci`, `npm exec`, `npm publish`, `npx` and every other subcommand.
+
+#### The whole execution chain is bounded
+
+The script *name* proves nothing on its own, so the gate verifies every link
+before allowing the call:
+
+| Link | Check |
+|---|---|
+| `package.json` script body | must equal the pinned command exactly |
+| pre/post lifecycle scripts | `pre<name>` / `post<name>` must not exist at all |
+| installed package | `node_modules/<pkg>/package.json` must exist |
+| version | must equal the pinned version |
+| declared binary | the package's `bin` entry must equal the pinned path |
+| resolved binary | must exist and live inside this repo's `node_modules` |
+| `.bin` shim | must still resolve to that same binary |
+
+Pinned as of this correction: `jest` 29.7.0 → `./bin/jest.js`; `typescript`
+6.0.3 → `./bin/tsc`; `eslint` 9.39.5 → `./bin/eslint.js`. When a dependency
+changes, the gate fails closed and Build Control re-pins deliberately.
+
+Lifecycle scripts are also suppressed at the process level: the runner sets
+`npm_config_ignore_scripts=true` for the child, which skips `pre`/`post` while
+still running the named script (verified on npm 11.17.0). Neither control stands
+alone — the gate refuses a `package.json` that defines one *and* the environment
+would not run it.
+
+Network fetching is disabled the same way (`npm_config_offline=true`), on top of
+`npm install` / `npx` being refused outright.
+
+The load-bearing control behind all of this is that `package.json`,
+`package-lock.json` and `node_modules/` are **unwritable** by the child, so the
+pins cannot be moved from inside a run. The checks above are corroboration, not
+the only defence.
 
 `adb`, `gradlew`/`gradle`, Expo, native toolchains, emulators and signing tools
 remain denied. They stay denied unless a future authorised prompt explicitly
 permits them, which would require a change here first.
 
+### Files the child may never read
+
+Secret-bearing paths are denied to **every** file tool, reading included. A
+future milestone that genuinely needs a real secret must cross a human boundary
+explicitly, rather than letting an unattended child discover one:
+
+- `.env`, `.env.*`, `secrets.json`, `credentials*`
+- `.npmrc`, `.netrc`, `.git-credentials`
+- `.ssh/`, `.aws/`, `.gnupg/`, `.docker/`, `id_rsa`/`id_ed25519`/…
+- `*.keystore`, `*.jks`, `*.p12`, `*.pfx`, `*.p8`, `*.pem`, `*.key`, `*.cer`,
+  `*.crt`, `*.der`, `*.mobileprovision`, `*.asc`, `*.gpg`
+- `keystore.properties`, `signing.properties`, `local.properties`,
+  `gradle.properties`
+- `google-services.json`, `GoogleService-Info.plist`
+- `.git/` — its config can carry remote credentials
+
 ### Files the child may never modify
 
-Repository containment is not enough on its own, so mutating tools (`Write`,
-`Edit`, `MultiEdit`, `NotebookEdit`) are additionally refused on:
+Mutating tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) are additionally
+refused on:
 
-- `.git/` — objects, refs, configuration and hooks; also `.githooks/`,
-  `.gitattributes` (content filters execute), `.gitmodules`, `.gitconfig`;
-- credentials — `.npmrc`, `.netrc`, `.git-credentials`, `.ssh/`, `.aws/`,
-  `.gnupg/`;
-- signing material — `*.keystore`, `*.jks`, `*.p12`, `*.pfx`, `*.p8`, `*.pem`,
-  `*.key`, `*.cer`, `*.crt`, `*.mobileprovision`, `keystore.properties`,
-  `signing.properties`;
-- environment secrets — `.env`, `.env.*`, `secrets.json`,
-  `google-services.json`, `GoogleService-Info.plist`;
+- Git configuration — `.githooks/`, hook scripts, `.gitattributes` (content
+  filters execute), `.gitmodules`, `.gitconfig`, `.gitignore`;
 - Claude configuration — `.claude/`, `CLAUDE.md`;
+- the toolchain the gate verifies — `node_modules/`, `package.json`,
+  `package-lock.json`;
 - the control plane itself — `scripts/build-control-*`, `.build-control-local/`
   (except `selftest/`), `build-control/queue/`, `build-control/acceptance/`.
 
-The last group matters most: a child that could rewrite the gate, forge its own
-`COMPLETED` record, or author its own next instruction would have no boundary at
-all. Changing the runner, the gate or the queue requires an authorised
-interactive session, not an unattended one.
+The child **may** create its authorised implementation report under
+`build-control/reports/`, and may change product source under `src/`, `app/`,
+`__tests__/` and the like when a milestone prompt authorises it.
 
-Reading remains allowed where it is legitimate — an authorised prompt may read
-the queue entry that activated it. Only mutation is refused.
+The last group matters most: a child that could rewrite the gate, forge its own
+`COMPLETED` record, author its own next instruction, or swap the tooling the
+gate verifies would have no boundary at all. Changing the runner, the gate, the
+queue or the dependency manifest requires an authorised interactive session, not
+an unattended one.
+
+For the control-plane group, reading remains allowed where it is legitimate — an
+authorised prompt may read the queue entry that activated it. Only mutation is
+refused. The secret group above is different: those are denied to reads too.
 
 ## Self-test
 
@@ -302,6 +429,17 @@ Those redirections are honoured only under the runner's documented test seams �
 `-SelfTest`, or the library-load mode the suite uses. In normal unattended
 operation every path, remote and executable is the fixed production value and no
 environment variable can change it.
+
+## Network access
+
+The only network activity the unattended child needs is the controlled GitHub
+repository workflow, through `git fetch origin` and `git push origin main`.
+
+Everything else stays denied: `curl`, `wget`, `Invoke-WebRequest`,
+`Invoke-RestMethod`, `ssh`, `scp`, `sftp`, `rsync`, `nc`, `telnet`, package
+downloads (`npm install`, `npm ci`, `npx`, with `npm_config_offline=true` on
+top), EAS and any other build or cloud service CLI. No cloud capability is
+authorised, and none may be added without an explicit Build Control change here.
 
 ## Git safety
 

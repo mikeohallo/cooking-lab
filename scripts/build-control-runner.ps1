@@ -94,6 +94,10 @@ $StateFile  = Join-Path $LocalDir 'state\instructions.json'
 $RunnerLock = Join-Path $LocalDir 'runner.lock'
 $LogDir     = Join-Path $LocalDir 'logs'
 $TmpDir     = Join-Path $LocalDir 'tmp'
+# A runner-controlled, deliberately empty hooks directory. Git invoked by the
+# bounded child is pointed here, so no pre-existing local hook can fire during
+# an unattended commit or push. Local only; never committed.
+$HooksDir   = Join-Path $LocalDir 'githooks'
 $RunnerLog  = Join-Path $LogDir 'runner.log'
 
 $QueueRelPath  = 'build-control/queue/NEXT_RUN.json'
@@ -160,7 +164,7 @@ function Write-HumanActionRequired {
 function Get-UtcNowString { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
 function Initialize-LocalDirs {
-    foreach ($d in @($LocalDir, $LogDir, $TmpDir, (Split-Path -Parent $StateFile))) {
+    foreach ($d in @($LocalDir, $LogDir, $TmpDir, $HooksDir, (Split-Path -Parent $StateFile))) {
         if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
     }
 }
@@ -238,6 +242,47 @@ function Test-RepoPreconditions {
         return "working tree is not clean:`n$($status.Text)"
     }
 
+    $aliasReason = Test-NoShadowingGitAlias
+    if ($null -ne $aliasReason) { return $aliasReason }
+
+    return $null
+}
+
+# Git subcommands the permission gate permits the bounded child to run. Kept
+# here so the alias precondition and the gate cannot drift apart silently.
+$AllowedGitSubcommands = @(
+    'status', 'diff', 'log', 'show', 'rev-parse', 'rev-list',
+    'ls-files', 'fetch', 'add', 'commit', 'push'
+)
+
+function Test-NoShadowingGitAlias {
+    <#  A git alias is expansion, not a subcommand: `[alias] status = !adb
+        devices` would turn an allowed command into an arbitrary one, and the
+        gate sees only the word "status". Aliases cannot be cleared through
+        environment configuration, so the runner refuses to launch while one
+        shadows an allowed subcommand.
+
+        Returns $null when clear, else a reason.  #>
+
+    $aliases = Invoke-Git @('config', '--get-regexp', '^alias\.')
+    # Exit code 1 with no output simply means no alias is configured.
+    if ($aliases.ExitCode -ne 0 -and -not [string]::IsNullOrWhiteSpace($aliases.Text)) {
+        return "cannot read git alias configuration: $($aliases.Text)"
+    }
+    if ([string]::IsNullOrWhiteSpace($aliases.Text)) { return $null }
+
+    $shadowing = @()
+    foreach ($line in ($aliases.Text -split "`n")) {
+        $name = ($line -split '\s+', 2)[0]
+        if ($name -match '^alias\.(.+)$') {
+            $sub = $Matches[1]
+            if ($AllowedGitSubcommands -contains $sub) { $shadowing += $sub }
+        }
+    }
+    if ($shadowing.Count -gt 0) {
+        return ("git alias(es) shadow allowed subcommand(s): $($shadowing -join ', '). " +
+                'An alias can expand an allowed command into an arbitrary one, so unattended work is refused until they are removed.')
+    }
     return $null
 }
 
@@ -1122,6 +1167,63 @@ function New-ChildSettingsFile {
     return $path
 }
 
+function Set-ChildGitEnvironment {
+    <#  Suppresses Git hook execution for everything the runner launches.
+
+        A `git commit` or `git push` performed by the unattended child must not
+        fire a pre-existing local hook: a hook is arbitrary code the queue never
+        authorised, and .git/hooks may already contain one.
+
+        This is done with GIT_CONFIG_COUNT/KEY/VALUE, which git reads as extra
+        configuration for this process tree only. It *adds* core.hooksPath
+        pointing at a runner-controlled empty directory. It writes no config
+        file, so Mike's global and manual Git configuration is untouched, and it
+        does not displace the system credential.helper that authenticates
+        pushes to GitHub - verified empirically.
+
+        The runner's own git calls inherit this too, which is intended.  #>
+
+    if (-not (Test-Path $HooksDir)) { New-Item -ItemType Directory -Path $HooksDir -Force | Out-Null }
+
+    # Fail closed if anything ever appears in the "empty" hooks directory.
+    $stray = @(Get-ChildItem -LiteralPath $HooksDir -Force -ErrorAction SilentlyContinue)
+    if ($stray.Count -gt 0) {
+        throw "the runner-controlled hooks directory is not empty: $HooksDir"
+    }
+
+    $env:GIT_CONFIG_COUNT   = '1'
+    $env:GIT_CONFIG_KEY_0   = 'core.hooksPath'
+    $env:GIT_CONFIG_VALUE_0 = $HooksDir
+    # Never block an unattended run on an interactive credential prompt.
+    $env:GIT_TERMINAL_PROMPT = '0'
+
+    $effective = Invoke-Git @('config', '--get', 'core.hooksPath')
+    if ($effective.Text -ne $HooksDir) {
+        throw "git hook suppression did not take effect (core.hooksPath is '$($effective.Text)', expected '$HooksDir')"
+    }
+    Write-RunnerLog "git hooks suppressed for the bounded child (core.hooksPath -> $HooksDir)"
+}
+
+function Set-ChildNpmEnvironment {
+    <#  Bounds the approved quality commands.
+
+        npm_config_ignore_scripts stops pre/post lifecycle scripts running,
+        while still running the named script - verified on npm 11.17.0. The
+        gate additionally refuses any package.json that defines one, so neither
+        control stands alone.
+
+        The offline settings mean an approved command can never reach the
+        network to fetch a package.  #>
+
+    $env:npm_config_ignore_scripts  = 'true'
+    $env:npm_config_offline         = 'true'
+    $env:npm_config_audit           = 'false'
+    $env:npm_config_fund            = 'false'
+    $env:npm_config_update_notifier = 'false'
+    $env:npm_config_yes             = 'false'
+    Write-RunnerLog 'npm lifecycle scripts and network fetches disabled for the bounded child'
+}
+
 function Invoke-BoundedClaude {
     <#  Launches exactly one non-interactive Claude child for the validated
         prompt and waits for it. No unrestricted permission bypass is used.  #>
@@ -1141,6 +1243,9 @@ function Invoke-BoundedClaude {
     # The gate reads these; the child inherits them from this process.
     $env:COOKING_LAB_REPO_ROOT  = $RepoRoot
     $env:COOKING_LAB_DENY_PATHS = ($ProtectedPaths -join ';')
+
+    Set-ChildGitEnvironment
+    Set-ChildNpmEnvironment
 
     # --setting-sources "" loads NO user, project or local settings, so no
     # user-level hook, permission rule or model preference can reach this

