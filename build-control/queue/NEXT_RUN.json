@@ -1,12 +1,12 @@
 {
-  "instruction_id": "m1-foundation-trial-001",
-  "prompt_path": "build-control/prompts/M1_FOUNDATION_TRIAL.md",
-  "prompt_sha256": "ca0a03cf78ebd229cf7bcb75a0f3729a78e0592d5b2f15d86e4e7c602d16d35c",
-  "expected_base_commit": "aeb9276466d779f15f51612fe42450adb50c65e4",
+  "instruction_id": "m1-foundation-correction-001",
+  "prompt_path": "build-control/prompts/M1_FOUNDATION_CORRECTION_01.md",
+  "prompt_sha256": "1a909ebc0a500203f32d9f3b46e727f0c835052f63158774539fafc5f84ce884",
+  "expected_base_commit": "8d2b0693b2b4f32ca798a4e9f236d829f9effdb0",
   "milestone": "M1",
-  "scope": "Implement the bounded dependency-free M1 local data foundation trial only.",
+  "scope": "Correct the unaccepted M1 foundation to the controlled Cooking Lab data model only.",
   "allow_unattended": true,
   "requires_commit": true,
   "requires_push": true,
-  "expected_report_path": "build-control/reports/M1_FOUNDATION_TRIAL_REPORT.md"
+  "expected_report_path": "build-control/reports/M1_FOUNDATION_CORRECTION_REPORT.md"
 }
