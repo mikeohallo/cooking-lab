@@ -619,6 +619,18 @@ Check -Name 'runner dot-sources into the scratch environment' `
       -Condition (($RepoRoot -eq $WorkRepo) -and ($GlobalDir -eq $env:COOKING_LAB_GLOBAL_DIR) -and ($ClaudeExe -eq $StubExe)) `
       -Detail "RepoRoot=$RepoRoot GlobalDir=$GlobalDir ClaudeExe=$ClaudeExe"
 
+# The CLI-level permission rules sit beneath the gate. They must confine Bash to
+# git and npm, so a gate that failed to install would still leave Bash bounded.
+Check -Name 'CLI permission rules confine Bash to git and npm' `
+      -Condition (($ChildAllowedTools -match 'Bash\(git:\*\)') -and ($ChildAllowedTools -match 'Bash\(npm:\*\)')) `
+      -Detail "allowedTools=$ChildAllowedTools"
+Check -Name 'CLI permission rules grant no other Bash surface' `
+      -Condition ((@([regex]::Matches($ChildAllowedTools, 'Bash\(')).Count) -eq 2) `
+      -Detail "allowedTools=$ChildAllowedTools"
+Check -Name 'the child tool set is limited to the seven built-ins' `
+      -Condition ($ChildTools -eq 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite') `
+      -Detail "tools=$ChildTools"
+
 # The suite runs from inside an interactive Claude Code session, so adopt the
 # same documented baseline allowance the runner uses in -SelfTest mode.
 $SelfTest = $true

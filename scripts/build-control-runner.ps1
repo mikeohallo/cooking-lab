@@ -118,6 +118,19 @@ $HeartbeatSeconds      = 30
 # not available to the child at all (verified on CLI 2.1.240).
 $ChildTools = 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite'
 
+# Permission rules passed to the CLI itself, beneath the gate.
+#
+# Two reasons this exists. First, Bash calls are not auto-approved under
+# --permission-mode acceptEdits: without an explicit rule the CLI refuses them
+# with "This command requires approval" and no authorised work can run. Second,
+# it is a genuine second layer - verified to narrow, not merely to permit - so
+# that even if the gate hook ever failed to install, Bash would still be
+# confined to git and npm rather than being unbounded.
+#
+# The gate remains the authority: a PreToolUse deny overrides any allow here,
+# and 'npm run android' is refused by the gate despite Bash(npm:*).
+$ChildAllowedTools = 'Read,Glob,Grep,TodoWrite,Write,Edit,Bash(git:*),Bash(npm:*)'
+
 # Terminal states an instruction can reach. STARTED is the only in-flight
 # state; anything left in it means the run was interrupted.
 $TerminalStates = @('COMPLETED', 'FAILED', 'HUMAN_ACTION_REQUIRED', 'BLOCKED', 'RECOVERY_REQUIRED')
@@ -1258,7 +1271,8 @@ function Invoke-BoundedClaude {
                  '--setting-sources "" ' +
                  '--strict-mcp-config --mcp-config "{\"mcpServers\":{}}" ' +
                  ('--settings "{0}" ' -f $settings) +
-                 ('--tools "{0}"' -f $ChildTools)
+                 ('--tools "{0}" ' -f $ChildTools) +
+                 ('--allowedTools "{0}"' -f $ChildAllowedTools)
 
     Write-RunnerLog -Level 'RUN' -Message "launching bounded Claude child for '$InstructionId' with prompt $PromptRelPath"
     Write-RunnerLog "child invocation: $ClaudeExe $argString"
