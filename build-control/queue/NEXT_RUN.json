@@ -1,10 +1,12 @@
-﻿{
-    "instruction_id":  "none",
-    "prompt_path":  "build-control/prompts/RUNNER_FINAL_TRIAL.md",
-    "prompt_sha256":  "0000000000000000000000000000000000000000000000000000000000000000",
-    "expected_base_commit":  "0000000000000000000000000000000000000000",
-    "milestone":  "NONE",
-    "scope":  "No pending instruction.",
-    "allow_unattended":  false,
-    "notes":  "Inactive. The runner treats allow_unattended=false as \u0027nothing is authorised\u0027 and does not launch Claude. To activate work, Build Control commits the prompt (commit A), then commits this file (commit B) with allow_unattended=true, expected_base_commit set to A, and prompt_sha256 set to the SHA-256 of `git cat-file blob A:\u003cprompt_path\u003e`. Set requires_commit/requires_push/expected_report_path to declare what COMPLETED means for that instruction. See build-control/runner/README.md."
+{
+  "instruction_id": "m1-foundation-trial-001",
+  "prompt_path": "build-control/prompts/M1_FOUNDATION_TRIAL.md",
+  "prompt_sha256": "ca0a03cf78ebd229cf7bcb75a0f3729a78e0592d5b2f15d86e4e7c602d16d35c",
+  "expected_base_commit": "aeb9276466d779f15f51612fe42450adb50c65e4",
+  "milestone": "M1",
+  "scope": "Implement the bounded dependency-free M1 local data foundation trial only.",
+  "allow_unattended": true,
+  "requires_commit": true,
+  "requires_push": true,
+  "expected_report_path": "build-control/reports/M1_FOUNDATION_TRIAL_REPORT.md"
 }
