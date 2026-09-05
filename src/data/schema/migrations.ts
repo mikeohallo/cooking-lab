@@ -17,6 +17,12 @@
  * `__tests__/migrations.test.ts` cross-checks the literal `CHECK` lists against
  * those enums, so drift is caught rather than assumed away.
  *
+ * Version 1 has not run on any device. It has been corrected in place to the
+ * controlled product model rather than followed by a compatibility migration,
+ * because there is no database anywhere for a compatibility migration to be
+ * compatible with — and shipping a v2 that repairs a v1 nobody ever had would
+ * be inventing history.
+ *
  * WHAT THE SCHEMA DOES NOT CONTAIN
  * --------------------------------
  * No user, owner or account column; no row-level security; no sync, replication
@@ -47,107 +53,88 @@ export const SCHEMA_VERSION_KEY = 'schema_version';
 /** The `schema_meta` key holding when that version was applied. */
 export const SCHEMA_APPLIED_AT_KEY = 'schema_applied_at';
 
+// A cook is open until it has been reviewed, and `parent_cook_id` is how a
+// second attempt at the same dish points back at the first. `verdict` is free
+// text with no CHECK constraint on purpose: it is whatever the cook typed.
 const V1_CREATE_COOKS = `
 CREATE TABLE cooks (
-  id            TEXT PRIMARY KEY NOT NULL,
-  title         TEXT NOT NULL,
-  status        TEXT NOT NULL
-                CHECK (status IN ('planned','in_progress','complete','abandoned')),
-  started_at    TEXT NOT NULL,
-  finished_at   TEXT,
-  verdict       TEXT NOT NULL DEFAULT 'unrated'
-                CHECK (verdict IN ('unrated','failed','poor','acceptable','good','excellent')),
-  verdict_note  TEXT,
-  notes         TEXT,
-  created_at    TEXT NOT NULL,
-  updated_at    TEXT NOT NULL
+  id               TEXT PRIMARY KEY NOT NULL,
+  title            TEXT,
+  status           TEXT NOT NULL CHECK (status IN ('open','reviewed')),
+  provenance       TEXT NOT NULL CHECK (provenance IN ('live','imported')),
+  parent_cook_id   TEXT REFERENCES cooks(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  started_at       TEXT NOT NULL,
+  review_opened_at TEXT,
+  review_saved_at  TEXT,
+  verdict          TEXT,
+  created_at       TEXT NOT NULL,
+  CHECK (parent_cook_id IS NULL OR parent_cook_id <> id),
+  CHECK ((status = 'reviewed' AND review_saved_at IS NOT NULL)
+      OR (status = 'open'     AND review_saved_at IS NULL))
 )`.trim();
 
+// `meta` holds JSON. A temperature lives in it as `{"celsius": 96}`; there is
+// no unit column because there is only one unit.
 const V1_CREATE_COOK_EVENTS = `
 CREATE TABLE cook_events (
-  id             TEXT PRIMARY KEY NOT NULL,
-  cook_id        TEXT NOT NULL
-                 REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  kind           TEXT NOT NULL
-                 CHECK (kind IN ('note','observation','temperature','timing','step','adjustment','taste','photo')),
-  occurred_at    TEXT NOT NULL,
-  offset_seconds INTEGER,
-  label          TEXT,
-  text           TEXT,
-  numeric_value  REAL,
-  unit           TEXT,
-  photo_path     TEXT,
-  created_at     TEXT NOT NULL,
+  id         TEXT PRIMARY KEY NOT NULL,
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ts         TEXT NOT NULL,
+  kind       TEXT NOT NULL
+             CHECK (kind IN ('user_note','assistant_msg','temp','photo','plan')),
+  body       TEXT,
+  meta       TEXT,
+  photo_path TEXT,
   CHECK ((kind =  'photo' AND photo_path IS NOT NULL)
       OR (kind <> 'photo' AND photo_path IS NULL))
 )`.trim();
 
 const V1_CREATE_FINDINGS = `
 CREATE TABLE findings (
-  id                TEXT PRIMARY KEY NOT NULL,
-  title             TEXT NOT NULL,
-  detail            TEXT,
-  status            TEXT NOT NULL
-                    CHECK (status IN ('proposed','approved','rejected')),
-  created_by        TEXT NOT NULL CHECK (created_by IN ('user','ai')),
-  user_edited       INTEGER NOT NULL DEFAULT 0 CHECK (user_edited IN (0,1)),
-  evidence_strength TEXT NOT NULL
-                    CHECK (evidence_strength IN ('unsupported','single','corroborated','strong')),
-  created_at        TEXT NOT NULL,
-  updated_at        TEXT NOT NULL,
-  decided_at        TEXT,
-  CHECK ((status =  'proposed' AND decided_at IS NULL)
-      OR (status <> 'proposed' AND decided_at IS NOT NULL))
+  id         TEXT PRIMARY KEY NOT NULL,
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  class      TEXT NOT NULL CHECK (class IN ('observed','inference','knowledge')),
+  text       TEXT NOT NULL,
+  rationale  TEXT,
+  confidence TEXT CHECK (confidence IS NULL OR confidence IN ('low','medium','high')),
+  status     TEXT NOT NULL CHECK (status IN ('proposed','approved','rejected')),
+  created_by TEXT NOT NULL CHECK (created_by IN ('ai','user')),
+  provenance TEXT NOT NULL CHECK (provenance IN ('live','imported')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT
 )`.trim();
 
-// One nullable foreign key per source kind rather than a single polymorphic
-// column: this is what lets SQLite prove the citation points at a row that
-// exists and delete the citation when that row goes.
+// A finding cites timeline entries and nothing else. Both columns are NOT NULL,
+// so the composite primary key is genuinely unique — in SQLite the columns of a
+// non-INTEGER primary key may otherwise be NULL, and NULLs compare distinct.
 const V1_CREATE_FINDING_SOURCES = `
 CREATE TABLE finding_sources (
   finding_id    TEXT NOT NULL
                 REFERENCES findings(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  source_kind   TEXT NOT NULL CHECK (source_kind IN ('cook','cook_event')),
-  cook_id       TEXT REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  cook_event_id TEXT REFERENCES cook_events(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  relation      TEXT NOT NULL CHECK (relation IN ('supports','contradicts')),
-  created_at    TEXT NOT NULL,
-  CHECK ((source_kind = 'cook'       AND cook_id IS NOT NULL AND cook_event_id IS NULL)
-      OR (source_kind = 'cook_event' AND cook_event_id IS NOT NULL AND cook_id IS NULL))
+  cook_event_id TEXT NOT NULL
+                REFERENCES cook_events(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (finding_id, cook_event_id)
 )`.trim();
-
-// A composite PRIMARY KEY cannot be used here: in SQLite the columns of a
-// non-INTEGER primary key may be NULL and NULLs compare distinct, so the pair
-// would not actually be unique. COALESCE in a unique index does the job.
-const V1_INDEX_FINDING_SOURCES_UNIQUE = `
-CREATE UNIQUE INDEX ux_finding_sources_link
-  ON finding_sources (finding_id, source_kind, COALESCE(cook_id,''), COALESCE(cook_event_id,''))`.trim();
 
 const V1_CREATE_LESSONS = `
 CREATE TABLE lessons (
-  id                TEXT PRIMARY KEY NOT NULL,
-  title             TEXT NOT NULL,
-  guidance          TEXT NOT NULL,
-  status            TEXT NOT NULL
-                    CHECK (status IN ('proposed','approved','rejected')),
-  created_by        TEXT NOT NULL CHECK (created_by IN ('user','ai')),
-  user_edited       INTEGER NOT NULL DEFAULT 0 CHECK (user_edited IN (0,1)),
-  origin_finding_id TEXT
-                    REFERENCES findings(id) ON DELETE SET NULL ON UPDATE CASCADE,
-  created_at        TEXT NOT NULL,
-  updated_at        TEXT NOT NULL,
-  decided_at        TEXT,
-  CHECK ((status =  'proposed' AND decided_at IS NULL)
-      OR (status <> 'proposed' AND decided_at IS NOT NULL))
+  id         TEXT PRIMARY KEY NOT NULL,
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  text       TEXT NOT NULL,
+  status     TEXT NOT NULL CHECK (status IN ('proposed','approved','rejected')),
+  provenance TEXT NOT NULL CHECK (provenance IN ('live','imported')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT
 )`.trim();
 
 const V1_CREATE_TAGS = `
 CREATE TABLE tags (
-  id         TEXT PRIMARY KEY NOT NULL,
-  name       TEXT NOT NULL,
-  kind       TEXT NOT NULL
-             CHECK (kind IN ('ingredient','technique','equipment','dish','outcome','free')),
-  created_at TEXT NOT NULL
+  id   TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('dish','ingredient','technique','equipment'))
 )`.trim();
 
 // Names are stored normalised by the domain layer; NOCASE is the second line of
@@ -157,78 +144,64 @@ CREATE UNIQUE INDEX ux_tags_name_kind ON tags (name COLLATE NOCASE, kind)`.trim(
 
 const V1_CREATE_COOK_TAGS = `
 CREATE TABLE cook_tags (
-  cook_id    TEXT NOT NULL REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  tag_id     TEXT NOT NULL REFERENCES tags(id)  ON DELETE CASCADE ON UPDATE CASCADE,
-  created_at TEXT NOT NULL,
+  cook_id TEXT NOT NULL REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  tag_id  TEXT NOT NULL REFERENCES tags(id)  ON DELETE CASCADE ON UPDATE CASCADE,
   PRIMARY KEY (cook_id, tag_id)
 )`.trim();
 
+// `useful` is nullable, and the three states are yes, no and not yet said.
+// `content` holds JSON. There is no lifecycle column: a briefing is prepared
+// for one cook and either helped or did not.
 const V1_CREATE_BRIEFINGS = `
 CREATE TABLE briefings (
   id         TEXT PRIMARY KEY NOT NULL,
-  cook_id    TEXT REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  title      TEXT NOT NULL,
-  body       TEXT NOT NULL,
-  status     TEXT NOT NULL CHECK (status IN ('draft','issued','dismissed')),
-  created_by TEXT NOT NULL CHECK (created_by IN ('user','ai')),
-  created_at TEXT NOT NULL,
-  issued_at  TEXT,
-  CHECK (status <> 'issued' OR issued_at IS NOT NULL)
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  content    TEXT NOT NULL,
+  useful     INTEGER CHECK (useful IS NULL OR useful IN (0,1)),
+  created_at TEXT NOT NULL
 )`.trim();
 
 const V1_CREATE_BRIEFING_SOURCES = `
 CREATE TABLE briefing_sources (
   briefing_id TEXT NOT NULL
               REFERENCES briefings(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  source_kind TEXT NOT NULL CHECK (source_kind IN ('finding','lesson','cook')),
-  finding_id  TEXT REFERENCES findings(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  lesson_id   TEXT REFERENCES lessons(id)  ON DELETE CASCADE ON UPDATE CASCADE,
-  cook_id     TEXT REFERENCES cooks(id)    ON DELETE CASCADE ON UPDATE CASCADE,
-  created_at  TEXT NOT NULL,
-  CHECK ((source_kind = 'finding' AND finding_id IS NOT NULL AND lesson_id IS NULL AND cook_id IS NULL)
-      OR (source_kind = 'lesson'  AND lesson_id  IS NOT NULL AND finding_id IS NULL AND cook_id IS NULL)
-      OR (source_kind = 'cook'    AND cook_id    IS NOT NULL AND finding_id IS NULL AND lesson_id IS NULL))
+  cook_id     TEXT NOT NULL
+              REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (briefing_id, cook_id)
 )`.trim();
-
-const V1_INDEX_BRIEFING_SOURCES_UNIQUE = `
-CREATE UNIQUE INDEX ux_briefing_sources_link
-  ON briefing_sources (briefing_id, source_kind, COALESCE(finding_id,''), COALESCE(lesson_id,''), COALESCE(cook_id,''))`.trim();
 
 const V1_CREATE_IMPORT_BATCHES = `
 CREATE TABLE import_batches (
-  id           TEXT PRIMARY KEY NOT NULL,
-  origin       TEXT NOT NULL CHECK (origin IN ('backup_restore','synthetic_fixture')),
-  status       TEXT NOT NULL CHECK (status IN ('pending','applied','rejected','failed')),
-  label        TEXT NOT NULL,
-  record_count INTEGER NOT NULL DEFAULT 0 CHECK (record_count >= 0),
-  started_at   TEXT NOT NULL,
-  completed_at TEXT,
-  note         TEXT,
-  CHECK ((status =  'pending' AND completed_at IS NULL)
-      OR (status <> 'pending' AND completed_at IS NOT NULL))
+  id                  TEXT PRIMARY KEY NOT NULL,
+  filename            TEXT,
+  status              TEXT NOT NULL
+                      CHECK (status IN ('processing','ready','done','failed')),
+  candidates_total    INTEGER CHECK (candidates_total IS NULL OR candidates_total >= 0),
+  candidates_resolved INTEGER
+                      CHECK (candidates_resolved IS NULL OR candidates_resolved >= 0),
+  created_at          TEXT NOT NULL
 )`.trim();
 
 const V1_CREATE_SCHEMA_META = `
 CREATE TABLE schema_meta (
-  key        TEXT PRIMARY KEY NOT NULL,
-  value      TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  key   TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL
 )`.trim();
 
 const V1_INDEXES: readonly string[] = [
   'CREATE INDEX ix_cooks_started_at ON cooks (started_at DESC)',
   'CREATE INDEX ix_cooks_status ON cooks (status)',
-  'CREATE INDEX ix_cook_events_cook_time ON cook_events (cook_id, occurred_at)',
+  'CREATE INDEX ix_cooks_parent ON cooks (parent_cook_id)',
+  'CREATE INDEX ix_cook_events_cook_ts ON cook_events (cook_id, ts)',
   'CREATE INDEX ix_cook_events_kind ON cook_events (kind)',
+  'CREATE INDEX ix_findings_cook ON findings (cook_id)',
   'CREATE INDEX ix_findings_status ON findings (status)',
-  'CREATE INDEX ix_finding_sources_cook ON finding_sources (cook_id)',
-  'CREATE INDEX ix_finding_sources_cook_event ON finding_sources (cook_event_id)',
+  'CREATE INDEX ix_finding_sources_event ON finding_sources (cook_event_id)',
+  'CREATE INDEX ix_lessons_cook ON lessons (cook_id)',
   'CREATE INDEX ix_lessons_status ON lessons (status)',
-  'CREATE INDEX ix_lessons_origin_finding ON lessons (origin_finding_id)',
   'CREATE INDEX ix_cook_tags_tag ON cook_tags (tag_id)',
   'CREATE INDEX ix_briefings_cook ON briefings (cook_id)',
-  'CREATE INDEX ix_briefing_sources_finding ON briefing_sources (finding_id)',
-  'CREATE INDEX ix_briefing_sources_lesson ON briefing_sources (lesson_id)',
   'CREATE INDEX ix_briefing_sources_cook ON briefing_sources (cook_id)',
   'CREATE INDEX ix_import_batches_status ON import_batches (status)',
 ];
@@ -240,22 +213,22 @@ const V1_INDEXES: readonly string[] = [
  * piece of SQL text with no runtime inputs to get wrong.
  */
 const V1_STAMP_SCHEMA_VERSION = `
-INSERT INTO schema_meta (key, value, updated_at)
-VALUES ('${SCHEMA_VERSION_KEY}', '1', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`.trim();
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '1')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
 
 const V1_STAMP_APPLIED_AT = `
-INSERT INTO schema_meta (key, value, updated_at)
-VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`.trim();
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
 
 /**
  * Every migration, in order.
  *
  * Version 1 is the whole M1 local schema: raw evidence (`cooks`,
- * `cook_events`), reviewed claims (`findings`, `lessons`) with their evidence
- * junctions, tagging, briefings with their source junction, import bookkeeping
- * and the schema metadata table.
+ * `cook_events`), proposals (`findings`, `lessons`) with the finding-to-event
+ * junction, tagging, briefings with their cook junction, import bookkeeping and
+ * the schema metadata table.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -273,9 +246,7 @@ export const MIGRATIONS: readonly Migration[] = [
       V1_CREATE_BRIEFINGS,
       V1_CREATE_BRIEFING_SOURCES,
       V1_CREATE_IMPORT_BATCHES,
-      V1_INDEX_FINDING_SOURCES_UNIQUE,
       V1_INDEX_TAGS_UNIQUE,
-      V1_INDEX_BRIEFING_SOURCES_UNIQUE,
       ...V1_INDEXES,
       V1_STAMP_SCHEMA_VERSION,
       V1_STAMP_APPLIED_AT,

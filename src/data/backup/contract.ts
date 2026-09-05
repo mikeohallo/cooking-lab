@@ -8,6 +8,15 @@
  * to that. Nothing in it is encrypted, obfuscated or specific to this install,
  * and nothing in it points at a server.
  *
+ * INDEPENDENT OF THE DATABASE KEY
+ * -------------------------------
+ * The local database is encrypted and its key never leaves the device. A backup
+ * is deliberately not: it carries no key, no key identifier and nothing derived
+ * from one, and it is built from domain records rather than from database
+ * bytes. A backup that needed the key would be unreadable on the day it was
+ * most needed — a phone that is gone — which is the one thing a backup exists
+ * to survive.
+ *
  * VERSIONING
  * ----------
  * Two versions travel together and they are not the same thing:

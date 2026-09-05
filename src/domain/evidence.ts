@@ -7,72 +7,84 @@
  * promise is enforced, in pure functions with no storage, no network and no
  * assistant of any kind in sight.
  *
- * The four rules, stated once:
+ * The rules, stated once:
  *
- *   1. Raw evidence is the cook's.  Cooks and cook events — including the
- *      verdict and the timeline — can only be written by the user. There is no
- *      assistant-authored path to them, not even a supervised one.
- *   2. The assistant may only ever propose.  A finding or lesson raised by the
- *      assistant enters as `proposed`, cites its evidence, and stops there.
- *   3. A decision is the cook's, and it is explicit.  Approval and rejection
- *      are separate operations that only the user may perform. Rejection keeps
- *      the row; nothing here deletes anything.
- *   4. The cook's own words are protected.  Once a record is approved, or has
- *      been edited by the user, the assistant cannot touch it again.
+ *   1. Raw evidence is the cook's.  The verdict and the timeline belong to the
+ *      person who cooked. The assistant may never revise either. The one thing
+ *      it may add is its own message, as an `assistant_msg` event, which it can
+ *      then never touch again.
+ *   2. The assistant hands over candidates, not rows.  An adapter returns
+ *      `AiCandidateSet` and holds no database handle; see
+ *      `src/data/adapters.ts`.
+ *   3. A candidate becomes a `proposed` finding or lesson, or it becomes
+ *      nothing. There is no approved-on-arrival path for the assistant.
+ *   4. A finding keeps its class.  `observed`, `inference` and `knowledge` are
+ *      different kinds of claim and are never flattened into one.
+ *   5. An inference may carry its reasoning and how sure it is.
+ *   6. Once the cook has approved a finding or a lesson, the assistant cannot
+ *      change it. Nor may it change one the cook wrote or rejected.
+ *   7. Rejection keeps the row. Nothing here deletes anything, and there is no
+ *      way back out of `rejected`.
+ *   8. When the cook edits a finding, the words become theirs: `createdBy`
+ *      becomes `user` and `updatedAt` is stamped.
+ *   9. A lesson has no author column, and editing one does not invent it.
+ *
+ * `provenance` never appears in any of this. It records whether a row came from
+ * live cooking or an import, and it is not a way of saying who wrote something.
  *
  * Every operation returns a decision rather than throwing, so a caller has to
  * look at the outcome, and a denial always carries a code a screen can explain.
  */
 
 import type {
+  Briefing,
   Cook,
   CookEvent,
-  CookId,
   CookEventId,
+  CookId,
   Finding,
   FindingId,
   FindingSource,
   IsoTimestamp,
+  JsonValue,
   Lesson,
   LessonId,
   PhotoLogicalPath,
-  ReviewableFacts,
 } from './entities';
 import type {
+  ConfidenceLevel,
   CookEventKind,
-  CookVerdict,
-  EvidenceStrength,
+  CreatedBy,
+  FindingClass,
+  ProposalStatus,
   Provenance,
-  ReviewStatus,
-  SourceRelation,
 } from './enums';
-import { isFindingSourceKind } from './enums';
 import { isEntityId } from './invariants';
 
 /** Who is attempting the operation. There are only ever two actors. */
-export type Actor = Provenance;
+export type Actor = CreatedBy;
 
 export type EvidenceDenialCode =
-  /** Rule 1: the assistant tried to write a cook or a cook event. */
+  /** Rule 1: the assistant tried to write or revise raw evidence. */
   | 'ai_cannot_write_raw_evidence'
-  /** Rule 2: the assistant tried to create an already-decided record. */
-  | 'ai_cannot_create_decided_record'
-  /** Rule 2: an assistant proposal arrived without evidence behind it. */
-  | 'proposal_requires_supporting_source'
-  /** Rule 2: a proposal cited something other than raw evidence. */
-  | 'proposal_source_must_be_raw_evidence'
-  /** Rule 3: the assistant tried to approve, reject or reinstate. */
-  | 'ai_cannot_decide_review_status'
-  /** Rule 3: the transition asked for is not one this record can make. */
+  /** Rule 1: the assistant tried to add a timeline entry that is not its own message. */
+  | 'ai_cannot_append_event_kind'
+  /** Rule 3: the assistant tried to create an already-decided record. */
+  | 'ai_cannot_create_approved_record'
+  /** Rule 3: an assistant claim about this cook arrived citing nothing from it. */
+  | 'candidate_requires_source_event'
+  /** Rule 3: a candidate cited something that is not an identified timeline entry. */
+  | 'candidate_source_must_be_cook_event'
+  /** Rule 6: the assistant tried to approve or reject. */
+  | 'ai_cannot_decide_status'
+  /** Rule 7: the transition asked for is not one this record can make. */
   | 'invalid_status_transition'
-  /** Rule 4: the assistant tried to change an approved record. */
+  /** Rule 6: the assistant tried to change an approved record. */
   | 'ai_cannot_update_approved_record'
-  /** Rule 4: the assistant tried to change a rejected record. */
+  /** Rule 6: the assistant tried to change a rejected record. */
   | 'ai_cannot_update_rejected_record'
-  /** Rule 4: the assistant tried to change something the user wrote. */
-  | 'ai_cannot_update_user_authored_record'
-  /** Rule 4: the assistant tried to overwrite the user's own edit. */
-  | 'ai_cannot_overwrite_user_edit';
+  /** Rule 6: the assistant tried to change something the cook wrote. */
+  | 'ai_cannot_update_user_authored_record';
 
 export type EvidenceDenial = {
   readonly allowed: false;
@@ -105,8 +117,9 @@ export function isAllowed<T>(
  * The single gate in front of every raw-evidence write.
  *
  * Deliberately not parameterised by anything except the actor: there is no
- * combination of circumstances in which the assistant may write raw evidence,
- * so there is no argument that could make this return `null` for `'ai'`.
+ * combination of circumstances in which the assistant may write the verdict or
+ * revise the timeline, so there is no argument that could make this return
+ * `null` for `'ai'`.
  */
 export function denyIfNotUser(actor: Actor, what: string): EvidenceDenial | null {
   if (actor !== 'user') {
@@ -118,17 +131,18 @@ export function denyIfNotUser(actor: Actor, what: string): EvidenceDenial | null
   return null;
 }
 
-/** The parts of a cook a user may revise after the fact. */
-export type CookPatch = {
-  readonly title?: string;
-  readonly status?: Cook['status'];
-  readonly finishedAt?: IsoTimestamp | null;
-  readonly notes?: string | null;
+export type NewCook = {
+  readonly id: CookId;
+  readonly title?: string | null;
+  /** Set when this cook follows on from an earlier one. */
+  readonly parentCookId?: CookId | null;
+  readonly startedAt: IsoTimestamp;
+  /** `imported` only on the restore path; live cooking is `live`. */
+  readonly provenance?: Provenance;
 };
 
-export function updateCook(
-  cook: Cook,
-  patch: CookPatch,
+export function createCook(
+  input: NewCook,
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Cook> {
@@ -137,27 +151,67 @@ export function updateCook(
     return denial;
   }
   return allow({
-    ...cook,
-    title: patch.title ?? cook.title,
-    status: patch.status ?? cook.status,
-    finishedAt: patch.finishedAt === undefined ? cook.finishedAt : patch.finishedAt,
-    notes: patch.notes === undefined ? cook.notes : patch.notes,
-    updatedAt: at,
+    id: input.id,
+    title: input.title ?? null,
+    status: 'open',
+    provenance: input.provenance ?? 'live',
+    parentCookId: input.parentCookId ?? null,
+    startedAt: input.startedAt,
+    reviewOpenedAt: null,
+    reviewSavedAt: null,
+    verdict: null,
+    createdAt: at,
   });
 }
 
-/**
- * Record the cook's verdict.
- *
- * Separated from `updateCook` because the verdict is the single most
- * consequential piece of evidence in the app: it is what findings are measured
- * against. Giving it its own function means the assistant's inability to set it
- * is visible in the call graph, not buried in a patch type.
- */
-export function recordCookVerdict(
+/** The parts of a cook a user may revise while it is still open. */
+export type CookPatch = {
+  readonly title?: string | null;
+  readonly parentCookId?: CookId | null;
+};
+
+export function updateCook(
   cook: Cook,
-  verdict: CookVerdict,
-  verdictNote: string | null,
+  patch: CookPatch,
+  actor: Actor,
+): EvidenceDecision<Cook> {
+  const denial = denyIfNotUser(actor, 'a cook');
+  if (denial) {
+    return denial;
+  }
+  return allow({
+    ...cook,
+    title: patch.title === undefined ? cook.title : patch.title,
+    parentCookId: patch.parentCookId === undefined ? cook.parentCookId : patch.parentCookId,
+  });
+}
+
+/** Note that the cook has started looking back over this cook. */
+export function openCookReview(
+  cook: Cook,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<Cook> {
+  const denial = denyIfNotUser(actor, 'a review');
+  if (denial) {
+    return denial;
+  }
+  return allow({ ...cook, reviewOpenedAt: cook.reviewOpenedAt ?? at });
+}
+
+/**
+ * Save the review, verdict and all.
+ *
+ * The verdict is stored exactly as it was typed — not trimmed, not cased, not
+ * mapped onto a scale. It is the single most consequential thing in the app:
+ * it is what every claim is ultimately measured against, and the moment the app
+ * starts tidying it up it has started editing the evidence. Giving it its own
+ * function means the assistant's inability to set it is visible in the call
+ * graph rather than buried in a patch type.
+ */
+export function saveCookReview(
+  cook: Cook,
+  verdict: string | null,
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Cook> {
@@ -167,55 +221,56 @@ export function recordCookVerdict(
   }
   return allow({
     ...cook,
+    status: 'reviewed',
+    reviewOpenedAt: cook.reviewOpenedAt ?? at,
+    reviewSavedAt: at,
     verdict,
-    // An unrated cook cannot carry a verdict note; see `validateCook`.
-    verdictNote: verdict === 'unrated' ? null : verdictNote,
-    updatedAt: at,
   });
 }
 
 export type NewCookEvent = {
   readonly id: CookEventId;
   readonly cookId: CookId;
+  readonly ts: IsoTimestamp;
   readonly kind: CookEventKind;
-  readonly occurredAt: IsoTimestamp;
-  readonly offsetSeconds?: number | null;
-  readonly label?: string | null;
-  readonly text?: string | null;
-  readonly numericValue?: number | null;
-  readonly unit?: string | null;
+  readonly body?: string | null;
+  readonly meta?: JsonValue | null;
   readonly photoPath?: PhotoLogicalPath | null;
 };
 
-export function createCookEvent(
+/**
+ * Add a timeline entry.
+ *
+ * The assistant may add exactly one kind of entry — `assistant_msg`, the record
+ * of what it itself said — and nothing else. It cannot record a note, a
+ * temperature, a photograph or a plan on the cook's behalf, because those are
+ * observations and the assistant did not observe anything. Having said
+ * something, it can never edit or remove the entry: see `updateCookEvent`.
+ */
+export function appendCookEvent(
   input: NewCookEvent,
   actor: Actor,
-  at: IsoTimestamp,
 ): EvidenceDecision<CookEvent> {
-  const denial = denyIfNotUser(actor, 'a timeline entry');
-  if (denial) {
-    return denial;
+  if (actor !== 'user' && input.kind !== 'assistant_msg') {
+    return deny(
+      'ai_cannot_append_event_kind',
+      'the assistant may only add its own message to the timeline',
+    );
   }
   return allow({
     id: input.id,
     cookId: input.cookId,
+    ts: input.ts,
     kind: input.kind,
-    occurredAt: input.occurredAt,
-    offsetSeconds: input.offsetSeconds ?? null,
-    label: input.label ?? null,
-    text: input.text ?? null,
-    numericValue: input.numericValue ?? null,
-    unit: input.unit ?? null,
+    body: input.body ?? null,
+    meta: input.meta ?? null,
     photoPath: input.photoPath ?? null,
-    createdAt: at,
   });
 }
 
 export type CookEventPatch = {
-  readonly label?: string | null;
-  readonly text?: string | null;
-  readonly numericValue?: number | null;
-  readonly unit?: string | null;
+  readonly body?: string | null;
+  readonly meta?: JsonValue | null;
 };
 
 export function updateCookEvent(
@@ -229,162 +284,145 @@ export function updateCookEvent(
   }
   return allow({
     ...event,
-    label: patch.label === undefined ? event.label : patch.label,
-    text: patch.text === undefined ? event.text : patch.text,
-    numericValue: patch.numericValue === undefined ? event.numericValue : patch.numericValue,
-    unit: patch.unit === undefined ? event.unit : patch.unit,
+    body: patch.body === undefined ? event.body : patch.body,
+    meta: patch.meta === undefined ? event.meta : patch.meta,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Evidence strength
+// Rules 2 to 5 — candidates become proposals, and nothing else
 // ---------------------------------------------------------------------------
 
 /**
- * How much cooking stands behind a finding.
+ * What an assistant adapter is allowed to hand back.
  *
- * Only supporting sources count, and only distinct ones: citing the same cook
- * twice is one cook's worth of evidence, however it was recorded.
+ * A candidate is not a row: it has no status, no `createdBy`, no `provenance`
+ * and no timestamps. Those are decided here, by code the assistant does not
+ * run, which is why there is no shape a candidate could take that turns into an
+ * approved finding.
  */
-export function deriveEvidenceStrength(
-  sources: readonly FindingSource[],
-): EvidenceStrength {
-  const supporting = new Set<string>();
-  for (const source of sources) {
-    if (source.relation !== 'supports') {
-      continue;
-    }
-    const ref = source.sourceKind === 'cook' ? source.cookId : source.cookEventId;
-    if (ref !== null) {
-      supporting.add(`${source.sourceKind}:${ref}`);
-    }
-  }
-  if (supporting.size === 0) {
-    return 'unsupported';
-  }
-  if (supporting.size === 1) {
-    return 'single';
-  }
-  if (supporting.size === 2) {
-    return 'corroborated';
-  }
-  return 'strong';
-}
-
-// ---------------------------------------------------------------------------
-// Rule 2 — the assistant may only propose
-// ---------------------------------------------------------------------------
-
-/** A citation of raw evidence, as offered with a proposal. */
-export type ProposedSource = {
-  readonly sourceKind: 'cook' | 'cook_event';
-  readonly sourceId: CookId | CookEventId;
-  readonly relation: SourceRelation;
+export type FindingCandidate = {
+  readonly cookId: CookId;
+  readonly class: FindingClass;
+  readonly text: string;
+  readonly rationale?: string | null;
+  readonly confidence?: ConfidenceLevel | null;
+  /** The timeline entries this claim was read out of. */
+  readonly sourceEventIds: readonly CookEventId[];
 };
 
-export type FindingProposal = {
-  readonly id: FindingId;
-  readonly title: string;
-  readonly detail: string | null;
-  readonly sources: readonly ProposedSource[];
+export type LessonCandidate = {
+  readonly cookId: CookId;
+  readonly text: string;
 };
 
-/** A proposal becomes a finding *and* its citations, together or not at all. */
-export type AppliedFindingProposal = {
+export type AiCandidateSet = {
+  readonly findings: readonly FindingCandidate[];
+  readonly lessons: readonly LessonCandidate[];
+};
+
+/** A finding and its citations arrive together or not at all. */
+export type AppliedFinding = {
   readonly finding: Finding;
   readonly sources: readonly FindingSource[];
 };
 
 /**
+ * A claim about what was cooked has to come from something that was recorded.
+ *
+ * `knowledge` is the exception, and only that: general cooking knowledge is not
+ * a reading of this kitchen's timeline and does not pretend to cite it.
+ */
+function requiresSourceEvents(findingClass: FindingClass): boolean {
+  return findingClass !== 'knowledge';
+}
+
+export type FindingIdentity = {
+  readonly id: FindingId;
+  /** `imported` only on the restore path. */
+  readonly provenance?: Provenance;
+};
+
+/**
  * The only way an assistant candidate enters the database.
  *
- * Note what this function cannot express: there is no status argument, no
- * `approved` shortcut and no way to attach a citation to anything other than a
- * cook or a cook event. An assistant proposal that carries no supporting
- * evidence is refused outright — a claim about cooking has to come from cooking.
+ * Note what this function cannot express: there is no status argument and no
+ * approved shortcut. The class the assistant assigned is carried through
+ * untouched, as are its reasoning and its confidence — a claim that arrives as
+ * a low-confidence inference is stored as one.
  */
-export function applyFindingProposal(
-  proposal: FindingProposal,
+export function applyFindingCandidate(
+  candidate: FindingCandidate,
+  identity: FindingIdentity,
   actor: Actor,
   at: IsoTimestamp,
-): EvidenceDecision<AppliedFindingProposal> {
-  const supporting = proposal.sources.filter((source) => source.relation === 'supports');
-  if (actor === 'ai' && supporting.length === 0) {
+): EvidenceDecision<AppliedFinding> {
+  if (actor === 'ai' && requiresSourceEvents(candidate.class) && candidate.sourceEventIds.length === 0) {
     return deny(
-      'proposal_requires_supporting_source',
-      'an assistant proposal must cite at least one supporting cook or cook event',
+      'candidate_requires_source_event',
+      `an assistant ${candidate.class} finding must cite at least one timeline entry`,
     );
   }
-  for (const source of proposal.sources) {
-    // Proposals arrive from outside the type system, so the citation is checked
-    // rather than assumed: a finding may only ever point at raw evidence.
-    if (!isFindingSourceKind(source.sourceKind) || !isEntityId(source.sourceId)) {
+  for (const eventId of candidate.sourceEventIds) {
+    // Candidates arrive from outside the type system, so the citation is
+    // checked rather than assumed.
+    if (!isEntityId(eventId)) {
       return deny(
-        'proposal_source_must_be_raw_evidence',
-        'a finding may only cite an identified cook or cook event',
+        'candidate_source_must_be_cook_event',
+        'a finding may only cite an identified timeline entry',
       );
     }
   }
 
-  const sources: readonly FindingSource[] = proposal.sources.map((source) => ({
-    findingId: proposal.id,
-    sourceKind: source.sourceKind,
-    cookId: source.sourceKind === 'cook' ? source.sourceId : null,
-    cookEventId: source.sourceKind === 'cook_event' ? source.sourceId : null,
-    relation: source.relation,
-    createdAt: at,
+  const sources: readonly FindingSource[] = candidate.sourceEventIds.map((cookEventId) => ({
+    findingId: identity.id,
+    cookEventId,
   }));
 
   return allow({
     finding: {
-      id: proposal.id,
-      title: proposal.title,
-      detail: proposal.detail,
-      evidenceStrength: deriveEvidenceStrength(sources),
+      id: identity.id,
+      cookId: candidate.cookId,
+      class: candidate.class,
+      text: candidate.text,
+      rationale: candidate.rationale ?? null,
+      confidence: candidate.confidence ?? null,
       status: 'proposed',
       createdBy: actor,
-      userEdited: false,
+      provenance: identity.provenance ?? 'live',
       createdAt: at,
-      updatedAt: at,
-      decidedAt: null,
+      updatedAt: null,
     },
     sources,
   });
 }
 
-export type LessonProposal = {
+export type LessonIdentity = {
   readonly id: LessonId;
-  readonly title: string;
-  readonly guidance: string;
-  /** The finding this generalises. Required of assistant proposals. */
-  readonly originFindingId: FindingId | null;
+  readonly provenance?: Provenance;
 };
 
-export function applyLessonProposal(
-  proposal: LessonProposal,
-  actor: Actor,
+/**
+ * A lesson candidate becomes a proposed lesson.
+ *
+ * There is no actor parameter because there is nothing for it to change: a
+ * lesson has no author column, and a lesson from either actor enters as
+ * `proposed` and waits for the cook. Nor is a lesson required to generalise a
+ * finding — advice for next time can stand on the cook itself.
+ */
+export function applyLessonCandidate(
+  candidate: LessonCandidate,
+  identity: LessonIdentity,
   at: IsoTimestamp,
 ): EvidenceDecision<Lesson> {
-  // A lesson is advice for the next cook. When the assistant offers one it must
-  // be traceable to an approved finding, so the chain back to real cooking is
-  // never broken.
-  if (actor === 'ai' && proposal.originFindingId === null) {
-    return deny(
-      'proposal_requires_supporting_source',
-      'an assistant lesson must generalise a finding',
-    );
-  }
   return allow({
-    id: proposal.id,
-    title: proposal.title,
-    guidance: proposal.guidance,
-    originFindingId: proposal.originFindingId,
+    id: identity.id,
+    cookId: candidate.cookId,
+    text: candidate.text,
     status: 'proposed',
-    createdBy: actor,
-    userEdited: false,
+    provenance: identity.provenance ?? 'live',
     createdAt: at,
-    updatedAt: at,
-    decidedAt: null,
+    updatedAt: null,
   });
 }
 
@@ -396,120 +434,126 @@ export function applyLessonProposal(
  * model, and failing loudly is the point.
  */
 export function createUserFinding(
-  input: {
-    readonly id: FindingId;
-    readonly title: string;
-    readonly detail: string | null;
-    readonly sources: readonly ProposedSource[];
-  },
+  candidate: FindingCandidate,
+  identity: FindingIdentity,
   actor: Actor,
   at: IsoTimestamp,
-): EvidenceDecision<AppliedFindingProposal> {
+): EvidenceDecision<AppliedFinding> {
   if (actor !== 'user') {
     return deny(
-      'ai_cannot_create_decided_record',
+      'ai_cannot_create_approved_record',
       'the assistant may only propose; it cannot enter an approved finding',
     );
   }
-  const applied = applyFindingProposal(
-    { id: input.id, title: input.title, detail: input.detail, sources: input.sources },
-    'user',
-    at,
-  );
+  const applied = applyFindingCandidate(candidate, identity, 'user', at);
   if (!applied.allowed) {
     return applied;
   }
   return allow({
-    finding: {
-      ...applied.record.finding,
-      status: 'approved',
-      decidedAt: at,
-    },
+    finding: { ...applied.record.finding, status: 'approved' },
     sources: applied.record.sources,
   });
 }
 
 export function createUserLesson(
-  input: {
-    readonly id: LessonId;
-    readonly title: string;
-    readonly guidance: string;
-    readonly originFindingId: FindingId | null;
-  },
+  candidate: LessonCandidate,
+  identity: LessonIdentity,
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Lesson> {
   if (actor !== 'user') {
     return deny(
-      'ai_cannot_create_decided_record',
+      'ai_cannot_create_approved_record',
       'the assistant may only propose; it cannot enter an approved lesson',
     );
   }
-  const applied = applyLessonProposal(input, 'user', at);
+  const applied = applyLessonCandidate(candidate, identity, at);
   if (!applied.allowed) {
     return applied;
   }
-  return allow({ ...applied.record, status: 'approved', decidedAt: at });
+  return allow({ ...applied.record, status: 'approved' });
 }
 
 // ---------------------------------------------------------------------------
-// Rule 4 — the cook's own words are protected
+// Rules 6, 8 and 9 — the cook's own words are protected
 // ---------------------------------------------------------------------------
 
 /**
- * Whether `actor` may revise this reviewable record at all.
+ * Whether `actor` may revise this finding at all.
  *
  * Returns the denial rather than a boolean so the caller can report *which*
  * protection stopped it; the codes are distinct because the remedies are
- * different (approve it yourself, reinstate it, or write it yourself).
+ * different.
  */
-export function authoriseReviewableUpdate(
-  record: ReviewableFacts,
+export function authoriseFindingUpdate(
+  finding: Pick<Finding, 'status' | 'createdBy'>,
   actor: Actor,
 ): EvidenceDenial | null {
   if (actor === 'user') {
     return null;
   }
-  if (record.status === 'approved') {
+  if (finding.status === 'approved') {
     return deny(
       'ai_cannot_update_approved_record',
-      'an approved record has been accepted by the cook and the assistant cannot change it',
+      'an approved finding has been accepted by the cook and the assistant cannot change it',
     );
   }
-  if (record.status === 'rejected') {
+  if (finding.status === 'rejected') {
     return deny(
       'ai_cannot_update_rejected_record',
-      'a rejected record is kept as a record of the rejection and cannot be revised by the assistant',
+      'a rejected finding is kept as a record of the rejection and cannot be revised by the assistant',
     );
   }
-  if (record.createdBy === 'user') {
+  if (finding.createdBy === 'user') {
     return deny(
       'ai_cannot_update_user_authored_record',
       'the assistant cannot revise something the cook wrote',
     );
   }
-  if (record.userEdited) {
+  return null;
+}
+
+/** A lesson has no author column, so only its status protects it. */
+export function authoriseLessonUpdate(
+  lesson: Pick<Lesson, 'status'>,
+  actor: Actor,
+): EvidenceDenial | null {
+  if (actor === 'user') {
+    return null;
+  }
+  if (lesson.status === 'approved') {
     return deny(
-      'ai_cannot_overwrite_user_edit',
-      'the cook has edited this record; the assistant cannot overwrite their words',
+      'ai_cannot_update_approved_record',
+      'an approved lesson has been accepted by the cook and the assistant cannot change it',
+    );
+  }
+  if (lesson.status === 'rejected') {
+    return deny(
+      'ai_cannot_update_rejected_record',
+      'a rejected lesson is kept as a record of the rejection and cannot be revised by the assistant',
     );
   }
   return null;
 }
 
 export type FindingPatch = {
-  readonly title?: string;
-  readonly detail?: string | null;
+  readonly text?: string;
+  readonly rationale?: string | null;
+  readonly confidence?: ConfidenceLevel | null;
+  readonly class?: FindingClass;
 };
 
 /**
  * Revise a finding's wording.
  *
- * The patch type cannot carry `status`, `decidedAt`, `createdBy` or
- * `userEdited`: a status change is a decision, and decisions go through
- * `decideFinding`. A user edit is stamped as such, which is what keeps
- * "the cook rewrote this" distinguishable from "the cook accepted it as
- * written" for the rest of the record's life.
+ * When the cook edits it, the finding becomes theirs: `createdBy` becomes
+ * `user`. That is not bookkeeping — it is the answer to "who wrote the words
+ * that are on the screen now", and after an edit the answer is the cook. It
+ * also means the assistant can never touch the record again, because rule 6
+ * refuses it a user-authored record.
+ *
+ * The patch cannot carry `status`: a status change is a decision, and decisions
+ * go through `decideFinding`.
  */
 export function updateFinding(
   finding: Finding,
@@ -517,109 +561,90 @@ export function updateFinding(
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Finding> {
-  const denial = authoriseReviewableUpdate(finding, actor);
+  const denial = authoriseFindingUpdate(finding, actor);
   if (denial) {
     return denial;
   }
   return allow({
     ...finding,
-    title: patch.title ?? finding.title,
-    detail: patch.detail === undefined ? finding.detail : patch.detail,
-    userEdited: actor === 'user' ? true : finding.userEdited,
+    class: patch.class ?? finding.class,
+    text: patch.text ?? finding.text,
+    rationale: patch.rationale === undefined ? finding.rationale : patch.rationale,
+    confidence: patch.confidence === undefined ? finding.confidence : patch.confidence,
+    createdBy: actor === 'user' ? 'user' : finding.createdBy,
     updatedAt: at,
   });
 }
 
 export type LessonPatch = {
-  readonly title?: string;
-  readonly guidance?: string;
+  readonly text?: string;
 };
 
+/**
+ * Revise a lesson's wording.
+ *
+ * A lesson has `text`, `status`, `provenance` and its timestamps, and an edit
+ * touches the first and the last. There is no author column to update and none
+ * is invented here.
+ */
 export function updateLesson(
   lesson: Lesson,
   patch: LessonPatch,
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Lesson> {
-  const denial = authoriseReviewableUpdate(lesson, actor);
+  const denial = authoriseLessonUpdate(lesson, actor);
   if (denial) {
     return denial;
   }
   return allow({
     ...lesson,
-    title: patch.title ?? lesson.title,
-    guidance: patch.guidance ?? lesson.guidance,
-    userEdited: actor === 'user' ? true : lesson.userEdited,
+    text: patch.text ?? lesson.text,
     updatedAt: at,
   });
 }
 
-/**
- * Recompute a finding's strength after its citations changed.
- *
- * Permitted for either actor because it asserts nothing new: the value is a
- * function of rows that already exist, and the wording is untouched.
- */
-export function refreshEvidenceStrength(
-  finding: Finding,
-  sources: readonly FindingSource[],
-  at: IsoTimestamp,
-): Finding {
-  return {
-    ...finding,
-    evidenceStrength: deriveEvidenceStrength(
-      sources.filter((source) => source.findingId === finding.id),
-    ),
-    updatedAt: at,
-  };
-}
-
 // ---------------------------------------------------------------------------
-// Rule 3 — decisions are the cook's, and they are explicit
+// Rule 7 — decisions are the cook's, and rejection keeps the row
 // ---------------------------------------------------------------------------
 
-export type ReviewDecision = 'approve' | 'reject' | 'reinstate';
+export type ReviewDecision = 'approve' | 'reject';
 
 /**
- * The complete set of permitted review transitions.
+ * The complete set of permitted transitions.
  *
- * `rejected -> proposed` exists because a rejection is a judgement, not a
- * deletion, and the cook is allowed to change their mind. There is no
- * transition that removes a row, and no transition any actor but the user can
- * cause.
+ * There is no way out of `rejected`. A rejected claim stays rejected and stays
+ * on file: it is the record of a judgement the cook made, and re-opening it
+ * would turn that record into a suggestion the app can keep making.
  */
-type TransitionTable = Readonly<Record<ReviewStatus, ReviewStatus | null>>;
+type TransitionTable = Readonly<Record<ProposalStatus, ProposalStatus | null>>;
 
 const REVIEW_TRANSITIONS: Readonly<Record<ReviewDecision, TransitionTable>> = {
   approve: { proposed: 'approved', approved: null, rejected: null },
   reject: { proposed: 'rejected', approved: 'rejected', rejected: null },
-  reinstate: { proposed: null, approved: null, rejected: 'proposed' },
 };
 
 /** The status a decision would produce, or a denial explaining why it cannot. */
-function resolveReviewTransition(
-  record: ReviewableFacts,
+function resolveTransition(
+  status: ProposalStatus,
   decision: ReviewDecision,
   actor: Actor,
-): EvidenceDecision<ReviewStatus> {
+): EvidenceDecision<ProposalStatus> {
   if (actor !== 'user') {
     return deny(
-      'ai_cannot_decide_review_status',
-      'only the cook may approve, reject or reinstate a record',
+      'ai_cannot_decide_status',
+      'only the cook may approve or reject a proposal',
     );
   }
-  const next = REVIEW_TRANSITIONS[decision][record.status];
+  const next = REVIEW_TRANSITIONS[decision][status];
   if (next === null) {
-    return deny(
-      'invalid_status_transition',
-      `a ${record.status} record cannot be ${decision}d`,
-    );
+    return deny('invalid_status_transition', `a ${status} record cannot be ${decision}d`);
   }
   return allow(next);
 }
 
 /**
- * Approve, reject or reinstate a finding.
+ * Approve or reject a finding.
  *
  * Rejection keeps every other field, the id included, so the row survives and
  * the finding's citations — which live in `finding_sources` and are not touched
@@ -631,17 +656,11 @@ export function decideFinding(
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Finding> {
-  const transition = resolveReviewTransition(finding, decision, actor);
+  const transition = resolveTransition(finding.status, decision, actor);
   if (!transition.allowed) {
     return transition;
   }
-  const status = transition.record;
-  return allow({
-    ...finding,
-    status,
-    decidedAt: status === 'proposed' ? null : at,
-    updatedAt: at,
-  });
+  return allow({ ...finding, status: transition.record, updatedAt: at });
 }
 
 export function decideLesson(
@@ -650,15 +669,31 @@ export function decideLesson(
   actor: Actor,
   at: IsoTimestamp,
 ): EvidenceDecision<Lesson> {
-  const transition = resolveReviewTransition(lesson, decision, actor);
+  const transition = resolveTransition(lesson.status, decision, actor);
   if (!transition.allowed) {
     return transition;
   }
-  const status = transition.record;
-  return allow({
-    ...lesson,
-    status,
-    decidedAt: status === 'proposed' ? null : at,
-    updatedAt: at,
-  });
+  return allow({ ...lesson, status: transition.record, updatedAt: at });
+}
+
+// ---------------------------------------------------------------------------
+// Briefings
+// ---------------------------------------------------------------------------
+
+/**
+ * Record whether a briefing was any use.
+ *
+ * The cook's, like the verdict: it is feedback about the app's advice, and the
+ * app answering on their behalf would make the answer worthless.
+ */
+export function recordBriefingUsefulness(
+  briefing: Briefing,
+  useful: boolean | null,
+  actor: Actor,
+): EvidenceDecision<Briefing> {
+  const denial = denyIfNotUser(actor, 'briefing feedback');
+  if (denial) {
+    return denial;
+  }
+  return allow({ ...briefing, useful });
 }

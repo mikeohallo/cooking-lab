@@ -8,11 +8,13 @@
  *
  * Two principles run through all of it:
  *
- *   Thin records are valid.  A cook with nothing but a title and a start time
- *   is a real cook. Validation rejects malformed data, never sparse data.
+ *   Thin records are valid.  A cook with nothing but a start time is a real
+ *   cook — it has no title yet and no verdict, and neither is a defect.
+ *   Validation rejects malformed data, never sparse data.
  *
  *   Validation never mutates.  Every function returns issues; nothing here
- *   repairs, defaults or truncates on the caller's behalf.
+ *   repairs, defaults or truncates on the caller's behalf. In particular the
+ *   verdict is never trimmed, cased or rewritten: it is the cook's own words.
  */
 
 import type {
@@ -26,26 +28,22 @@ import type {
   FindingSource,
   ImportBatch,
   IsoTimestamp,
+  JsonValue,
   Lesson,
   SchemaMeta,
   Tag,
 } from './entities';
-import { briefingSourceRef, findingSourceRef } from './entities';
 import {
-  isBriefingSourceKind,
-  isBriefingStatus,
+  TEMPERATURE_META_KEY,
+  isConfidenceLevel,
   isCookEventKind,
   isCookStatus,
-  isCookVerdict,
-  isEvidenceStrength,
-  isFindingSourceKind,
-  isImportBatchOrigin,
+  isCreatedBy,
+  isFindingClass,
   isImportBatchStatus,
+  isProposalStatus,
   isProvenance,
-  isReviewStatus,
-  isSourceRelation,
   isTagKind,
-  isTemperatureUnit,
 } from './enums';
 
 /** Longest permitted title-like field. */
@@ -54,6 +52,8 @@ export const MAX_TITLE_LENGTH = 200;
 export const MAX_TEXT_LENGTH = 8000;
 /** Longest permitted tag name. */
 export const MAX_TAG_NAME_LENGTH = 60;
+/** Longest permitted file name on an import batch. */
+export const MAX_FILENAME_LENGTH = 255;
 
 export type ValidationCode =
   | 'invalid_id'
@@ -63,6 +63,7 @@ export type ValidationCode =
   | 'invalid_timestamp'
   | 'out_of_order'
   | 'invalid_number'
+  | 'invalid_json'
   | 'invalid_relation'
   | 'inconsistent_state';
 
@@ -91,11 +92,65 @@ export function isIsoTimestamp(value: unknown): value is IsoTimestamp {
 }
 
 /**
+ * Whether a value survives a round trip through JSON unchanged.
+ *
+ * `undefined`, functions, `NaN` and cycles all serialise to something other
+ * than themselves, so a column typed as structured data refuses them rather
+ * than storing a value that will come back different.
+ */
+export function isJsonValue(value: unknown, seen: ReadonlySet<object> = new Set()): value is JsonValue {
+  if (value === null) {
+    return true;
+  }
+  const type = typeof value;
+  if (type === 'string' || type === 'boolean') {
+    return true;
+  }
+  if (type === 'number') {
+    return Number.isFinite(value as number);
+  }
+  if (type !== 'object') {
+    return false;
+  }
+  const object = value as object;
+  if (seen.has(object)) {
+    return false;
+  }
+  const nested = new Set(seen).add(object);
+  if (Array.isArray(object)) {
+    return object.every((entry) => isJsonValue(entry, nested));
+  }
+  if (Object.getPrototypeOf(object) !== Object.prototype) {
+    // A Date, Map or class instance is not JSON, however it stringifies.
+    return false;
+  }
+  return Object.values(object as Record<string, unknown>).every((entry) =>
+    isJsonValue(entry, nested),
+  );
+}
+
+/**
  * Tag names are stored normalised so `(name, kind)` uniqueness means what a
  * cook would expect: " Brown  Butter " and "brown butter" are one tag.
  */
 export function normaliseTagName(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * The Celsius reading a `temp` event carries, or `null` if it carries none.
+ *
+ * There is one unit and one key. A reading in any other unit is not a reading
+ * this app understands, and converting one on the cook's behalf would silently
+ * change what they wrote down.
+ */
+export function celsiusFromEvent(event: CookEvent): number | null {
+  const meta = event.meta;
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return null;
+  }
+  const reading = (meta as Record<string, unknown>)[TEMPERATURE_META_KEY];
+  return typeof reading === 'number' && Number.isFinite(reading) ? reading : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +235,17 @@ function checkEnum(
   }
 }
 
+function checkOptionalEnum(
+  field: string,
+  value: unknown,
+  guard: (candidate: unknown) => boolean,
+  issues: ValidationIssue[],
+): void {
+  if (value !== null && !guard(value)) {
+    issues.push(issue(field, 'invalid_enum', `${field} is not a recognised value`));
+  }
+}
+
 function checkOrder(
   earlierField: string,
   earlier: unknown,
@@ -197,6 +263,15 @@ function checkOrder(
   }
 }
 
+function checkOptionalCount(field: string, value: unknown, issues: ValidationIssue[]): void {
+  if (value === null) {
+    return;
+  }
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    issues.push(issue(field, 'invalid_number', `${field} must be a non-negative integer or null`));
+  }
+}
+
 /** True when a validation run produced no issues. */
 export function isValid(issues: readonly ValidationIssue[]): boolean {
   return issues.length === 0;
@@ -210,34 +285,42 @@ export function validateCook(cook: Cook): readonly ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   checkId('id', cook.id, issues);
-  checkRequiredText('title', cook.title, MAX_TITLE_LENGTH, issues);
+  checkOptionalText('title', cook.title, MAX_TITLE_LENGTH, issues);
   checkEnum('status', cook.status, isCookStatus, issues);
-  checkEnum('verdict', cook.verdict, isCookVerdict, issues);
+  checkEnum('provenance', cook.provenance, isProvenance, issues);
+  checkOptionalId('parentCookId', cook.parentCookId, issues);
   checkTimestamp('startedAt', cook.startedAt, issues);
-  checkOptionalTimestamp('finishedAt', cook.finishedAt, issues);
+  checkOptionalTimestamp('reviewOpenedAt', cook.reviewOpenedAt, issues);
+  checkOptionalTimestamp('reviewSavedAt', cook.reviewSavedAt, issues);
   checkTimestamp('createdAt', cook.createdAt, issues);
-  checkTimestamp('updatedAt', cook.updatedAt, issues);
-  checkOptionalText('verdictNote', cook.verdictNote, MAX_TEXT_LENGTH, issues);
-  checkOptionalText('notes', cook.notes, MAX_TEXT_LENGTH, issues);
-  checkOrder('startedAt', cook.startedAt, 'finishedAt', cook.finishedAt, issues);
-  checkOrder('createdAt', cook.createdAt, 'updatedAt', cook.updatedAt, issues);
+  checkOrder('startedAt', cook.startedAt, 'reviewOpenedAt', cook.reviewOpenedAt, issues);
+  checkOrder('startedAt', cook.startedAt, 'reviewSavedAt', cook.reviewSavedAt, issues);
+  checkOrder('reviewOpenedAt', cook.reviewOpenedAt, 'reviewSavedAt', cook.reviewSavedAt, issues);
 
-  // A finished cook has a finish time; an unfinished one does not pretend to.
-  if (cook.status === 'complete' && cook.finishedAt === null) {
+  // The verdict is free text and is checked for nothing but being text of a
+  // sane length. No vocabulary, no default, no trimming.
+  if (cook.verdict !== null) {
+    if (typeof cook.verdict !== 'string') {
+      issues.push(issue('verdict', 'required', 'verdict must be text or null'));
+    } else if (cook.verdict.length > MAX_TEXT_LENGTH) {
+      issues.push(
+        issue('verdict', 'too_long', `verdict must be at most ${MAX_TEXT_LENGTH} characters`),
+      );
+    }
+  }
+
+  if (cook.status === 'reviewed' && cook.reviewSavedAt === null) {
     issues.push(
-      issue('finishedAt', 'inconsistent_state', 'a complete cook must record when it ended'),
+      issue('reviewSavedAt', 'inconsistent_state', 'a reviewed cook must record when it was reviewed'),
     );
   }
-  if (cook.status === 'planned' && cook.finishedAt !== null) {
+  if (cook.status === 'open' && cook.reviewSavedAt !== null) {
     issues.push(
-      issue('finishedAt', 'inconsistent_state', 'a planned cook cannot have already ended'),
+      issue('reviewSavedAt', 'inconsistent_state', 'an open cook has not had its review saved'),
     );
   }
-  // A verdict note without a verdict is a judgement with no judgement attached.
-  if (cook.verdict === 'unrated' && cook.verdictNote !== null) {
-    issues.push(
-      issue('verdictNote', 'inconsistent_state', 'a verdict note requires a verdict'),
-    );
+  if (cook.parentCookId !== null && cook.parentCookId === cook.id) {
+    issues.push(issue('parentCookId', 'invalid_relation', 'a cook cannot follow on from itself'));
   }
 
   return issues;
@@ -248,31 +331,20 @@ export function validateCookEvent(event: CookEvent): readonly ValidationIssue[] 
 
   checkId('id', event.id, issues);
   checkId('cookId', event.cookId, issues);
+  checkTimestamp('ts', event.ts, issues);
   checkEnum('kind', event.kind, isCookEventKind, issues);
-  checkTimestamp('occurredAt', event.occurredAt, issues);
-  checkTimestamp('createdAt', event.createdAt, issues);
-  checkOptionalText('label', event.label, MAX_TITLE_LENGTH, issues);
-  checkOptionalText('text', event.text, MAX_TEXT_LENGTH, issues);
+  checkOptionalText('body', event.body, MAX_TEXT_LENGTH, issues);
 
-  if (event.offsetSeconds !== null && !Number.isFinite(event.offsetSeconds)) {
-    issues.push(issue('offsetSeconds', 'invalid_number', 'offsetSeconds must be a number'));
-  }
-  if (event.numericValue !== null && !Number.isFinite(event.numericValue)) {
-    issues.push(issue('numericValue', 'invalid_number', 'numericValue must be a number'));
+  if (event.meta !== null && !isJsonValue(event.meta)) {
+    issues.push(issue('meta', 'invalid_json', 'meta must be JSON-compatible or null'));
   }
 
-  if (event.kind === 'temperature') {
-    if (event.numericValue === null) {
-      issues.push(
-        issue('numericValue', 'required', 'a temperature event must record a temperature'),
-      );
-    }
-    if (!isTemperatureUnit(event.unit)) {
-      issues.push(issue('unit', 'invalid_enum', 'a temperature event must record c or f'));
-    }
-  }
-  if (event.kind === 'timing' && event.numericValue === null) {
-    issues.push(issue('numericValue', 'required', 'a timing event must record a duration'));
+  // A temperature event exists to record a number of degrees Celsius. One
+  // without one is an event whose whole purpose is missing.
+  if (event.kind === 'temp' && celsiusFromEvent(event) === null) {
+    issues.push(
+      issue('meta', 'required', `a temp event must record meta.${TEMPERATURE_META_KEY}`),
+    );
   }
 
   // Photo references live on photo events and nowhere else, so a photo can
@@ -290,45 +362,24 @@ export function validateCookEvent(event: CookEvent): readonly ValidationIssue[] 
 }
 
 // ---------------------------------------------------------------------------
-// Reviewable claims
+// Proposals
 // ---------------------------------------------------------------------------
-
-function checkReviewableFacts(
-  record: Finding | Lesson,
-  issues: ValidationIssue[],
-): void {
-  checkEnum('status', record.status, isReviewStatus, issues);
-  checkEnum('createdBy', record.createdBy, isProvenance, issues);
-  checkTimestamp('createdAt', record.createdAt, issues);
-  checkTimestamp('updatedAt', record.updatedAt, issues);
-  checkOptionalTimestamp('decidedAt', record.decidedAt, issues);
-  checkOrder('createdAt', record.createdAt, 'updatedAt', record.updatedAt, issues);
-  checkOrder('createdAt', record.createdAt, 'decidedAt', record.decidedAt, issues);
-
-  if (typeof record.userEdited !== 'boolean') {
-    issues.push(issue('userEdited', 'required', 'userEdited must be true or false'));
-  }
-  // A decision leaves a timestamp behind, and an undecided record carries none.
-  if (record.status === 'proposed' && record.decidedAt !== null) {
-    issues.push(
-      issue('decidedAt', 'inconsistent_state', 'a proposed record has not been decided'),
-    );
-  }
-  if (record.status !== 'proposed' && record.decidedAt === null) {
-    issues.push(
-      issue('decidedAt', 'inconsistent_state', 'a decided record must record when'),
-    );
-  }
-}
 
 export function validateFinding(finding: Finding): readonly ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   checkId('id', finding.id, issues);
-  checkRequiredText('title', finding.title, MAX_TITLE_LENGTH, issues);
-  checkOptionalText('detail', finding.detail, MAX_TEXT_LENGTH, issues);
-  checkEnum('evidenceStrength', finding.evidenceStrength, isEvidenceStrength, issues);
-  checkReviewableFacts(finding, issues);
+  checkId('cookId', finding.cookId, issues);
+  checkEnum('class', finding.class, isFindingClass, issues);
+  checkRequiredText('text', finding.text, MAX_TEXT_LENGTH, issues);
+  checkOptionalText('rationale', finding.rationale, MAX_TEXT_LENGTH, issues);
+  checkOptionalEnum('confidence', finding.confidence, isConfidenceLevel, issues);
+  checkEnum('status', finding.status, isProposalStatus, issues);
+  checkEnum('createdBy', finding.createdBy, isCreatedBy, issues);
+  checkEnum('provenance', finding.provenance, isProvenance, issues);
+  checkTimestamp('createdAt', finding.createdAt, issues);
+  checkOptionalTimestamp('updatedAt', finding.updatedAt, issues);
+  checkOrder('createdAt', finding.createdAt, 'updatedAt', finding.updatedAt, issues);
 
   return issues;
 }
@@ -337,32 +388,7 @@ export function validateFindingSource(source: FindingSource): readonly Validatio
   const issues: ValidationIssue[] = [];
 
   checkId('findingId', source.findingId, issues);
-  checkEnum('sourceKind', source.sourceKind, isFindingSourceKind, issues);
-  checkEnum('relation', source.relation, isSourceRelation, issues);
-  checkTimestamp('createdAt', source.createdAt, issues);
-  checkOptionalId('cookId', source.cookId, issues);
-  checkOptionalId('cookEventId', source.cookEventId, issues);
-
-  // Exactly one reference column, matching the declared kind. This mirrors the
-  // table's CHECK constraint, which is what lets SQLite cascade the delete.
-  const expectedCook = source.sourceKind === 'cook';
-  if (expectedCook && (source.cookId === null || source.cookEventId !== null)) {
-    issues.push(
-      issue('cookId', 'invalid_relation', 'a cook source must set cookId and only cookId'),
-    );
-  }
-  if (!expectedCook && (source.cookEventId === null || source.cookId !== null)) {
-    issues.push(
-      issue(
-        'cookEventId',
-        'invalid_relation',
-        'a cook_event source must set cookEventId and only cookEventId',
-      ),
-    );
-  }
-  if (findingSourceRef(source) === null) {
-    issues.push(issue('sourceKind', 'invalid_relation', 'a source must cite something'));
-  }
+  checkId('cookEventId', source.cookEventId, issues);
 
   return issues;
 }
@@ -371,10 +397,13 @@ export function validateLesson(lesson: Lesson): readonly ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   checkId('id', lesson.id, issues);
-  checkRequiredText('title', lesson.title, MAX_TITLE_LENGTH, issues);
-  checkRequiredText('guidance', lesson.guidance, MAX_TEXT_LENGTH, issues);
-  checkOptionalId('originFindingId', lesson.originFindingId, issues);
-  checkReviewableFacts(lesson, issues);
+  checkId('cookId', lesson.cookId, issues);
+  checkRequiredText('text', lesson.text, MAX_TEXT_LENGTH, issues);
+  checkEnum('status', lesson.status, isProposalStatus, issues);
+  checkEnum('provenance', lesson.provenance, isProvenance, issues);
+  checkTimestamp('createdAt', lesson.createdAt, issues);
+  checkOptionalTimestamp('updatedAt', lesson.updatedAt, issues);
+  checkOrder('createdAt', lesson.createdAt, 'updatedAt', lesson.updatedAt, issues);
 
   return issues;
 }
@@ -389,7 +418,6 @@ export function validateTag(tag: Tag): readonly ValidationIssue[] {
   checkId('id', tag.id, issues);
   checkRequiredText('name', tag.name, MAX_TAG_NAME_LENGTH, issues);
   checkEnum('kind', tag.kind, isTagKind, issues);
-  checkTimestamp('createdAt', tag.createdAt, issues);
 
   if (typeof tag.name === 'string' && tag.name !== normaliseTagName(tag.name)) {
     issues.push(
@@ -405,7 +433,6 @@ export function validateCookTag(link: CookTag): readonly ValidationIssue[] {
 
   checkId('cookId', link.cookId, issues);
   checkId('tagId', link.tagId, issues);
-  checkTimestamp('createdAt', link.createdAt, issues);
 
   return issues;
 }
@@ -418,24 +445,16 @@ export function validateBriefing(briefing: Briefing): readonly ValidationIssue[]
   const issues: ValidationIssue[] = [];
 
   checkId('id', briefing.id, issues);
-  checkOptionalId('cookId', briefing.cookId, issues);
-  checkRequiredText('title', briefing.title, MAX_TITLE_LENGTH, issues);
-  checkRequiredText('body', briefing.body, MAX_TEXT_LENGTH, issues);
-  checkEnum('status', briefing.status, isBriefingStatus, issues);
-  checkEnum('createdBy', briefing.createdBy, isProvenance, issues);
+  checkId('cookId', briefing.cookId, issues);
   checkTimestamp('createdAt', briefing.createdAt, issues);
-  checkOptionalTimestamp('issuedAt', briefing.issuedAt, issues);
-  checkOrder('createdAt', briefing.createdAt, 'issuedAt', briefing.issuedAt, issues);
 
-  if (briefing.status === 'issued' && briefing.issuedAt === null) {
-    issues.push(
-      issue('issuedAt', 'inconsistent_state', 'an issued briefing must record when'),
-    );
+  if (!isJsonValue(briefing.content)) {
+    issues.push(issue('content', 'invalid_json', 'content must be JSON-compatible'));
   }
-  if (briefing.status === 'draft' && briefing.issuedAt !== null) {
-    issues.push(
-      issue('issuedAt', 'inconsistent_state', 'a draft briefing has not been issued'),
-    );
+  // Three states, and the third is "the cook has not said". A briefing that
+  // defaulted to `false` would be manufacturing feedback nobody gave.
+  if (briefing.useful !== null && typeof briefing.useful !== 'boolean') {
+    issues.push(issue('useful', 'inconsistent_state', 'useful must be true, false or null'));
   }
 
   return issues;
@@ -445,24 +464,7 @@ export function validateBriefingSource(source: BriefingSource): readonly Validat
   const issues: ValidationIssue[] = [];
 
   checkId('briefingId', source.briefingId, issues);
-  checkEnum('sourceKind', source.sourceKind, isBriefingSourceKind, issues);
-  checkTimestamp('createdAt', source.createdAt, issues);
-  checkOptionalId('findingId', source.findingId, issues);
-  checkOptionalId('lessonId', source.lessonId, issues);
-  checkOptionalId('cookId', source.cookId, issues);
-
-  const set = [source.findingId, source.lessonId, source.cookId].filter(
-    (value) => value !== null,
-  );
-  if (set.length !== 1 || briefingSourceRef(source) === null) {
-    issues.push(
-      issue(
-        'sourceKind',
-        'invalid_relation',
-        'a briefing source sets exactly the id column matching its kind',
-      ),
-    );
-  }
+  checkId('cookId', source.cookId, issues);
 
   return issues;
 }
@@ -475,27 +477,23 @@ export function validateImportBatch(batch: ImportBatch): readonly ValidationIssu
   const issues: ValidationIssue[] = [];
 
   checkId('id', batch.id, issues);
-  checkEnum('origin', batch.origin, isImportBatchOrigin, issues);
+  checkOptionalText('filename', batch.filename, MAX_FILENAME_LENGTH, issues);
   checkEnum('status', batch.status, isImportBatchStatus, issues);
-  checkRequiredText('label', batch.label, MAX_TITLE_LENGTH, issues);
-  checkOptionalText('note', batch.note, MAX_TEXT_LENGTH, issues);
-  checkTimestamp('startedAt', batch.startedAt, issues);
-  checkOptionalTimestamp('completedAt', batch.completedAt, issues);
-  checkOrder('startedAt', batch.startedAt, 'completedAt', batch.completedAt, issues);
+  checkOptionalCount('candidatesTotal', batch.candidatesTotal, issues);
+  checkOptionalCount('candidatesResolved', batch.candidatesResolved, issues);
+  checkTimestamp('createdAt', batch.createdAt, issues);
 
-  if (!Number.isInteger(batch.recordCount) || batch.recordCount < 0) {
+  if (
+    typeof batch.candidatesTotal === 'number' &&
+    typeof batch.candidatesResolved === 'number' &&
+    batch.candidatesResolved > batch.candidatesTotal
+  ) {
     issues.push(
-      issue('recordCount', 'invalid_number', 'recordCount must be a non-negative integer'),
-    );
-  }
-  if (batch.status === 'pending' && batch.completedAt !== null) {
-    issues.push(
-      issue('completedAt', 'inconsistent_state', 'a pending batch has not completed'),
-    );
-  }
-  if (batch.status !== 'pending' && batch.completedAt === null) {
-    issues.push(
-      issue('completedAt', 'inconsistent_state', 'a settled batch must record when'),
+      issue(
+        'candidatesResolved',
+        'inconsistent_state',
+        'more candidates cannot be resolved than there were',
+      ),
     );
   }
 
@@ -507,7 +505,6 @@ export function validateSchemaMeta(meta: SchemaMeta): readonly ValidationIssue[]
 
   checkRequiredText('key', meta.key, MAX_TITLE_LENGTH, issues);
   checkRequiredText('value', meta.value, MAX_TEXT_LENGTH, issues);
-  checkTimestamp('updatedAt', meta.updatedAt, issues);
 
   return issues;
 }

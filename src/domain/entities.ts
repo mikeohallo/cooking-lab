@@ -11,8 +11,8 @@
  *
  *   Raw evidence   `Cook`, `CookEvent` — what happened and what the cook
  *                  thought of it. Written only by the person cooking.
- *   Reviewable     `Finding`, `Lesson` — claims derived from that evidence.
- *                  May be proposed by the assistant, but only the cook decides
+ *   Proposals      `Finding`, `Lesson` — claims derived from that evidence.
+ *                  May be raised by the assistant, but only the cook decides
  *                  whether a claim is accepted.
  *
  * Field names are camelCase here and snake_case in SQL; translating between the
@@ -23,17 +23,14 @@
  */
 
 import type {
-  BriefingSourceKind,
-  BriefingStatus,
+  ConfidenceLevel,
   CookEventKind,
   CookStatus,
-  CookVerdict,
-  EvidenceStrength,
-  ImportBatchOrigin,
+  CreatedBy,
+  FindingClass,
   ImportBatchStatus,
+  ProposalStatus,
   Provenance,
-  ReviewStatus,
-  SourceRelation,
   TagKind,
 } from './enums';
 
@@ -57,10 +54,22 @@ export type IsoTimestamp = string;
 
 /**
  * A logical, app-private photo location such as
- * `cooks/<cookId>/events/<eventId>/20260905T183100-01.jpg`. Never an absolute
+ * `cooks/<cookId>/events/<eventId>/20260905t183100-01.jpg`. Never an absolute
  * device path and never a URL; see `src/data/photos/photoPaths.ts`.
  */
 export type PhotoLogicalPath = string;
+
+/**
+ * Anything that survives a round trip through JSON, and nothing that does not.
+ *
+ * Two columns hold structure rather than text — a cook event's `meta` and a
+ * briefing's `content` — and both are stored as JSON. Typing them as `unknown`
+ * would let a `Date`, a `Map` or an `undefined` in, each of which serialises to
+ * something other than itself and comes back as something else again.
+ */
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | readonly JsonValue[] | JsonObject;
+export type JsonObject = { readonly [key: string]: JsonValue };
 
 // ---------------------------------------------------------------------------
 // Raw evidence
@@ -68,88 +77,79 @@ export type PhotoLogicalPath = string;
 
 export type Cook = {
   readonly id: CookId;
-  readonly title: string;
+  /** Optional: a cook is real before it has been named. */
+  readonly title: string | null;
   readonly status: CookStatus;
+  readonly provenance: Provenance;
+  /** The cook this one is a repeat or variation of, when it is one. */
+  readonly parentCookId: CookId | null;
   readonly startedAt: IsoTimestamp;
-  readonly finishedAt: IsoTimestamp | null;
-  /** The cook's own judgement. Raw evidence; assistant-writable: never. */
-  readonly verdict: CookVerdict;
-  readonly verdictNote: string | null;
-  readonly notes: string | null;
+  readonly reviewOpenedAt: IsoTimestamp | null;
+  readonly reviewSavedAt: IsoTimestamp | null;
+  /**
+   * The cook's own words about how it went, stored exactly as typed.
+   *
+   * Free text on purpose. A rating scale would force a judgement about dinner
+   * into a shape the kitchen did not choose, and would then invite the app to
+   * compute with it. Assistant-writable: never.
+   */
+  readonly verdict: string | null;
   readonly createdAt: IsoTimestamp;
-  readonly updatedAt: IsoTimestamp;
 };
 
 export type CookEvent = {
   readonly id: CookEventId;
   readonly cookId: CookId;
+  readonly ts: IsoTimestamp;
   readonly kind: CookEventKind;
-  readonly occurredAt: IsoTimestamp;
-  /** Seconds from `cook.startedAt`, when the capture knew it. */
-  readonly offsetSeconds: number | null;
-  readonly label: string | null;
-  readonly text: string | null;
-  /** Required for `temperature` and `timing` events. */
-  readonly numericValue: number | null;
-  /** A `TemperatureUnit` for temperature events, `s` for timings. */
-  readonly unit: string | null;
+  readonly body: string | null;
+  /** Structured detail for kinds that have some, e.g. `{ celsius: 96 }`. */
+  readonly meta: JsonValue | null;
   /** Required for `photo` events, forbidden otherwise. */
   readonly photoPath: PhotoLogicalPath | null;
-  readonly createdAt: IsoTimestamp;
 };
 
 // ---------------------------------------------------------------------------
-// Reviewable claims
+// Proposals
 // ---------------------------------------------------------------------------
 
-/**
- * The review bookkeeping shared by findings and lessons.
- *
- * `createdBy` records who first raised the claim and never changes.
- * `userEdited` records whether the cook has since put their own words into it,
- * which is what keeps an assistant-proposed record the cook has revised
- * distinguishable from one they have merely accepted.
- */
-export type ReviewableFacts = {
-  readonly status: ReviewStatus;
-  readonly createdBy: Provenance;
-  readonly userEdited: boolean;
-  readonly createdAt: IsoTimestamp;
-  readonly updatedAt: IsoTimestamp;
-  /** Set when the cook approved or rejected; cleared on reinstatement. */
-  readonly decidedAt: IsoTimestamp | null;
-};
-
-export type Finding = ReviewableFacts & {
+export type Finding = {
   readonly id: FindingId;
-  readonly title: string;
-  readonly detail: string | null;
-  /** Derived from the finding's supporting sources, never asserted. */
-  readonly evidenceStrength: EvidenceStrength;
+  readonly cookId: CookId;
+  /** What kind of claim this is; never flattened away. */
+  readonly class: FindingClass;
+  readonly text: string;
+  /** Why the claim was made. Most useful on an inference. */
+  readonly rationale: string | null;
+  readonly confidence: ConfidenceLevel | null;
+  readonly status: ProposalStatus;
+  /** Who wrote the words as they now stand. */
+  readonly createdBy: CreatedBy;
+  readonly provenance: Provenance;
+  readonly createdAt: IsoTimestamp;
+  readonly updatedAt: IsoTimestamp | null;
 };
 
 /**
  * A finding's citation of raw evidence.
  *
- * Modelled with one nullable foreign key per source kind rather than a single
- * polymorphic column, so SQLite can enforce the reference and cascade the
- * delete. Exactly one of `cookId` / `cookEventId` is set, matching `sourceKind`.
+ * A finding cites timeline events and nothing else. Not cooks, not other
+ * findings, not lessons: the chain from a claim back to something that was
+ * actually observed is one link long and cannot be lengthened.
  */
 export type FindingSource = {
   readonly findingId: FindingId;
-  readonly sourceKind: 'cook' | 'cook_event';
-  readonly cookId: CookId | null;
-  readonly cookEventId: CookEventId | null;
-  readonly relation: SourceRelation;
-  readonly createdAt: IsoTimestamp;
+  readonly cookEventId: CookEventId;
 };
 
-export type Lesson = ReviewableFacts & {
+export type Lesson = {
   readonly id: LessonId;
-  readonly title: string;
-  readonly guidance: string;
-  /** The finding this lesson generalises, if it came from one. */
-  readonly originFindingId: FindingId | null;
+  readonly cookId: CookId;
+  readonly text: string;
+  readonly status: ProposalStatus;
+  readonly provenance: Provenance;
+  readonly createdAt: IsoTimestamp;
+  readonly updatedAt: IsoTimestamp | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -161,13 +161,11 @@ export type Tag = {
   /** Stored normalised (see `normaliseTagName`); `(name, kind)` is unique. */
   readonly name: string;
   readonly kind: TagKind;
-  readonly createdAt: IsoTimestamp;
 };
 
 export type CookTag = {
   readonly cookId: CookId;
   readonly tagId: TagId;
-  readonly createdAt: IsoTimestamp;
 };
 
 // ---------------------------------------------------------------------------
@@ -176,24 +174,24 @@ export type CookTag = {
 
 export type Briefing = {
   readonly id: BriefingId;
-  /** The cook this briefing was prepared for, if it was prepared for one. */
-  readonly cookId: CookId | null;
-  readonly title: string;
-  readonly body: string;
-  readonly status: BriefingStatus;
-  readonly createdBy: Provenance;
+  /** The new cook this briefing was prepared for. */
+  readonly cookId: CookId;
+  /** Structured advice, shaped by the screen that renders it. */
+  readonly content: JsonValue;
+  /**
+   * Whether the cook found it useful: yes, no, or not yet said.
+   *
+   * Nullable on purpose. "No answer" and "no" are different answers, and only
+   * one of them is feedback.
+   */
+  readonly useful: boolean | null;
   readonly createdAt: IsoTimestamp;
-  readonly issuedAt: IsoTimestamp | null;
 };
 
-/** Exactly one of the three id columns is set, matching `sourceKind`. */
+/** The earlier cooks a briefing was built from. */
 export type BriefingSource = {
   readonly briefingId: BriefingId;
-  readonly sourceKind: BriefingSourceKind;
-  readonly findingId: FindingId | null;
-  readonly lessonId: LessonId | null;
-  readonly cookId: CookId | null;
-  readonly createdAt: IsoTimestamp;
+  readonly cookId: CookId;
 };
 
 // ---------------------------------------------------------------------------
@@ -202,19 +200,16 @@ export type BriefingSource = {
 
 export type ImportBatch = {
   readonly id: ImportBatchId;
-  readonly origin: ImportBatchOrigin;
+  readonly filename: string | null;
   readonly status: ImportBatchStatus;
-  readonly label: string;
-  readonly recordCount: number;
-  readonly startedAt: IsoTimestamp;
-  readonly completedAt: IsoTimestamp | null;
-  readonly note: string | null;
+  readonly candidatesTotal: number | null;
+  readonly candidatesResolved: number | null;
+  readonly createdAt: IsoTimestamp;
 };
 
 export type SchemaMeta = {
   readonly key: string;
   readonly value: string;
-  readonly updatedAt: IsoTimestamp;
 };
 
 /** The `schema_meta` rows the migration runner cares about, read as a record. */
@@ -269,21 +264,4 @@ export function emptySnapshot(): DatabaseSnapshot {
     briefingSources: [],
     importBatches: [],
   };
-}
-
-/** Which id column of a finding source is populated. */
-export function findingSourceRef(source: FindingSource): EntityId | null {
-  return source.sourceKind === 'cook' ? source.cookId : source.cookEventId;
-}
-
-/** Which id column of a briefing source is populated. */
-export function briefingSourceRef(source: BriefingSource): EntityId | null {
-  switch (source.sourceKind) {
-    case 'finding':
-      return source.findingId;
-    case 'lesson':
-      return source.lessonId;
-    case 'cook':
-      return source.cookId;
-  }
 }

@@ -1,23 +1,30 @@
-import type { Cook, CookEvent, Finding, FindingSource, Lesson } from '../src/domain/entities';
-import type { EvidenceDecision } from '../src/domain/evidence';
+import { findDatabaseHandles } from '../src/data/adapters';
+import type { AiAdapter, AiReviewContext, DatabaseAdapter } from '../src/data/adapters';
+import type { Cook, CookEvent, Finding, Lesson } from '../src/domain/entities';
+import type {
+  AiCandidateSet,
+  EvidenceDecision,
+  FindingCandidate,
+} from '../src/domain/evidence';
 import {
-  applyFindingProposal,
-  applyLessonProposal,
-  createCookEvent,
+  applyFindingCandidate,
+  applyLessonCandidate,
+  appendCookEvent,
+  createCook,
   createUserFinding,
   createUserLesson,
   decideFinding,
   decideLesson,
-  deriveEvidenceStrength,
   isAllowed,
-  recordCookVerdict,
-  refreshEvidenceStrength,
+  openCookReview,
+  recordBriefingUsefulness,
+  saveCookReview,
   updateCook,
   updateCookEvent,
   updateFinding,
   updateLesson,
 } from '../src/domain/evidence';
-import { validateFinding, validateLesson } from '../src/domain/invariants';
+import { validateCook, validateFinding, validateLesson } from '../src/domain/invariants';
 
 const T0 = '2026-09-05T18:00:00.000Z';
 const T1 = '2026-09-06T09:00:00.000Z';
@@ -41,379 +48,441 @@ function refusalCode<T>(decision: EvidenceDecision<T>): string {
 const COOK: Cook = {
   id: 'cook-01',
   title: 'Weeknight rice',
-  status: 'complete',
+  status: 'open',
+  provenance: 'live',
+  parentCookId: null,
   startedAt: T0,
-  finishedAt: '2026-09-05T18:40:00.000Z',
-  verdict: 'unrated',
-  verdictNote: null,
-  notes: null,
+  reviewOpenedAt: null,
+  reviewSavedAt: null,
+  verdict: null,
   createdAt: T0,
-  updatedAt: T0,
 };
 
 const EVENT: CookEvent = {
   id: 'event-01',
   cookId: 'cook-01',
-  kind: 'observation',
-  occurredAt: T0,
-  offsetSeconds: 0,
-  label: null,
-  text: 'Lid on.',
-  numericValue: null,
-  unit: null,
+  ts: T0,
+  kind: 'user_note',
+  body: 'Lid on.',
+  meta: null,
   photoPath: null,
-  createdAt: T0,
 };
 
-const PROPOSAL = {
-  id: 'finding-01',
-  title: 'Resting the rice matters',
-  detail: 'Both rested batches held together better.',
-  sources: [
-    { sourceKind: 'cook', sourceId: 'cook-01', relation: 'supports' },
-    { sourceKind: 'cook_event', sourceId: 'event-01', relation: 'supports' },
-  ],
-} as const;
+const CANDIDATE: FindingCandidate = {
+  cookId: 'cook-01',
+  class: 'inference',
+  text: 'Resting the rice matters',
+  rationale: 'Both rested batches held together better.',
+  confidence: 'medium',
+  sourceEventIds: ['event-01', 'event-02'],
+};
+
+const IDENTITY = { id: 'finding-01' } as const;
+
+/** The proposed finding an assistant candidate becomes. */
+const proposed = (): Finding =>
+  granted(applyFindingCandidate(CANDIDATE, IDENTITY, 'ai', T1)).finding;
 
 describe('rule 1 — raw evidence belongs to the cook', () => {
-  it('lets the cook record a verdict', () => {
-    const cook = granted(recordCookVerdict(COOK, 'good', 'Better than last time', 'user', T1));
+  it('starts every cook open, live and unnamed unless told otherwise', () => {
+    const cook = granted(createCook({ id: 'cook-09', startedAt: T0 }, 'user', T0));
 
-    expect(cook.verdict).toBe('good');
-    expect(cook.verdictNote).toBe('Better than last time');
-    expect(cook.updatedAt).toBe(T1);
+    expect(cook.status).toBe('open');
+    expect(cook.provenance).toBe('live');
+    expect(cook.title).toBeNull();
+    expect(cook.verdict).toBeNull();
+    expect(validateCook(cook)).toEqual([]);
+  });
+
+  it('lets the cook save a review, verbatim', () => {
+    const verdict = '  Too salty.\nUsed the wrong stock.  ';
+    const opened = granted(openCookReview(COOK, 'user', T1));
+    const reviewed = granted(saveCookReview(opened, verdict, 'user', T2));
+
+    expect(reviewed.status).toBe('reviewed');
+    expect(reviewed.reviewOpenedAt).toBe(T1);
+    expect(reviewed.reviewSavedAt).toBe(T2);
+    expect(reviewed.verdict).toBe(verdict);
+    expect(validateCook(reviewed)).toEqual([]);
+  });
+
+  it('stores the verdict as free text, whatever shape it takes', () => {
+    for (const verdict of ['excellent', '7/10', 'fine, I suppose', '', null]) {
+      const reviewed = granted(saveCookReview(COOK, verdict, 'user', T1));
+
+      expect(reviewed.verdict).toBe(verdict);
+    }
   });
 
   it('refuses to let the assistant record a verdict', () => {
-    expect(refusalCode(recordCookVerdict(COOK, 'excellent', null, 'ai', T1))).toBe(
+    expect(refusalCode(saveCookReview(COOK, 'excellent', 'ai', T1))).toBe(
       'ai_cannot_write_raw_evidence',
     );
   });
 
-  it('drops a verdict note when the verdict is withdrawn', () => {
-    const rated = granted(recordCookVerdict(COOK, 'good', 'Nice', 'user', T1));
-    const unrated = granted(recordCookVerdict(rated, 'unrated', 'Nice', 'user', T2));
-
-    expect(unrated.verdictNote).toBeNull();
-  });
-
-  it('refuses every assistant write to a cook or its timeline', () => {
-    expect(refusalCode(updateCook(COOK, { title: 'Renamed' }, 'ai', T1))).toBe(
+  it('refuses every other assistant write to a cook', () => {
+    expect(refusalCode(createCook({ id: 'cook-09', startedAt: T0 }, 'ai', T0))).toBe(
       'ai_cannot_write_raw_evidence',
     );
-    expect(
-      refusalCode(
-        createCookEvent(
-          { id: 'event-02', cookId: 'cook-01', kind: 'note', occurredAt: T1 },
-          'ai',
-          T1,
-        ),
-      ),
-    ).toBe('ai_cannot_write_raw_evidence');
-    expect(refusalCode(updateCookEvent(EVENT, { text: 'Rewritten' }, 'ai'))).toBe(
+    expect(refusalCode(updateCook(COOK, { title: 'Renamed' }, 'ai'))).toBe(
       'ai_cannot_write_raw_evidence',
     );
+    expect(refusalCode(openCookReview(COOK, 'ai', T1))).toBe('ai_cannot_write_raw_evidence');
   });
 
   it('leaves the original untouched when a write is refused', () => {
-    recordCookVerdict(COOK, 'excellent', 'Assistant says so', 'ai', T1);
+    saveCookReview(COOK, 'Assistant says it was excellent', 'ai', T1);
 
-    expect(COOK.verdict).toBe('unrated');
-    expect(COOK.verdictNote).toBeNull();
+    expect(COOK.verdict).toBeNull();
+    expect(COOK.status).toBe('open');
+  });
+
+  it('refuses to let the assistant record what the cook observed', () => {
+    for (const kind of ['user_note', 'temp', 'photo', 'plan'] as const) {
+      expect(
+        refusalCode(
+          appendCookEvent({ id: 'event-09', cookId: 'cook-01', ts: T1, kind }, 'ai'),
+        ),
+      ).toBe('ai_cannot_append_event_kind');
+    }
+  });
+
+  it('lets the assistant add its own message, and nothing else', () => {
+    const message = granted(
+      appendCookEvent(
+        {
+          id: 'event-09',
+          cookId: 'cook-01',
+          ts: T1,
+          kind: 'assistant_msg',
+          body: 'Noted.',
+        },
+        'ai',
+      ),
+    );
+
+    expect(message.kind).toBe('assistant_msg');
+    // Having said it, it can never revise it.
+    expect(refusalCode(updateCookEvent(message, { body: 'Actually…' }, 'ai'))).toBe(
+      'ai_cannot_write_raw_evidence',
+    );
+  });
+
+  it('refuses to let the assistant revise the timeline', () => {
+    expect(refusalCode(updateCookEvent(EVENT, { body: 'Rewritten' }, 'ai'))).toBe(
+      'ai_cannot_write_raw_evidence',
+    );
   });
 
   it('lets the cook edit their own timeline entry', () => {
-    const edited = granted(updateCookEvent(EVENT, { text: 'Lid on at a rolling boil.' }, 'user'));
+    const edited = granted(updateCookEvent(EVENT, { body: 'Lid on at a rolling boil.' }, 'user'));
 
-    expect(edited.text).toBe('Lid on at a rolling boil.');
+    expect(edited.body).toBe('Lid on at a rolling boil.');
     expect(edited.id).toBe(EVENT.id);
   });
 });
 
-describe('rule 2 — the assistant may only propose', () => {
+describe('rule 2 — an adapter returns candidates and holds no write handle', () => {
+  const compliant: AiAdapter = {
+    async proposeCandidates(_context: AiReviewContext): Promise<AiCandidateSet> {
+      return { findings: [], lessons: [] };
+    },
+  };
+
+  it('finds no handle on a compliant adapter', () => {
+    expect(findDatabaseHandles(compliant)).toEqual([]);
+  });
+
+  it('finds one on an adapter that was handed a database', () => {
+    const database = {
+      execute: async () => ({ rowsAffected: 0 }),
+      select: async () => [],
+      withTransaction: async () => undefined,
+      close: async () => undefined,
+    } as unknown as DatabaseAdapter;
+
+    expect(findDatabaseHandles({ ...compliant, database })).toContain('database');
+    expect(findDatabaseHandles({ ...compliant, anythingAtAll: database })).toContain(
+      'anythingAtAll',
+    );
+    expect(findDatabaseHandles({ ...compliant, save: async () => undefined })).toContain('save');
+  });
+});
+
+describe('rules 3 to 5 — a candidate becomes a proposal, and keeps its class', () => {
   it('creates a proposed finding and its citations together', () => {
-    const applied = granted(applyFindingProposal(PROPOSAL, 'ai', T1));
+    const applied = granted(applyFindingCandidate(CANDIDATE, IDENTITY, 'ai', T1));
 
     expect(applied.finding.status).toBe('proposed');
     expect(applied.finding.createdBy).toBe('ai');
-    expect(applied.finding.userEdited).toBe(false);
-    expect(applied.finding.decidedAt).toBeNull();
-    expect(applied.sources).toHaveLength(2);
-    expect(applied.sources.every((source) => source.findingId === 'finding-01')).toBe(true);
+    expect(applied.finding.provenance).toBe('live');
+    expect(applied.finding.updatedAt).toBeNull();
+    expect(applied.sources).toEqual([
+      { findingId: 'finding-01', cookEventId: 'event-01' },
+      { findingId: 'finding-01', cookEventId: 'event-02' },
+    ]);
     expect(validateFinding(applied.finding)).toEqual([]);
   });
 
-  it('splits a citation into the reference column that matches its kind', () => {
-    const applied = granted(applyFindingProposal(PROPOSAL, 'ai', T1));
-    const [cookSource, eventSource] = applied.sources as readonly FindingSource[];
+  it('carries the class, the reasoning and the confidence through untouched', () => {
+    const applied = granted(applyFindingCandidate(CANDIDATE, IDENTITY, 'ai', T1));
 
-    expect(cookSource?.cookId).toBe('cook-01');
-    expect(cookSource?.cookEventId).toBeNull();
-    expect(eventSource?.cookEventId).toBe('event-01');
-    expect(eventSource?.cookId).toBeNull();
+    expect(applied.finding.class).toBe('inference');
+    expect(applied.finding.rationale).toBe(CANDIDATE.rationale);
+    expect(applied.finding.confidence).toBe('medium');
   });
 
-  it('refuses an assistant proposal with nothing behind it', () => {
-    expect(refusalCode(applyFindingProposal({ ...PROPOSAL, sources: [] }, 'ai', T1))).toBe(
-      'proposal_requires_supporting_source',
-    );
-  });
-
-  it('refuses an assistant proposal that only argues against the evidence', () => {
-    const contradicting = {
-      ...PROPOSAL,
-      sources: [{ sourceKind: 'cook', sourceId: 'cook-01', relation: 'contradicts' }],
-    } as const;
-
-    expect(refusalCode(applyFindingProposal(contradicting, 'ai', T1))).toBe(
-      'proposal_requires_supporting_source',
-    );
-  });
-
-  it('refuses a citation that does not identify real evidence', () => {
-    const bad = {
-      ...PROPOSAL,
-      sources: [{ sourceKind: 'cook', sourceId: '../etc', relation: 'supports' }],
-    } as const;
-
-    expect(refusalCode(applyFindingProposal(bad, 'ai', T1))).toBe(
-      'proposal_source_must_be_raw_evidence',
-    );
-  });
-
-  it('lets the cook raise a thin finding of their own, with no citations at all', () => {
+  it.each(['observed', 'inference', 'knowledge'] as const)('keeps a %s claim as one', (cls) => {
     const applied = granted(
-      applyFindingProposal({ id: 'finding-02', title: 'A hunch', detail: null, sources: [] }, 'user', T1),
+      applyFindingCandidate({ ...CANDIDATE, class: cls }, IDENTITY, 'ai', T1),
     );
 
-    expect(applied.finding.status).toBe('proposed');
-    expect(applied.finding.evidenceStrength).toBe('unsupported');
-    expect(validateFinding(applied.finding)).toEqual([]);
+    expect(applied.finding.class).toBe(cls);
   });
 
-  it('refuses to let the assistant create an approved finding', () => {
-    expect(
-      refusalCode(
-        createUserFinding(
-          { id: 'finding-03', title: 'Approved by fiat', detail: null, sources: [] },
-          'ai',
-          T1,
+  it('refuses an assistant claim about this cook that cites nothing from it', () => {
+    for (const cls of ['observed', 'inference'] as const) {
+      expect(
+        refusalCode(
+          applyFindingCandidate(
+            { ...CANDIDATE, class: cls, sourceEventIds: [] },
+            IDENTITY,
+            'ai',
+            T1,
+          ),
         ),
-      ),
-    ).toBe('ai_cannot_create_decided_record');
+      ).toBe('candidate_requires_source_event');
+    }
   });
 
-  it('lets the cook write a finding that needs nobody else to approve it', () => {
+  it('lets general knowledge stand without citing this kitchen', () => {
     const applied = granted(
-      createUserFinding({ id: 'finding-04', title: 'I know this one', detail: null, sources: [] }, 'user', T1),
-    );
-
-    expect(applied.finding.status).toBe('approved');
-    expect(applied.finding.createdBy).toBe('user');
-    expect(applied.finding.decidedAt).toBe(T1);
-    expect(validateFinding(applied.finding)).toEqual([]);
-  });
-
-  it('requires an assistant lesson to generalise a finding', () => {
-    expect(
-      refusalCode(
-        applyLessonProposal(
-          { id: 'lesson-01', title: 'Rest the rice', guidance: 'Ten minutes, lid on.', originFindingId: null },
-          'ai',
-          T1,
-        ),
-      ),
-    ).toBe('proposal_requires_supporting_source');
-
-    const lesson = granted(
-      applyLessonProposal(
-        {
-          id: 'lesson-01',
-          title: 'Rest the rice',
-          guidance: 'Ten minutes, lid on.',
-          originFindingId: 'finding-01',
-        },
+      applyFindingCandidate(
+        { ...CANDIDATE, class: 'knowledge', sourceEventIds: [] },
+        IDENTITY,
         'ai',
         T1,
       ),
     );
 
-    expect(lesson.status).toBe('proposed');
-    expect(validateLesson(lesson)).toEqual([]);
+    expect(applied.finding.class).toBe('knowledge');
+    expect(applied.sources).toEqual([]);
   });
 
-  it('refuses to let the assistant create an approved lesson', () => {
+  it('refuses a citation that does not identify a timeline entry', () => {
     expect(
       refusalCode(
-        createUserLesson(
-          { id: 'lesson-02', title: 'By fiat', guidance: 'No.', originFindingId: null },
+        applyFindingCandidate(
+          { ...CANDIDATE, sourceEventIds: ['../etc'] },
+          IDENTITY,
           'ai',
           T1,
         ),
       ),
-    ).toBe('ai_cannot_create_decided_record');
+    ).toBe('candidate_source_must_be_cook_event');
+  });
+
+  it('refuses to let the assistant create an approved finding or lesson', () => {
+    expect(refusalCode(createUserFinding(CANDIDATE, IDENTITY, 'ai', T1))).toBe(
+      'ai_cannot_create_approved_record',
+    );
+    expect(
+      refusalCode(
+        createUserLesson({ cookId: 'cook-01', text: 'Rest it.' }, { id: 'lesson-01' }, 'ai', T1),
+      ),
+    ).toBe('ai_cannot_create_approved_record');
+  });
+
+  it('lets the cook write a finding that needs nobody else to approve it', () => {
+    const applied = granted(createUserFinding(CANDIDATE, IDENTITY, 'user', T1));
+
+    expect(applied.finding.status).toBe('approved');
+    expect(applied.finding.createdBy).toBe('user');
+    expect(validateFinding(applied.finding)).toEqual([]);
+  });
+
+  it('proposes a lesson without requiring a finding behind it', () => {
+    const lesson = granted(
+      applyLessonCandidate({ cookId: 'cook-01', text: 'Rest the rice.' }, { id: 'lesson-01' }, T1),
+    );
+
+    expect(lesson.status).toBe('proposed');
+    expect(lesson.cookId).toBe('cook-01');
+    expect(lesson.provenance).toBe('live');
+    expect(validateLesson(lesson)).toEqual([]);
+  });
+
+  it('marks an imported proposal as imported, which is not the same as who wrote it', () => {
+    const applied = granted(
+      applyFindingCandidate(CANDIDATE, { id: 'finding-01', provenance: 'imported' }, 'user', T1),
+    );
+
+    expect(applied.finding.provenance).toBe('imported');
+    expect(applied.finding.createdBy).toBe('user');
   });
 });
 
-describe('evidence strength', () => {
-  const source = (
-    kind: 'cook' | 'cook_event',
-    id: string,
-    relation: 'supports' | 'contradicts' = 'supports',
-  ): FindingSource => ({
-    findingId: 'finding-01',
-    sourceKind: kind,
-    cookId: kind === 'cook' ? id : null,
-    cookEventId: kind === 'cook_event' ? id : null,
-    relation,
-    createdAt: T1,
+describe('rule 8 — a cook’s edit makes the words theirs', () => {
+  it('sets createdBy to user and stamps updatedAt', () => {
+    const before = proposed();
+    const edited = granted(updateFinding(before, { text: 'My words' }, 'user', T2));
+
+    expect(before.createdBy).toBe('ai');
+    expect(edited.createdBy).toBe('user');
+    expect(edited.updatedAt).toBe(T2);
+    expect(edited.text).toBe('My words');
+    expect(edited.id).toBe(before.id);
+    expect(validateFinding(edited)).toEqual([]);
   });
 
-  it('grows with the number of distinct supporting sources', () => {
-    expect(deriveEvidenceStrength([])).toBe('unsupported');
-    expect(deriveEvidenceStrength([source('cook', 'cook-01')])).toBe('single');
-    expect(deriveEvidenceStrength([source('cook', 'cook-01'), source('cook', 'cook-02')])).toBe(
-      'corroborated',
-    );
-    expect(
-      deriveEvidenceStrength([
-        source('cook', 'cook-01'),
-        source('cook', 'cook-02'),
-        source('cook', 'cook-03'),
-      ]),
-    ).toBe('strong');
-  });
+  it('leaves the assistant unable to touch it afterwards', () => {
+    const edited = granted(updateFinding(proposed(), { text: 'My words' }, 'user', T2));
 
-  it('counts one cook once, however many times it is cited', () => {
-    expect(deriveEvidenceStrength([source('cook', 'cook-01'), source('cook', 'cook-01')])).toBe(
-      'single',
-    );
-  });
-
-  it('does not count evidence that argues the other way', () => {
-    expect(
-      deriveEvidenceStrength([source('cook', 'cook-01', 'contradicts')]),
-    ).toBe('unsupported');
-  });
-
-  it('recomputes only from the finding it belongs to', () => {
-    const applied = granted(applyFindingProposal(PROPOSAL, 'ai', T1));
-    const foreign: FindingSource = { ...source('cook', 'cook-09'), findingId: 'finding-99' };
-    const refreshed = refreshEvidenceStrength(applied.finding, [...applied.sources, foreign], T2);
-
-    expect(refreshed.evidenceStrength).toBe('corroborated');
-  });
-});
-
-describe('rules 3 and 4 — decisions and the cook’s own words', () => {
-  const proposed = (): Finding => granted(applyFindingProposal(PROPOSAL, 'ai', T1)).finding;
-
-  it('lets the assistant revise its own undecided proposal', () => {
-    const revised = granted(updateFinding(proposed(), { title: 'Resting rice matters more' }, 'ai', T2));
-
-    expect(revised.title).toBe('Resting rice matters more');
-    expect(revised.userEdited).toBe(false);
-  });
-
-  it('marks a user edit as a user edit, and keeps it marked', () => {
-    const edited = granted(updateFinding(proposed(), { title: 'My words' }, 'user', T2));
-
-    expect(edited.userEdited).toBe(true);
-    expect(edited.createdBy).toBe('ai');
-
-    expect(refusalCode(updateFinding(edited, { title: 'Assistant words' }, 'ai', T2))).toBe(
-      'ai_cannot_overwrite_user_edit',
-    );
-  });
-
-  it('refuses to let the assistant touch an approved record', () => {
-    const approved = granted(decideFinding(proposed(), 'approve', 'user', T2));
-
-    expect(approved.status).toBe('approved');
-    expect(refusalCode(updateFinding(approved, { title: 'Second thoughts' }, 'ai', T2))).toBe(
-      'ai_cannot_update_approved_record',
-    );
-  });
-
-  it('refuses to let the assistant touch a rejected record or a user-written one', () => {
-    const rejected = granted(decideFinding(proposed(), 'reject', 'user', T2));
-    expect(refusalCode(updateFinding(rejected, { title: 'Retry' }, 'ai', T2))).toBe(
-      'ai_cannot_update_rejected_record',
-    );
-
-    const mine = granted(
-      createUserFinding({ id: 'finding-05', title: 'Mine', detail: null, sources: [] }, 'user', T1),
-    ).finding;
-    const stillProposed: Finding = { ...mine, status: 'proposed', decidedAt: null };
-    expect(refusalCode(updateFinding(stillProposed, { title: 'Not yours' }, 'ai', T2))).toBe(
+    expect(refusalCode(updateFinding(edited, { text: 'Assistant words' }, 'ai', T2))).toBe(
       'ai_cannot_update_user_authored_record',
     );
   });
 
-  it('makes approval explicit and refuses it to the assistant', () => {
-    expect(refusalCode(decideFinding(proposed(), 'approve', 'ai', T2))).toBe(
-      'ai_cannot_decide_review_status',
-    );
+  it('lets the assistant revise its own undecided proposal without claiming authorship', () => {
+    const revised = granted(updateFinding(proposed(), { text: 'Resting matters more' }, 'ai', T2));
 
-    const approved = granted(decideFinding(proposed(), 'approve', 'user', T2));
-    expect(approved.decidedAt).toBe(T2);
-    expect(validateFinding(approved)).toEqual([]);
+    expect(revised.createdBy).toBe('ai');
+    expect(revised.updatedAt).toBe(T2);
   });
 
-  it('keeps the row when a finding is rejected', () => {
+  it('lets the cook change the class and confidence of a claim', () => {
+    const edited = granted(
+      updateFinding(proposed(), { class: 'observed', confidence: 'high' }, 'user', T2),
+    );
+
+    expect(edited.class).toBe('observed');
+    expect(edited.confidence).toBe('high');
+  });
+});
+
+describe('rule 9 — a lesson has no author column', () => {
+  const lesson = (): Lesson =>
+    granted(applyLessonCandidate({ cookId: 'cook-01', text: 'Rest it.' }, { id: 'lesson-01' }, T1));
+
+  it('updates the text and the timestamp, and invents nothing', () => {
+    const before = lesson();
+    const edited = granted(updateLesson(before, { text: 'Rest it for ten minutes.' }, 'user', T2));
+
+    expect(edited.text).toBe('Rest it for ten minutes.');
+    expect(edited.updatedAt).toBe(T2);
+    expect(Object.keys(edited).sort()).toEqual(Object.keys(before).sort());
+    expect(validateLesson(edited)).toEqual([]);
+  });
+});
+
+describe('rules 6 and 7 — approval protects, rejection retains', () => {
+  it('refuses the assistant an approved finding', () => {
+    const approved = granted(decideFinding(proposed(), 'approve', 'user', T2));
+
+    expect(approved.status).toBe('approved');
+    expect(refusalCode(updateFinding(approved, { text: 'Second thoughts' }, 'ai', T2))).toBe(
+      'ai_cannot_update_approved_record',
+    );
+  });
+
+  it('refuses the assistant an approved lesson', () => {
+    const proposedLesson = granted(
+      applyLessonCandidate({ cookId: 'cook-01', text: 'Rest it.' }, { id: 'lesson-01' }, T1),
+    );
+    const approved = granted(decideLesson(proposedLesson, 'approve', 'user', T2));
+
+    expect(approved.status).toBe('approved');
+    expect(refusalCode(updateLesson(approved, { text: 'Twenty minutes.' }, 'ai', T2))).toBe(
+      'ai_cannot_update_approved_record',
+    );
+    // The cook may still revise their own.
+    expect(granted(updateLesson(approved, { text: 'Fifteen minutes.' }, 'user', T2)).text).toBe(
+      'Fifteen minutes.',
+    );
+  });
+
+  it('refuses the assistant a rejected record', () => {
+    const rejected = granted(decideFinding(proposed(), 'reject', 'user', T2));
+
+    expect(refusalCode(updateFinding(rejected, { text: 'Retry' }, 'ai', T2))).toBe(
+      'ai_cannot_update_rejected_record',
+    );
+  });
+
+  it('keeps the whole row when a finding is rejected', () => {
     const before = proposed();
     const rejected = granted(decideFinding(before, 'reject', 'user', T2));
 
     expect(rejected.status).toBe('rejected');
     expect(rejected.id).toBe(before.id);
-    expect(rejected.title).toBe(before.title);
-    expect(rejected.detail).toBe(before.detail);
+    expect(rejected.text).toBe(before.text);
+    expect(rejected.class).toBe(before.class);
+    expect(rejected.rationale).toBe(before.rationale);
+    expect(rejected.confidence).toBe(before.confidence);
     expect(rejected.createdBy).toBe(before.createdBy);
-    expect(rejected.evidenceStrength).toBe(before.evidenceStrength);
+    expect(rejected.cookId).toBe(before.cookId);
     expect(validateFinding(rejected)).toEqual([]);
   });
 
-  it('lets the cook change their mind about a rejection', () => {
-    const rejected = granted(decideFinding(proposed(), 'reject', 'user', T2));
-    const reinstated = granted(decideFinding(rejected, 'reinstate', 'user', T2));
+  it('keeps the whole row when a lesson is rejected', () => {
+    const before = granted(
+      applyLessonCandidate({ cookId: 'cook-01', text: 'Rest it.' }, { id: 'lesson-01' }, T1),
+    );
+    const rejected = granted(decideLesson(before, 'reject', 'user', T2));
 
-    expect(reinstated.status).toBe('proposed');
-    expect(reinstated.decidedAt).toBeNull();
-    expect(validateFinding(reinstated)).toEqual([]);
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.id).toBe(before.id);
+    expect(rejected.text).toBe(before.text);
+    expect(validateLesson(rejected)).toEqual([]);
   });
 
-  it('refuses transitions a record cannot make', () => {
+  it('makes a decision the cook’s alone', () => {
+    expect(refusalCode(decideFinding(proposed(), 'approve', 'ai', T2))).toBe(
+      'ai_cannot_decide_status',
+    );
+    expect(refusalCode(decideFinding(proposed(), 'reject', 'ai', T2))).toBe(
+      'ai_cannot_decide_status',
+    );
+  });
+
+  it('offers no way back out of rejected', () => {
+    const rejected = granted(decideFinding(proposed(), 'reject', 'user', T2));
+
+    expect(refusalCode(decideFinding(rejected, 'approve', 'user', T2))).toBe(
+      'invalid_status_transition',
+    );
+    expect(refusalCode(decideFinding(rejected, 'reject', 'user', T2))).toBe(
+      'invalid_status_transition',
+    );
+  });
+
+  it('refuses to approve what is already approved', () => {
     const approved = granted(decideFinding(proposed(), 'approve', 'user', T2));
 
     expect(refusalCode(decideFinding(approved, 'approve', 'user', T2))).toBe(
       'invalid_status_transition',
     );
-    expect(refusalCode(decideFinding(proposed(), 'reinstate', 'user', T2))).toBe(
-      'invalid_status_transition',
-    );
+  });
+});
+
+describe('briefing feedback', () => {
+  const BRIEFING = {
+    id: 'briefing-01',
+    cookId: 'cook-02',
+    content: { headline: 'Before this cook' },
+    useful: null,
+    createdAt: T0,
+  } as const;
+
+  it('is the cook’s to give, in three states', () => {
+    expect(granted(recordBriefingUsefulness(BRIEFING, true, 'user')).useful).toBe(true);
+    expect(granted(recordBriefingUsefulness(BRIEFING, false, 'user')).useful).toBe(false);
+    expect(granted(recordBriefingUsefulness(BRIEFING, null, 'user')).useful).toBeNull();
   });
 
-  it('applies the same protections to lessons', () => {
-    const lesson: Lesson = granted(
-      applyLessonProposal(
-        { id: 'lesson-03', title: 'Rest it', guidance: 'Ten minutes.', originFindingId: 'finding-01' },
-        'ai',
-        T1,
-      ),
+  it('cannot be answered by the assistant on their behalf', () => {
+    expect(refusalCode(recordBriefingUsefulness(BRIEFING, true, 'ai'))).toBe(
+      'ai_cannot_write_raw_evidence',
     );
-
-    expect(refusalCode(decideLesson(lesson, 'approve', 'ai', T2))).toBe(
-      'ai_cannot_decide_review_status',
-    );
-
-    const approved = granted(decideLesson(lesson, 'approve', 'user', T2));
-    expect(approved.status).toBe('approved');
-    expect(refusalCode(updateLesson(approved, { guidance: 'Twenty minutes.' }, 'ai', T2))).toBe(
-      'ai_cannot_update_approved_record',
-    );
-
-    const edited = granted(updateLesson(approved, { guidance: 'Fifteen minutes.' }, 'user', T2));
-    expect(edited.userEdited).toBe(true);
-    expect(validateLesson(edited)).toEqual([]);
   });
 });

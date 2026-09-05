@@ -11,6 +11,7 @@ import { LATEST_SCHEMA_VERSION } from '../src/data/schema/migrations';
 import { emptySnapshot } from '../src/domain/entities';
 import {
   SYNTHETIC_PHOTO_PATH,
+  SYNTHETIC_VERDICT,
   syntheticBackupEnvelope,
   syntheticPhotoManifest,
   syntheticSnapshot,
@@ -54,6 +55,119 @@ describe('a well-formed backup', () => {
   });
 });
 
+describe('the backup carries the corrected model', () => {
+  const envelope = syntheticBackupEnvelope();
+
+  it('serialises a cook with the controlled columns and no rejected ones', () => {
+    const cook = envelope.entities.cooks.find((entry) => entry.status === 'reviewed');
+
+    expect(Object.keys(cook ?? {}).sort()).toEqual([
+      'createdAt',
+      'id',
+      'parentCookId',
+      'provenance',
+      'reviewOpenedAt',
+      'reviewSavedAt',
+      'startedAt',
+      'status',
+      'title',
+      'verdict',
+    ]);
+  });
+
+  it('links a finding to timeline entries only', () => {
+    for (const source of envelope.entities.findingSources) {
+      expect(Object.keys(source).sort()).toEqual(['cookEventId', 'findingId']);
+      expect(
+        envelope.entities.cookEvents.some((event) => event.id === source.cookEventId),
+      ).toBe(true);
+    }
+  });
+
+  it('links a briefing to cooks only', () => {
+    expect(envelope.entities.briefingSources.length).toBeGreaterThan(0);
+    for (const source of envelope.entities.briefingSources) {
+      expect(Object.keys(source).sort()).toEqual(['briefingId', 'cookId']);
+      expect(envelope.entities.cooks.some((cook) => cook.id === source.cookId)).toBe(true);
+    }
+  });
+
+  it('keeps a briefing answer nullable and free of any lifecycle', () => {
+    const answers = envelope.entities.briefings.map((briefing) => briefing.useful);
+
+    expect(answers).toContain(null);
+    expect(answers).toContain(true);
+    for (const briefing of envelope.entities.briefings) {
+      expect(Object.keys(briefing).sort()).toEqual([
+        'content',
+        'cookId',
+        'createdAt',
+        'id',
+        'useful',
+      ]);
+    }
+  });
+
+  it('carries the verdict through text unchanged, whitespace and all', () => {
+    const parsed = deserialiseBackup(serialiseBackup(envelope));
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      const restored = parsed.envelope.entities.cooks.find(
+        (cook) => cook.verdict !== null && cook.verdict.includes('pale base'),
+      );
+
+      expect(restored?.verdict).toBe(SYNTHETIC_VERDICT);
+    }
+  });
+
+  it('carries a finding’s class, reasoning and confidence through text', () => {
+    const parsed = deserialiseBackup(serialiseBackup(envelope));
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      const inference = parsed.envelope.entities.findings.find(
+        (finding) => finding.class === 'inference',
+      );
+
+      expect(inference?.confidence).toBe('medium');
+      expect(inference?.rationale).not.toBeNull();
+      expect(inference?.createdBy).toBe('ai');
+      expect(inference?.provenance).toBe('live');
+    }
+  });
+
+  it('keeps a rejected proposal in the backup', () => {
+    const rejected = envelope.entities.findings.filter(
+      (finding) => finding.status === 'rejected',
+    );
+
+    expect(rejected.length).toBeGreaterThan(0);
+  });
+
+  it('carries structured meta and content as structure, not as text', () => {
+    const parsed = deserialiseBackup(serialiseBackup(envelope));
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      const temp = parsed.envelope.entities.cookEvents.find((event) => event.kind === 'temp');
+
+      expect(temp?.meta).toEqual({ celsius: 245 });
+      expect(parsed.envelope.entities.briefings[0]?.content).toEqual(
+        envelope.entities.briefings[0]?.content,
+      );
+    }
+  });
+
+  it('contains nothing to do with the database key', () => {
+    const text = serialiseBackup(envelope).toLowerCase();
+
+    for (const secret of ['encryption', 'sqlcipher', 'passphrase', 'secret', 'keychain']) {
+      expect(text).not.toContain(secret);
+    }
+  });
+});
+
 describe('deterministic serialisation', () => {
   it('produces identical text for the same data in a different order', () => {
     const snapshot = syntheticSnapshot();
@@ -66,7 +180,9 @@ describe('deterministic serialisation', () => {
       lessons: [...snapshot.lessons].reverse(),
       tags: [...snapshot.tags].reverse(),
       cookTags: [...snapshot.cookTags].reverse(),
+      briefings: [...snapshot.briefings].reverse(),
       briefingSources: [...snapshot.briefingSources].reverse(),
+      importBatches: [...snapshot.importBatches].reverse(),
     };
     const at = '2026-08-21T06:00:00.000Z';
 
@@ -154,10 +270,46 @@ describe('a backup that cannot be trusted', () => {
     expect(codesFrom(validateBackup(dangling))).toContain('dangling_reference');
   });
 
-  it('is rejected when a citation points at a finding that is not here', () => {
+  it('is rejected when a citation points at a timeline entry that is not here', () => {
     const dangling: BackupEnvelope = {
       ...envelope,
-      entities: { ...envelope.entities, findings: [] },
+      entities: {
+        ...envelope.entities,
+        findingSources: envelope.entities.findingSources.map((source) => ({
+          ...source,
+          cookEventId: 'event-missing',
+        })),
+      },
+    };
+
+    expect(codesFrom(validateBackup(dangling))).toContain('dangling_reference');
+  });
+
+  it('is rejected when a briefing cites a cook that is not here', () => {
+    const dangling: BackupEnvelope = {
+      ...envelope,
+      entities: {
+        ...envelope.entities,
+        briefingSources: envelope.entities.briefingSources.map((source) => ({
+          ...source,
+          cookId: 'cook-missing',
+        })),
+      },
+    };
+
+    expect(codesFrom(validateBackup(dangling))).toContain('dangling_reference');
+  });
+
+  it('is rejected when a cook follows on from one that is not here', () => {
+    const dangling: BackupEnvelope = {
+      ...envelope,
+      entities: {
+        ...envelope.entities,
+        cooks: envelope.entities.cooks.map((cook) => ({
+          ...cook,
+          parentCookId: cook.parentCookId === null ? null : 'cook-missing',
+        })),
+      },
     };
 
     expect(codesFrom(validateBackup(dangling))).toContain('dangling_reference');
@@ -215,6 +367,18 @@ describe('a backup that cannot be trusted', () => {
     const tampered = {
       ...envelope,
       photoManifest: envelope.photoManifest.map((entry) => ({ ...entry, sha256: 'nope' })),
+    };
+
+    expect(codesFrom(validateBackup(tampered))).toContain('invalid_record');
+  });
+
+  it('is rejected when a record uses a vocabulary this build does not have', () => {
+    const tampered = {
+      ...envelope,
+      entities: {
+        ...envelope.entities,
+        cooks: envelope.entities.cooks.map((cook) => ({ ...cook, status: 'complete' })),
+      },
     };
 
     expect(codesFrom(validateBackup(tampered))).toContain('invalid_record');

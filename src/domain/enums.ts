@@ -6,126 +6,103 @@
  * disagree. The SQL `CHECK` constraints in `src/data/schema/migrations.ts` are
  * written out literally rather than generated from these tuples — a migration's
  * text must stay frozen once it has run on a device — and
- * `__tests__/migrations.test.ts` asserts the two still agree. When they stop
- * agreeing that test fails, which is the signal that a new migration is needed.
+ * `__tests__/migrations.test.ts` asserts the two still agree.
+ *
+ * These lists are the product model, not a convenience. Nothing may be added to
+ * one without a controlled decision: a vocabulary is the vocabulary the kitchen
+ * actually uses, and an extra value is a product change wearing a type's
+ * clothing.
  *
  * Nothing here refers to users, accounts, roles, policies or synchronisation.
  * Cooking Lab is a single-kitchen notebook held on one device; there is no
  * ownership concept to express, so there is no vocabulary for one.
  */
 
-/** A cook's lifecycle. A cook exists from the moment it is planned. */
-export const COOK_STATUSES = ['planned', 'in_progress', 'complete', 'abandoned'] as const;
+/**
+ * A cook is open while it is being cooked and reviewed once the cook has sat
+ * down with it. There is no planning, running, finishing or abandoning state:
+ * a cook either still has a review to come, or it has had one.
+ */
+export const COOK_STATUSES = ['open', 'reviewed'] as const;
 export type CookStatus = (typeof COOK_STATUSES)[number];
 
 /**
- * The cook's own judgement of how it went. This is raw evidence: it is recorded
- * by the person who ate the food and may never be written or revised by the
- * assistant. `unrated` is the honest default, not a missing value.
+ * Where a row came from: cooking that happened in the app, or records brought
+ * in from outside it.
+ *
+ * This is emphatically not authorship. Who wrote a finding is `created_by`; a
+ * row's provenance says nothing about it. Conflating the two is what makes an
+ * assistant's suggestion look like history.
  */
-export const COOK_VERDICTS = [
-  'unrated',
-  'failed',
-  'poor',
-  'acceptable',
-  'good',
-  'excellent',
-] as const;
-export type CookVerdict = (typeof COOK_VERDICTS)[number];
+export const PROVENANCES = ['live', 'imported'] as const;
+export type Provenance = (typeof PROVENANCES)[number];
 
 /**
- * Timeline entries captured during a cook. Also raw evidence — what actually
+ * Timeline entries captured during a cook. Raw evidence — what actually
  * happened, in the order it happened.
  */
 export const COOK_EVENT_KINDS = [
-  'note',
-  'observation',
-  'temperature',
-  'timing',
-  'step',
-  'adjustment',
-  'taste',
+  'user_note',
+  'assistant_msg',
+  'temp',
   'photo',
+  'plan',
 ] as const;
 export type CookEventKind = (typeof COOK_EVENT_KINDS)[number];
 
-/** Units permitted on a `temperature` event. */
-export const TEMPERATURE_UNITS = ['c', 'f'] as const;
-export type TemperatureUnit = (typeof TEMPERATURE_UNITS)[number];
+/**
+ * Temperature is metric.
+ *
+ * A single constant rather than a vocabulary, because there is nothing to
+ * choose between: a `temp` event records degrees Celsius. A unit column would
+ * invite a second unit, and a second unit is how two readings that look
+ * comparable stop being comparable.
+ */
+export const TEMPERATURE_UNIT = 'celsius' as const;
+export type TemperatureUnit = typeof TEMPERATURE_UNIT;
+
+/** The key a `temp` event carries its reading under, in `meta`. */
+export const TEMPERATURE_META_KEY = 'celsius' as const;
+
+/**
+ * What kind of claim a finding is.
+ *
+ * The distinction is the point of the product: `observed` is something the cook
+ * recorded, `inference` is something the assistant read out of the record, and
+ * `knowledge` is general cooking knowledge brought to bear. A screen that shows
+ * all three the same way would be lying by layout.
+ */
+export const FINDING_CLASSES = ['observed', 'inference', 'knowledge'] as const;
+export type FindingClass = (typeof FINDING_CLASSES)[number];
+
+/** How sure an inference is. Three levels, because more would be false precision. */
+export const CONFIDENCE_LEVELS = ['low', 'medium', 'high'] as const;
+export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 
 /**
  * Review lifecycle shared by findings and lessons.
  *
  * `rejected` is a state, not a deletion: the row is retained so the same
  * proposal is not silently raised again and so the record of what was rejected
- * survives.
+ * survives. There is no route back out of it.
  */
-export const REVIEW_STATUSES = ['proposed', 'approved', 'rejected'] as const;
-export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export const PROPOSAL_STATUSES = ['proposed', 'approved', 'rejected'] as const;
+export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
-/** Who authored a record. There are exactly two possible authors. */
-export const PROVENANCES = ['user', 'ai'] as const;
-export type Provenance = (typeof PROVENANCES)[number];
-
-/**
- * How much cooking actually stands behind a finding. Derived from the finding's
- * supporting sources rather than asserted, so a confident-sounding claim cannot
- * carry more weight than the cooks it came from.
- */
-export const EVIDENCE_STRENGTHS = [
-  'unsupported',
-  'single',
-  'corroborated',
-  'strong',
-] as const;
-export type EvidenceStrength = (typeof EVIDENCE_STRENGTHS)[number];
-
-/** Whether a cited source backs a finding up or argues against it. */
-export const SOURCE_RELATIONS = ['supports', 'contradicts'] as const;
-export type SourceRelation = (typeof SOURCE_RELATIONS)[number];
-
-/** What a finding may cite. Only raw evidence may be cited. */
-export const FINDING_SOURCE_KINDS = ['cook', 'cook_event'] as const;
-export type FindingSourceKind = (typeof FINDING_SOURCE_KINDS)[number];
-
-/** What a briefing may be built from. */
-export const BRIEFING_SOURCE_KINDS = ['finding', 'lesson', 'cook'] as const;
-export type BriefingSourceKind = (typeof BRIEFING_SOURCE_KINDS)[number];
+/** Who authored a finding. There are exactly two possible authors. */
+export const CREATED_BY_VALUES = ['ai', 'user'] as const;
+export type CreatedBy = (typeof CREATED_BY_VALUES)[number];
 
 /** Tag namespaces. `(name, kind)` is unique, so "butter" the ingredient and
- * "butter" the technique are two different tags. */
-export const TAG_KINDS = [
-  'ingredient',
-  'technique',
-  'equipment',
-  'dish',
-  'outcome',
-  'free',
-] as const;
+ *  "butter" the technique are two different tags. */
+export const TAG_KINDS = ['dish', 'ingredient', 'technique', 'equipment'] as const;
 export type TagKind = (typeof TAG_KINDS)[number];
 
-/** Briefing lifecycle. A briefing is advice, never evidence. */
-export const BRIEFING_STATUSES = ['draft', 'issued', 'dismissed'] as const;
-export type BriefingStatus = (typeof BRIEFING_STATUSES)[number];
-
-/** Import lifecycle. `failed` and `rejected` batches are retained. */
-export const IMPORT_BATCH_STATUSES = ['pending', 'applied', 'rejected', 'failed'] as const;
+/** How far an import has got. `failed` batches are retained. */
+export const IMPORT_BATCH_STATUSES = ['processing', 'ready', 'done', 'failed'] as const;
 export type ImportBatchStatus = (typeof IMPORT_BATCH_STATUSES)[number];
 
-/**
- * Where an import batch came from.
- *
- * There are deliberately only two, and only one of them is a production path.
- * `synthetic_fixture` exists so test data can never be mistaken for cooking that
- * actually happened; see `__tests__/fixtures/syntheticData.ts`.
- */
-export const IMPORT_BATCH_ORIGINS = ['backup_restore', 'synthetic_fixture'] as const;
-export type ImportBatchOrigin = (typeof IMPORT_BATCH_ORIGINS)[number];
-
-/** The only import origin the shipping app may ever write. */
-export const PRODUCTION_IMPORT_ORIGIN: ImportBatchOrigin = 'backup_restore';
-
-/** Reserved `schema_meta` keys. */
+/** The `schema_meta` keys this build writes. */
 export const SCHEMA_META_KEYS = ['schema_version', 'schema_applied_at'] as const;
 export type SchemaMetaKey = (typeof SCHEMA_META_KEYS)[number];
 
@@ -138,25 +115,15 @@ export function isOneOf<T extends string>(
 }
 
 export const isCookStatus = (v: unknown): v is CookStatus => isOneOf(COOK_STATUSES, v);
-export const isCookVerdict = (v: unknown): v is CookVerdict => isOneOf(COOK_VERDICTS, v);
+export const isProvenance = (v: unknown): v is Provenance => isOneOf(PROVENANCES, v);
 export const isCookEventKind = (v: unknown): v is CookEventKind =>
   isOneOf(COOK_EVENT_KINDS, v);
-export const isTemperatureUnit = (v: unknown): v is TemperatureUnit =>
-  isOneOf(TEMPERATURE_UNITS, v);
-export const isReviewStatus = (v: unknown): v is ReviewStatus => isOneOf(REVIEW_STATUSES, v);
-export const isProvenance = (v: unknown): v is Provenance => isOneOf(PROVENANCES, v);
-export const isEvidenceStrength = (v: unknown): v is EvidenceStrength =>
-  isOneOf(EVIDENCE_STRENGTHS, v);
-export const isSourceRelation = (v: unknown): v is SourceRelation =>
-  isOneOf(SOURCE_RELATIONS, v);
-export const isFindingSourceKind = (v: unknown): v is FindingSourceKind =>
-  isOneOf(FINDING_SOURCE_KINDS, v);
-export const isBriefingSourceKind = (v: unknown): v is BriefingSourceKind =>
-  isOneOf(BRIEFING_SOURCE_KINDS, v);
+export const isFindingClass = (v: unknown): v is FindingClass => isOneOf(FINDING_CLASSES, v);
+export const isConfidenceLevel = (v: unknown): v is ConfidenceLevel =>
+  isOneOf(CONFIDENCE_LEVELS, v);
+export const isProposalStatus = (v: unknown): v is ProposalStatus =>
+  isOneOf(PROPOSAL_STATUSES, v);
+export const isCreatedBy = (v: unknown): v is CreatedBy => isOneOf(CREATED_BY_VALUES, v);
 export const isTagKind = (v: unknown): v is TagKind => isOneOf(TAG_KINDS, v);
-export const isBriefingStatus = (v: unknown): v is BriefingStatus =>
-  isOneOf(BRIEFING_STATUSES, v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>
   isOneOf(IMPORT_BATCH_STATUSES, v);
-export const isImportBatchOrigin = (v: unknown): v is ImportBatchOrigin =>
-  isOneOf(IMPORT_BATCH_ORIGINS, v);

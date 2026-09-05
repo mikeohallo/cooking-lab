@@ -1,7 +1,17 @@
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, relative, resolve, sep } from 'path';
 
-import { IMPORT_BATCH_ORIGINS, PRODUCTION_IMPORT_ORIGIN } from '../src/domain/enums';
+import {
+  COOK_EVENT_KINDS,
+  COOK_STATUSES,
+  CONFIDENCE_LEVELS,
+  CREATED_BY_VALUES,
+  FINDING_CLASSES,
+  IMPORT_BATCH_STATUSES,
+  PROPOSAL_STATUSES,
+  PROVENANCES,
+  TAG_KINDS,
+} from '../src/domain/enums';
 import { SYNTHETIC_ID_PREFIX, syntheticIds, syntheticSnapshot } from './fixtures/syntheticData';
 
 /**
@@ -10,6 +20,10 @@ import { SYNTHETIC_ID_PREFIX, syntheticIds, syntheticSnapshot } from './fixtures
  * The rest of the suite proves the fixture is *valid*. This file proves it is
  * *unreachable*: nothing the bundler compiles imports it, and nothing about it
  * could be mistaken for a real kitchen's history if it somehow appeared.
+ *
+ * It also proves the reverse direction — that keeping the fixture separate has
+ * not been paid for by putting a fixture-shaped value into the product model.
+ * Every value in the fixture is one the shipping app may itself write.
  */
 
 const REPO_ROOT = resolve(__dirname, '..');
@@ -92,11 +106,17 @@ describe('the fixture is outside the app bundle', () => {
     expect(FORBIDDEN_SPECIFIER.test('./fixtures/syntheticData')).toBe(true);
     expect(FORBIDDEN_SPECIFIER.test('../../src/domain/entities')).toBe(false);
   });
+
+  it('is named nowhere in the product source', () => {
+    const offenders = bundledFiles.filter((file) =>
+      /synthetic/i.test(readFileSync(file, 'utf8')),
+    );
+
+    expect(offenders.map((file) => relative(REPO_ROOT, file))).toEqual([]);
+  });
 });
 
-describe('the fixture announces itself as synthetic', () => {
-  const snapshot = syntheticSnapshot();
-
+describe('the fixture announces itself by its identifiers', () => {
   it('prefixes every identifier', () => {
     const ids = syntheticIds();
 
@@ -106,17 +126,67 @@ describe('the fixture announces itself as synthetic', () => {
     }
   });
 
-  it('records its import batch with an origin the shipping app cannot write', () => {
-    expect(snapshot.importBatches.length).toBeGreaterThan(0);
-    for (const batch of snapshot.importBatches) {
-      expect(batch.origin).toBe('synthetic_fixture');
-      expect(batch.origin).not.toBe(PRODUCTION_IMPORT_ORIGIN);
+  it('never has the app generate an id that would collide with one', () => {
+    // Nothing in the product writes this prefix; it exists only here.
+    expect(SYNTHETIC_ID_PREFIX).toBe('synthetic-');
+  });
+});
+
+describe('the fixture uses the production vocabularies and no others', () => {
+  const snapshot = syntheticSnapshot();
+
+  it('uses only real cook statuses and provenances', () => {
+    for (const cook of snapshot.cooks) {
+      expect(COOK_STATUSES).toContain(cook.status);
+      expect(PROVENANCES).toContain(cook.provenance);
     }
   });
 
-  it('keeps the two origins distinct in the vocabulary itself', () => {
-    expect(IMPORT_BATCH_ORIGINS).toContain(PRODUCTION_IMPORT_ORIGIN);
-    expect(IMPORT_BATCH_ORIGINS).toContain('synthetic_fixture');
-    expect(PRODUCTION_IMPORT_ORIGIN).not.toBe('synthetic_fixture');
+  it('uses only real event kinds', () => {
+    for (const event of snapshot.cookEvents) {
+      expect(COOK_EVENT_KINDS).toContain(event.kind);
+    }
+  });
+
+  it('uses only real finding classes, confidences, statuses and authors', () => {
+    for (const finding of snapshot.findings) {
+      expect(FINDING_CLASSES).toContain(finding.class);
+      expect(PROPOSAL_STATUSES).toContain(finding.status);
+      expect(CREATED_BY_VALUES).toContain(finding.createdBy);
+      expect(PROVENANCES).toContain(finding.provenance);
+      if (finding.confidence !== null) {
+        expect(CONFIDENCE_LEVELS).toContain(finding.confidence);
+      }
+    }
+  });
+
+  it('uses only real tag kinds and import statuses', () => {
+    for (const tag of snapshot.tags) {
+      expect(TAG_KINDS).toContain(tag.kind);
+    }
+    for (const batch of snapshot.importBatches) {
+      expect(IMPORT_BATCH_STATUSES).toContain(batch.status);
+    }
+  });
+
+  it('needed no fixture-only value added to the product model to be safe', () => {
+    // A `synthetic_fixture` origin, a `test` provenance or a `sample` status
+    // would have to be handled, shown and migrated forever. The identifiers do
+    // the job instead.
+    const vocabularies = [
+      ...COOK_STATUSES,
+      ...PROVENANCES,
+      ...COOK_EVENT_KINDS,
+      ...FINDING_CLASSES,
+      ...CONFIDENCE_LEVELS,
+      ...PROPOSAL_STATUSES,
+      ...CREATED_BY_VALUES,
+      ...TAG_KINDS,
+      ...IMPORT_BATCH_STATUSES,
+    ];
+
+    for (const value of vocabularies) {
+      expect(value).not.toMatch(/synthetic|fixture|sample|test|dummy|seed/i);
+    }
   });
 });

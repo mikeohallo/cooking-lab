@@ -33,11 +33,7 @@ import type {
   SnapshotEntityKey,
   Tag,
 } from '../../domain/entities';
-import {
-  SNAPSHOT_ENTITY_KEYS,
-  briefingSourceRef,
-  findingSourceRef,
-} from '../../domain/entities';
+import { SNAPSHOT_ENTITY_KEYS } from '../../domain/entities';
 import type { ValidationIssue } from '../../domain/invariants';
 import {
   isIsoTimestamp,
@@ -151,11 +147,11 @@ function collectionKey(collection: SnapshotEntityKey, row: unknown): string {
   switch (collection) {
     case 'findingSources': {
       const source = row as unknown as FindingSource;
-      return [source.findingId, source.sourceKind, findingSourceRef(source) ?? ''].join('|');
+      return [source.findingId, source.cookEventId].join('|');
     }
     case 'briefingSources': {
       const source = row as unknown as BriefingSource;
-      return [source.briefingId, source.sourceKind, briefingSourceRef(source) ?? ''].join('|');
+      return [source.briefingId, source.cookId].join('|');
     }
     case 'cookTags': {
       const link = row as unknown as CookTag;
@@ -285,7 +281,6 @@ export function validateBackup(candidate: unknown): BackupValidation {
   const cookIds = collectIds(collections.get('cooks') ?? []);
   const cookEventIds = collectIds(collections.get('cookEvents') ?? []);
   const findingIds = collectIds(collections.get('findings') ?? []);
-  const lessonIds = collectIds(collections.get('lessons') ?? []);
   const tagIds = collectIds(collections.get('tags') ?? []);
   const briefingIds = collectIds(collections.get('briefings') ?? []);
 
@@ -307,6 +302,17 @@ export function validateBackup(candidate: unknown): BackupValidation {
   });
 
   // --- relationships -------------------------------------------------------
+  (collections.get('cooks') ?? []).forEach((row, index) => {
+    const cook = row as Cook;
+    checkReference(
+      `entities.cooks[${index}].parentCookId`,
+      typeof cook.parentCookId === 'string' ? cook.parentCookId : null,
+      cookIds,
+      'cook',
+      issues,
+    );
+  });
+
   (collections.get('cookEvents') ?? []).forEach((row, index) => {
     const event = row as CookEvent;
     checkReference(
@@ -318,11 +324,21 @@ export function validateBackup(candidate: unknown): BackupValidation {
     );
   });
 
+  (collections.get('findings') ?? []).forEach((row, index) => {
+    const finding = row as Finding;
+    checkReference(
+      `entities.findings[${index}].cookId`,
+      typeof finding.cookId === 'string' ? finding.cookId : null,
+      cookIds,
+      'cook',
+      issues,
+    );
+  });
+
   (collections.get('findingSources') ?? []).forEach((row, index) => {
     const source = row as FindingSource;
     const at = `entities.findingSources[${index}]`;
     checkReference(`${at}.findingId`, source.findingId ?? null, findingIds, 'finding', issues);
-    checkReference(`${at}.cookId`, source.cookId ?? null, cookIds, 'cook', issues);
     checkReference(
       `${at}.cookEventId`,
       source.cookEventId ?? null,
@@ -335,10 +351,10 @@ export function validateBackup(candidate: unknown): BackupValidation {
   (collections.get('lessons') ?? []).forEach((row, index) => {
     const lesson = row as Lesson;
     checkReference(
-      `entities.lessons[${index}].originFindingId`,
-      lesson.originFindingId ?? null,
-      findingIds,
-      'finding',
+      `entities.lessons[${index}].cookId`,
+      typeof lesson.cookId === 'string' ? lesson.cookId : null,
+      cookIds,
+      'cook',
       issues,
     );
   });
@@ -354,19 +370,18 @@ export function validateBackup(candidate: unknown): BackupValidation {
     const briefing = row as Briefing;
     checkReference(
       `entities.briefings[${index}].cookId`,
-      briefing.cookId ?? null,
+      typeof briefing.cookId === 'string' ? briefing.cookId : null,
       cookIds,
       'cook',
       issues,
     );
   });
 
+  // A briefing is built from earlier cooks, and from nothing else.
   (collections.get('briefingSources') ?? []).forEach((row, index) => {
     const source = row as BriefingSource;
     const at = `entities.briefingSources[${index}]`;
     checkReference(`${at}.briefingId`, source.briefingId ?? null, briefingIds, 'briefing', issues);
-    checkReference(`${at}.findingId`, source.findingId ?? null, findingIds, 'finding', issues);
-    checkReference(`${at}.lessonId`, source.lessonId ?? null, lessonIds, 'lesson', issues);
     checkReference(`${at}.cookId`, source.cookId ?? null, cookIds, 'cook', issues);
   });
 

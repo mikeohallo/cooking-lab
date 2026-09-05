@@ -6,7 +6,7 @@
  * first is that when the real `expo-sqlite` adapter arrives it has a shape to
  * fit into, and nothing above the boundary has to change to accept it.
  *
- * Three conventions hold throughout:
+ * Four conventions hold throughout:
  *
  *   Records in, records out.  Repositories accept and return the domain records
  *   from `src/domain/entities.ts`. Column names, row shapes and SQL text stop
@@ -14,8 +14,12 @@
  *
  *   Repositories do not decide.  A repository stores what it is given. Whether
  *   a write is *allowed* is settled before the call, by the pure functions in
- *   `src/domain/evidence.ts`; the review services below exist to make that
- *   ordering the obvious one.
+ *   `src/domain/evidence.ts`; the services below exist to make that ordering
+ *   the obvious one.
+ *
+ *   The assistant reaches storage through a service or not at all.  No
+ *   repository is ever handed to an assistant adapter; see `AiAdapter` in
+ *   `src/data/adapters.ts`, which returns candidates and holds no handle.
  *
  *   Everything is asynchronous.  Even reads. The eventual store is a native
  *   module, and a synchronous signature now would be a rewrite later.
@@ -23,14 +27,17 @@
 
 import type {
   Actor,
-  AppliedFindingProposal,
+  AppliedFinding,
   CookEventPatch,
   CookPatch,
   EvidenceDecision,
+  FindingCandidate,
+  FindingIdentity,
   FindingPatch,
-  FindingProposal,
+  LessonCandidate,
+  LessonIdentity,
   LessonPatch,
-  LessonProposal,
+  NewCook,
   NewCookEvent,
   ReviewDecision,
 } from '../domain/evidence';
@@ -57,16 +64,16 @@ import type {
   TagId,
 } from '../domain/entities';
 import type {
-  BriefingStatus,
+  CookEventKind,
   CookStatus,
-  CookVerdict,
-  ImportBatchOrigin,
+  FindingClass,
   ImportBatchStatus,
-  ReviewStatus,
+  ProposalStatus,
+  Provenance,
   TagKind,
 } from '../domain/enums';
 
-/** Newest first, oldest first, or by nothing in particular. */
+/** Newest first or oldest first. */
 export type SortDirection = 'newest_first' | 'oldest_first';
 
 export type PageRequest = {
@@ -76,21 +83,13 @@ export type PageRequest = {
 
 export type CookQuery = {
   readonly status?: CookStatus;
-  readonly verdict?: CookVerdict;
+  readonly provenance?: Provenance;
+  readonly parentCookId?: CookId;
   readonly tagIds?: readonly TagId[];
   readonly startedOnOrAfter?: IsoTimestamp;
   readonly startedBefore?: IsoTimestamp;
   readonly sort?: SortDirection;
   readonly page?: PageRequest;
-};
-
-/** What a screen supplies to start a cook. Everything else has a default. */
-export type NewCook = {
-  readonly id: CookId;
-  readonly title: string;
-  readonly status: CookStatus;
-  readonly startedAt: IsoTimestamp;
-  readonly notes?: string | null;
 };
 
 export type CookRepository = {
@@ -100,15 +99,18 @@ export type CookRepository = {
   count(query?: CookQuery): Promise<number>;
   /**
    * Persist an already-authorised revision. The caller obtained `cook` from
-   * `updateCook` or `recordCookVerdict`; this method does not re-decide.
+   * `updateCook`, `openCookReview` or `saveCookReview`; this does not re-decide.
    */
   save(cook: Cook): Promise<Cook>;
-  /** Cascades to cook events, tags, citations and briefing links. */
+  /** The cooks that followed on from this one. */
+  listChildren(id: CookId): Promise<readonly Cook[]>;
+  /** Cascades to events, findings, lessons, tags and briefing links. */
   delete(id: CookId): Promise<void>;
 };
 
 export type CookEventQuery = {
   readonly cookId: CookId;
+  readonly kind?: CookEventKind;
   readonly sort?: SortDirection;
   readonly page?: PageRequest;
 };
@@ -123,8 +125,10 @@ export type CookEventRepository = {
 };
 
 export type FindingQuery = {
-  readonly status?: ReviewStatus;
-  readonly citesCookId?: CookId;
+  readonly cookId?: CookId;
+  readonly status?: ProposalStatus;
+  readonly class?: FindingClass;
+  readonly citesCookEventId?: CookEventId;
   readonly sort?: SortDirection;
   readonly page?: PageRequest;
 };
@@ -137,7 +141,7 @@ export type FindingQuery = {
  * product must never produce.
  */
 export type FindingRepository = {
-  createWithSources(applied: AppliedFindingProposal): Promise<AppliedFindingProposal>;
+  createWithSources(applied: AppliedFinding): Promise<AppliedFinding>;
   findById(id: FindingId): Promise<Finding | null>;
   list(query?: FindingQuery): Promise<readonly Finding[]>;
   save(finding: Finding): Promise<Finding>;
@@ -145,15 +149,17 @@ export type FindingRepository = {
   delete(id: FindingId): Promise<void>;
 
   listSources(findingId: FindingId): Promise<readonly FindingSource[]>;
+  /** The timeline entries behind a finding, resolved. */
+  listSourceEvents(findingId: FindingId): Promise<readonly CookEvent[]>;
   addSource(source: FindingSource): Promise<FindingSource>;
   removeSource(source: FindingSource): Promise<void>;
-  /** Every finding citing this cook, for "what did this cook teach me". */
-  listCitingCook(cookId: CookId): Promise<readonly Finding[]>;
+  /** Every finding citing this timeline entry. */
+  listCitingEvent(cookEventId: CookEventId): Promise<readonly Finding[]>;
 };
 
 export type LessonQuery = {
-  readonly status?: ReviewStatus;
-  readonly originFindingId?: FindingId;
+  readonly cookId?: CookId;
+  readonly status?: ProposalStatus;
   readonly sort?: SortDirection;
   readonly page?: PageRequest;
 };
@@ -174,7 +180,7 @@ export type TagRepository = {
    * unique in the database and the check-then-insert version is a race that
    * would surface to a cook as a failed save.
    */
-  findOrCreate(name: string, kind: TagKind, at: IsoTimestamp): Promise<Tag>;
+  findOrCreate(name: string, kind: TagKind): Promise<Tag>;
   findById(id: TagId): Promise<Tag | null>;
   findByNameAndKind(name: string, kind: TagKind): Promise<Tag | null>;
   list(kind?: TagKind): Promise<readonly Tag[]>;
@@ -191,7 +197,8 @@ export type CookTagRepository = {
 
 export type BriefingQuery = {
   readonly cookId?: CookId;
-  readonly status?: BriefingStatus;
+  /** `true` for helpful, `false` for not, omitted for every briefing. */
+  readonly useful?: boolean;
   readonly sort?: SortDirection;
   readonly page?: PageRequest;
 };
@@ -206,7 +213,9 @@ export type BriefingRepository = {
   save(briefing: Briefing): Promise<Briefing>;
   delete(id: BriefingId): Promise<void>;
 
+  /** The earlier cooks this briefing was built from. */
   listSources(briefingId: BriefingId): Promise<readonly BriefingSource[]>;
+  listSourceCooks(briefingId: BriefingId): Promise<readonly Cook[]>;
   addSource(source: BriefingSource): Promise<BriefingSource>;
   removeSource(source: BriefingSource): Promise<void>;
 };
@@ -215,7 +224,6 @@ export type ImportBatchRepository = {
   create(batch: ImportBatch): Promise<ImportBatch>;
   findById(id: ImportBatchId): Promise<ImportBatch | null>;
   list(status?: ImportBatchStatus): Promise<readonly ImportBatch[]>;
-  listByOrigin(origin: ImportBatchOrigin): Promise<readonly ImportBatch[]>;
   save(batch: ImportBatch): Promise<ImportBatch>;
 };
 
@@ -240,13 +248,18 @@ export type SchemaStateRepository = {
  * decides, and the write only happens if it was allowed. Returning the same
  * `EvidenceDecision` the pure function returned means a screen handles a
  * refusal exactly the same way whether it was refused in memory or on disk.
+ *
+ * This is also the only door an assistant candidate can come through. An
+ * adapter produces `FindingCandidate` and `LessonCandidate` values; they become
+ * rows here, as proposals, or not at all.
  */
 export type ReviewService = {
   proposeFinding(
-    proposal: FindingProposal,
+    candidate: FindingCandidate,
+    identity: FindingIdentity,
     actor: Actor,
     at: IsoTimestamp,
-  ): Promise<EvidenceDecision<AppliedFindingProposal>>;
+  ): Promise<EvidenceDecision<AppliedFinding>>;
   editFinding(
     id: FindingId,
     patch: FindingPatch,
@@ -261,8 +274,8 @@ export type ReviewService = {
   ): Promise<EvidenceDecision<Finding>>;
 
   proposeLesson(
-    proposal: LessonProposal,
-    actor: Actor,
+    candidate: LessonCandidate,
+    identity: LessonIdentity,
     at: IsoTimestamp,
   ): Promise<EvidenceDecision<Lesson>>;
   editLesson(
@@ -279,32 +292,41 @@ export type ReviewService = {
   ): Promise<EvidenceDecision<Lesson>>;
 };
 
-/** Capturing a cook. Every method here is a raw-evidence write. */
+/** Capturing a cook. Every method here touches raw evidence. */
 export type CookCaptureService = {
   startCook(input: NewCook, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Cook>>;
   updateCook(
     id: CookId,
     patch: CookPatch,
     actor: Actor,
-    at: IsoTimestamp,
   ): Promise<EvidenceDecision<Cook>>;
-  recordVerdict(
+  openReview(id: CookId, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Cook>>;
+  /** The verdict is stored exactly as typed. */
+  saveReview(
     id: CookId,
-    verdict: CookVerdict,
-    note: string | null,
+    verdict: string | null,
     actor: Actor,
     at: IsoTimestamp,
   ): Promise<EvidenceDecision<Cook>>;
-  addEvent(
-    input: NewCookEvent,
-    actor: Actor,
-    at: IsoTimestamp,
-  ): Promise<EvidenceDecision<CookEvent>>;
+  addEvent(input: NewCookEvent, actor: Actor): Promise<EvidenceDecision<CookEvent>>;
   editEvent(
     id: CookEventId,
     patch: CookEventPatch,
     actor: Actor,
   ): Promise<EvidenceDecision<CookEvent>>;
+};
+
+/** Preparing a briefing for a new cook, and hearing whether it helped. */
+export type BriefingService = {
+  createBriefing(
+    briefing: Briefing,
+    sourceCookIds: readonly CookId[],
+  ): Promise<Briefing>;
+  recordUsefulness(
+    id: BriefingId,
+    useful: boolean | null,
+    actor: Actor,
+  ): Promise<EvidenceDecision<Briefing>>;
 };
 
 /** Reads the whole database out for backup. Writing it back is deferred. */
@@ -330,5 +352,6 @@ export type DataLayer = {
   readonly schemaState: SchemaStateRepository;
   readonly review: ReviewService;
   readonly capture: CookCaptureService;
+  readonly briefingWorkflow: BriefingService;
   readonly snapshots: SnapshotService;
 };

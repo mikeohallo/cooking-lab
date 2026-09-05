@@ -22,7 +22,14 @@
  * FileSystem store, and real backup file I/O.
  */
 
-import type { DatabaseSnapshot, IsoTimestamp, PhotoLogicalPath } from '../domain/entities';
+import type {
+  Cook,
+  CookEvent,
+  DatabaseSnapshot,
+  IsoTimestamp,
+  PhotoLogicalPath,
+} from '../domain/entities';
+import type { AiCandidateSet } from '../domain/evidence';
 import type { BackupEnvelope, BackupPhotoManifestEntry } from './backup/contract';
 
 // ---------------------------------------------------------------------------
@@ -75,8 +82,8 @@ export type DatabaseOpenOptions = {
   readonly fileName: string;
   /**
    * The key for an encrypted database, from `DatabaseKeyProvider`. `null` opens
-   * an unencrypted file, which is only ever acceptable for a synthetic
-   * fixture database in a test.
+   * an unencrypted file, which is only ever acceptable for a throwaway database
+   * in a test.
    */
   readonly encryptionKey: string | null;
 };
@@ -204,3 +211,87 @@ export type BackupBuilder = {
     at: IsoTimestamp,
   ): BackupEnvelope;
 };
+
+// ---------------------------------------------------------------------------
+// The assistant
+// ---------------------------------------------------------------------------
+
+/**
+ * What an assistant is shown: one cook and its timeline, as values.
+ *
+ * A copy of the records, not a query interface. An adapter cannot go looking
+ * for anything it was not given, which means what the assistant saw is exactly
+ * what the app decided to show it, and that decision is in the app's code.
+ */
+export type AiReviewContext = {
+  readonly cook: Cook;
+  readonly events: readonly CookEvent[];
+};
+
+/**
+ * The assistant seam.
+ *
+ * This interface has one method and it returns candidates. There is no
+ * database handle, no repository, no data layer and no write of any kind
+ * anywhere in it — not because an implementation would be trusted not to use
+ * one, but because it is never given one. Candidates become rows in
+ * `ReviewService`, as proposals, and only there.
+ *
+ * No implementation exists in this milestone: a stub that fabricated plausible
+ * findings would be indistinguishable in review from a real one and would put
+ * invented claims in front of the cook.
+ */
+export type AiAdapter = {
+  proposeCandidates(context: AiReviewContext): Promise<AiCandidateSet>;
+};
+
+/**
+ * Property names an assistant adapter may never carry.
+ *
+ * Lowercased; matched exactly against the adapter's own property names.
+ */
+const FORBIDDEN_ADAPTER_MEMBERS: readonly string[] = [
+  'execute',
+  'select',
+  'withtransaction',
+  'transaction',
+  'close',
+  'save',
+  'create',
+  'insert',
+  'update',
+  'delete',
+  'write',
+  'db',
+  'database',
+  'datalayer',
+  'repository',
+  'repositories',
+  'store',
+];
+
+function looksLikeADatabase(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  return ['execute', 'withTransaction', 'select', 'save'].some((method) => method in value);
+}
+
+/**
+ * The names by which an object hands its holder a way to write to storage.
+ *
+ * Returns the offending property names, empty when there are none. This is a
+ * runtime check on top of a type-level guarantee, because the type only binds
+ * code that was compiled against it: an adapter assembled from a plain object,
+ * a mock or a future plug-in is still checkable here.
+ * `__tests__/evidence.test.ts` runs it against both a compliant adapter and a
+ * leaky one, so it is known to fire.
+ */
+export function findDatabaseHandles(adapter: object): readonly string[] {
+  return Object.entries(adapter)
+    .filter(
+      ([name, value]) =>
+        FORBIDDEN_ADAPTER_MEMBERS.includes(name.toLowerCase()) || looksLikeADatabase(value),
+    )
+    .map(([name]) => name);
+}
