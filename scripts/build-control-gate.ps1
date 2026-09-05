@@ -139,17 +139,33 @@ $ControlRelPatterns = @(
 
 # =====================================================================
 # Path forms that leave the repository, or reach machine state.
-# Applied to raw tool arguments and to every Bash command.
+#
+# Two lists, because the two call sites are genuinely different.
+#
+# $ForbiddenArgTokens applies to file-tool arguments. Those are ALLOWED to be
+# drive-absolute - Claude Code's Read tool requires an absolute path - so
+# containment, not the shape of the string, decides whether they are safe.
+# What stays refused here is the set of forms that resolution alone would not
+# catch: '~' and '%VAR%' would be treated as ordinary directory names and
+# resolve to a harmless-looking path inside the repository, and UNC and
+# traversal are rejected for a clearer message than containment would give.
+#
+# $ForbiddenPathTokens applies to Bash commands, where only git and npm run and
+# every path they take is repository-relative. An absolute path has no business
+# appearing there at all, so it is refused outright.
 # =====================================================================
-$ForbiddenPathTokens = @(
-    @{ p = '[A-Za-z]:[\\/]';                    r = 'a drive-absolute path' },
+$ForbiddenArgTokens = @(
     @{ p = '\\\\[^\\\s]';                       r = 'a UNC/network path' },
     @{ p = '(^|[\s''"=])//[^\s/]';              r = 'a UNC/network path' },
-    @{ p = '(^|[\s''"=])[\\/][^\s\\/]';         r = 'a root-absolute path' },
     @{ p = '(^|[\s''"=(])~[\\/]';               r = 'home-directory expansion' },
     @{ p = '(^|[\s''"=(/\\])\.\.([\\/]|$)';     r = 'parent-directory traversal' },
     @{ p = '%[A-Za-z_][A-Za-z0-9_]*%';          r = 'Windows environment-variable expansion' }
 )
+
+$ForbiddenPathTokens = @(
+    @{ p = '[A-Za-z]:[\\/]';                    r = 'a drive-absolute path' },
+    @{ p = '(^|[\s''"=])[\\/][^\s\\/]';         r = 'a root-absolute path' }
+) + $ForbiddenArgTokens
 
 # =====================================================================
 # Approved quality commands.
@@ -277,7 +293,7 @@ try {
         if ($value -isnot [string]) { continue }
         if ([string]::IsNullOrWhiteSpace($value)) { continue }
 
-        foreach ($rule in $ForbiddenPathTokens) {
+        foreach ($rule in $ForbiddenArgTokens) {
             if ($value -match $rule.p) {
                 Deny "tool '$toolName' uses $($rule.r) -> $value"
             }

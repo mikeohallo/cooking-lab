@@ -499,6 +499,33 @@ Check -Name 'Glob inside the repository is still allowed' `
       -Condition ($null -eq (Invoke-Gate (@{ tool_name = 'Glob'; tool_input = @{ path = 'src' } } | ConvertTo-Json -Compress))) `
       -Detail 'legitimate inspection must keep working'
 
+# Regression: Claude Code's Read tool requires an ABSOLUTE path. Refusing
+# drive-absolute paths outright made every legitimate repository read
+# impossible - found by the first live controlled trial. Containment, not the
+# shape of the string, decides whether a file-tool path is safe.
+$absoluteInside = @(
+    'C:\Projects\cooking-lab\package.json',
+    'C:\Projects\cooking-lab\build-control\queue\NEXT_RUN.json',
+    'C:\Projects\cooking-lab\src\config\appIdentity.ts'
+)
+foreach ($p in $absoluteInside) {
+    Check -Name "Read is allowed on an absolute path inside the repository: $(Split-Path -Leaf $p)" `
+          -Condition ($null -eq (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path $p))) `
+          -Detail "absolute repository paths must be accepted -> $p"
+}
+Check -Name 'Write is allowed on an absolute path inside the repository' `
+      -Condition ($null -eq (Invoke-Gate (New-ToolEvent -Tool 'Write' -Path 'C:\Projects\cooking-lab\build-control\reports\X.md'))) `
+      -Detail 'absolute repository paths must be accepted'
+Check -Name 'an absolute path outside the repository is still refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path 'C:\Windows\win.ini'))) `
+      -Detail 'containment must still refuse this'
+Check -Name 'an absolute path into a secret is still refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path 'C:\Projects\cooking-lab\.env'))) `
+      -Detail 'secret denial must still apply to absolute paths'
+Check -Name 'an absolute path with embedded traversal is still refused' `
+      -Condition ($null -ne (Invoke-Gate (New-ToolEvent -Tool 'Read' -Path 'C:\Projects\cooking-lab\..\ProjectA\notes.md'))) `
+      -Detail 'traversal out of the repository must still be refused'
+
 # ---------------------------------------------------------------------
 Set-Section '3d. Bash surface - only bounded git and approved quality commands'
 # ---------------------------------------------------------------------
