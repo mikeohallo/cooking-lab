@@ -48,17 +48,44 @@ Set-StrictMode -Version 1.0
 $ErrorActionPreference = 'Stop'
 
 # =====================================================================
+# Test seams
+#
+# The self-test suite must be able to exercise the runner against a scratch
+# repository, a scratch coordination directory and a stub worker, without ever
+# touching the real ones. Those redirections are honoured ONLY in explicit
+# self-test mode or when this script is dot-sourced as a library by the suite.
+# In normal unattended operation every value below is the fixed production one,
+# and no environment variable can change it.
+# =====================================================================
+
+$Script:LibraryOnly = ($env:COOKING_LAB_RUNNER_LIB_ONLY -eq '1')
+$Script:TestSeams   = ($SelfTest.IsPresent -or $Script:LibraryOnly)
+
+function Get-SeamValue {
+    param([string]$Name, [string]$Default)
+    if (-not $Script:TestSeams) { return $Default }
+    $v = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($v)) { return $Default }
+    return $v
+}
+
+# =====================================================================
 # Configuration
 # =====================================================================
 
 $AppId          = 'cooking-lab'
-$ExpectedRemote = 'https://github.com/mikeohallo/cooking-lab.git'
 $ExpectedBranch = 'main'
+$ExpectedRemote = Get-SeamValue 'COOKING_LAB_EXPECTED_REMOTE' 'https://github.com/mikeohallo/cooking-lab.git'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot  = (Resolve-Path (Join-Path $ScriptDir '..')).Path.TrimEnd('\')
+$RepoRoot  = Get-SeamValue 'COOKING_LAB_REPO_ROOT_OVERRIDE' ((Resolve-Path (Join-Path $ScriptDir '..')).Path.TrimEnd('\'))
+$RepoRoot  = $RepoRoot.TrimEnd('\')
 
-$GlobalDir = 'C:\Projects\.app-build-control'
+# The worker executable. Overridable only under a test seam, so the suite can
+# prove "launches exactly once" against a stub instead of a real model call.
+$ClaudeExe = Get-SeamValue 'COOKING_LAB_CLAUDE_EXE' 'claude'
+
+$GlobalDir = Get-SeamValue 'COOKING_LAB_GLOBAL_DIR' 'C:\Projects\.app-build-control'
 $PauseFile = Join-Path $GlobalDir 'PAUSE_UNATTENDED'
 $LockFile  = Join-Path $GlobalDir 'app.lock.json'
 
@@ -87,7 +114,19 @@ $HeartbeatSeconds      = 30
 # not available to the child at all (verified on CLI 2.1.240).
 $ChildTools = 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite'
 
+# Terminal states an instruction can reach. STARTED is the only in-flight
+# state; anything left in it means the run was interrupted.
+$TerminalStates = @('COMPLETED', 'FAILED', 'HUMAN_ACTION_REQUIRED', 'BLOCKED', 'RECOVERY_REQUIRED')
+
+# Every property the queue schema defines. Anything else is rejected outright.
+$KnownQueueProperties = @(
+    'instruction_id', 'prompt_path', 'prompt_sha256', 'expected_base_commit',
+    'milestone', 'scope', 'allow_unattended', 'notes',
+    'requires_commit', 'requires_push', 'expected_report_path'
+)
+
 $Script:HeldLock  = $false
+$Script:LeaseToken = $null
 $Script:HeldRunnerLock = $false
 $Script:BaselineClaudePids = @()
 
@@ -293,38 +332,66 @@ function Read-QueueInstruction {
         return [pscustomobject]@{ Status = 'INVALID'; Reason = $reason; Instruction = $null; ActivationCommit = $null }
     }
 
-    # --- required fields -------------------------------------------------
+    if ($q -isnot [System.Management.Automation.PSCustomObject]) {
+        return Fail 'queue file must contain a single JSON object'
+    }
+
+    $present = @($q.PSObject.Properties.Name)
+
+    # --- unknown properties (fail closed) ---------------------------------
+    # A queue file the runner does not fully understand is never executed. This
+    # also refuses any attempt to smuggle executable content into the queue.
+    $executableish = @('command', 'commands', 'shell', 'script', 'scripts', 'args', 'argv', 'exec', 'run', 'env', 'hooks', 'tools', 'settings')
+    foreach ($name in $present) {
+        if ($KnownQueueProperties -contains $name) { continue }
+        if ($executableish -contains $name.ToLowerInvariant()) {
+            return Fail "queue file must not carry executable content (found field '$name')"
+        }
+        return Fail "queue file contains unknown property '$name'; the schema is closed and unknown fields are rejected"
+    }
+
+    # --- required properties ----------------------------------------------
     foreach ($field in @('instruction_id', 'prompt_path', 'prompt_sha256', 'expected_base_commit', 'milestone', 'scope', 'allow_unattended')) {
-        if (-not ($q.PSObject.Properties.Name -contains $field)) {
+        if (-not ($present -contains $field)) {
             return Fail "queue file is missing required field '$field'"
         }
     }
 
-    if ($q.allow_unattended -isnot [bool]) { return Fail "allow_unattended must be a JSON boolean" }
+    if ($q.allow_unattended -isnot [bool]) { return Fail 'allow_unattended must be a JSON boolean' }
     if (-not $q.allow_unattended) {
         return [pscustomobject]@{ Status = 'NONE'; Reason = 'allow_unattended is false; nothing is authorised'; Instruction = $null; ActivationCommit = $null }
     }
 
+    # --- types --------------------------------------------------------------
     foreach ($field in @('instruction_id', 'prompt_path', 'prompt_sha256', 'expected_base_commit', 'milestone', 'scope')) {
+        if ($q.$field -isnot [string]) { return Fail "field '$field' must be a JSON string" }
         if ([string]::IsNullOrWhiteSpace([string]$q.$field)) { return Fail "field '$field' must be a non-empty string" }
     }
+    if (($present -contains 'notes') -and $q.notes -isnot [string]) {
+        return Fail 'field ''notes'' must be a JSON string'
+    }
+    foreach ($field in @('requires_commit', 'requires_push')) {
+        if (($present -contains $field) -and $q.$field -isnot [bool]) {
+            return Fail "field '$field' must be a JSON boolean"
+        }
+    }
+    if ($present -contains 'expected_report_path') {
+        if ($q.expected_report_path -isnot [string]) { return Fail 'field ''expected_report_path'' must be a JSON string' }
+        if ([string]$q.expected_report_path -notmatch '^build-control/reports/[A-Za-z0-9._-]+\.md$') {
+            return Fail "expected_report_path must be a Markdown file directly inside build-control/reports/: '$($q.expected_report_path)'"
+        }
+    }
 
+    # --- formats ------------------------------------------------------------
     $instructionId = [string]$q.instruction_id
     if ($instructionId -notmatch '^[A-Za-z0-9._-]{3,120}$') {
         return Fail "instruction_id contains unsupported characters: '$instructionId'"
     }
-    if ([string]$q.prompt_sha256 -notmatch '^[0-9a-f]{64}$') {
-        return Fail "prompt_sha256 must be 64 lowercase hex characters"
+    if ([string]$q.prompt_sha256 -cnotmatch '^[0-9a-f]{64}$') {
+        return Fail 'prompt_sha256 must be 64 lowercase hex characters'
     }
-    if ([string]$q.expected_base_commit -notmatch '^[0-9a-f]{40}$') {
-        return Fail "expected_base_commit must be a full 40-character git SHA"
-    }
-
-    # The queue may only activate a tracked prompt. It carries no commands.
-    foreach ($forbidden in @('command', 'commands', 'shell', 'script', 'args')) {
-        if ($q.PSObject.Properties.Name -contains $forbidden) {
-            return Fail "queue file must not carry executable content (found field '$forbidden')"
-        }
+    if ([string]$q.expected_base_commit -cnotmatch '^[0-9a-f]{40}$') {
+        return Fail 'expected_base_commit must be a full 40-character lowercase git SHA'
     }
 
     $promptPath = [string]$q.prompt_path
@@ -383,6 +450,32 @@ function Read-QueueInstruction {
         Reason           = 'valid'
         Instruction      = $q
         ActivationCommit = $activation
+    }
+}
+
+function Get-InstructionRequirements {
+    <#  Resolves the completion requirements an instruction must satisfy.
+
+        Both git requirements default to TRUE when the queue is silent. That is
+        deliberate: a Build Control instruction that produces work is expected
+        to commit and push it, and an unstated requirement must never be the
+        reason something is called COMPLETED. A prompt that must not touch git
+        - the runner self-test, for example - has to say so explicitly with
+        requires_commit:false and requires_push:false.  #>
+    param([Parameter(Mandatory = $true)]$Instruction)
+
+    $present = @($Instruction.PSObject.Properties.Name)
+    $requiresCommit = $true
+    $requiresPush   = $true
+    $reportPath     = $null
+    if ($present -contains 'requires_commit')      { $requiresCommit = [bool]$Instruction.requires_commit }
+    if ($present -contains 'requires_push')        { $requiresPush   = [bool]$Instruction.requires_push }
+    if ($present -contains 'expected_report_path') { $reportPath     = [string]$Instruction.expected_report_path }
+
+    return [pscustomobject]@{
+        RequiresCommit     = $requiresCommit
+        RequiresPush       = $requiresPush
+        ExpectedReportPath = $reportPath
     }
 }
 
@@ -451,14 +544,151 @@ function Test-InstructionConsumable {
     }
 
     switch ([string]$rec.status) {
-        'COMPLETED'        { return "SKIP:instruction '$id' already completed at $($rec.ended_utc)" }
-        'FAILED'           { return "SKIP:instruction '$id' already ran and failed at $($rec.ended_utc); a new instruction is required" }
-        'BLOCKED_RECOVERY' { return "SKIP:instruction '$id' is held in recovery pending a human decision" }
-        'STARTED'          {
-            return ("BLOCK:instruction '$id' was STARTED at $($rec.started_utc) but never completed. " +
-                    'The previous run was interrupted; it will not be repeated automatically.')
+        'COMPLETED'             { return "SKIP:instruction '$id' already completed at $($rec.ended_utc)" }
+        'FAILED'                { return "SKIP:instruction '$id' already ran and failed at $($rec.ended_utc); a new instruction is required" }
+        'HUMAN_ACTION_REQUIRED' { return "SKIP:instruction '$id' stopped at a human-authorisation boundary at $($rec.ended_utc); a new instruction is required" }
+        'BLOCKED'               { return "SKIP:instruction '$id' is blocked and will not be retried without a new Build Control instruction" }
+        'RECOVERY_REQUIRED'     { return "SKIP:instruction '$id' is held in recovery pending a human decision" }
+        'BLOCKED_RECOVERY'      { return "SKIP:instruction '$id' is held in recovery pending a human decision (legacy status)" }
+        'STARTED'               {
+            return ("BLOCK:instruction '$id' was STARTED at $($rec.started_utc) but never reached a terminal state. " +
+                    'The previous run was interrupted and may already have committed or pushed; ' +
+                    'it will not be repeated automatically.')
         }
-        default            { return "SKIP:instruction '$id' has unrecognised recorded status '$($rec.status)'" }
+        default                 { return "SKIP:instruction '$id' has unrecognised recorded status '$($rec.status)'" }
+    }
+}
+
+# =====================================================================
+# Completion assessment
+# =====================================================================
+
+function Get-CompletionAssessment {
+    <#  Decides the terminal state of a bounded run.
+
+        A Claude process exiting successfully is NOT sufficient to call an
+        instruction COMPLETED. Every requirement appropriate to the instruction
+        must hold, and anything ambiguous resolves away from COMPLETED.
+
+        Returns: Status (one of $TerminalStates) plus the reasons observed.  #>
+    param(
+        [Parameter(Mandatory = $true)]$Run,           # Invoke-BoundedClaude result
+        [Parameter(Mandatory = $true)]$Outcome,       # Get-ChildOutcome result
+        [Parameter(Mandatory = $true)]$Verification   # New-RunVerification result
+    )
+
+    # Each failed check contributes (state, reason). The first entry decides the
+    # recorded state; the rest are kept so the audit trail shows everything that
+    # was wrong, not just the first thing noticed.
+    $findings = New-Object System.Collections.ArrayList
+
+    # --- the child itself ------------------------------------------------
+    if ($Run.TimedOut) {
+        [void]$findings.Add(@('FAILED', 'the child exceeded the maximum run time and was stopped'))
+    }
+    if ($Outcome.HumanActionRequired) {
+        [void]$findings.Add(@('HUMAN_ACTION_REQUIRED', 'the child reported HUMAN ACTION REQUIRED'))
+    }
+    if ($null -ne $Run.ExitCode -and $Run.ExitCode -ne 0) {
+        [void]$findings.Add(@('FAILED', "the child exited with code $($Run.ExitCode)"))
+    }
+    if ($Outcome.IsError -eq $true) {
+        [void]$findings.Add(@('FAILED', 'the child reported is_error=true'))
+    }
+    if ($null -eq $Run.ExitCode -and $Outcome.IsError -ne $false) {
+        [void]$findings.Add(@('FAILED', 'the child exit code was unreadable and the child did not report success'))
+    }
+
+    # --- repository state ------------------------------------------------
+    if (-not $Verification.WorkingTreeClean) {
+        [void]$findings.Add(@('RECOVERY_REQUIRED', 'the working tree is not clean after the run; partial work is ambiguous'))
+    }
+    if ($Verification.RequiresCommit -and ($Verification.HeadAfter -eq $Verification.HeadBefore)) {
+        [void]$findings.Add(@('FAILED', 'the instruction required a commit but HEAD did not move'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Verification.ExpectedReportPath)) {
+        if (-not $Verification.ReportExists) {
+            [void]$findings.Add(@('FAILED', "the required Build Control report '$($Verification.ExpectedReportPath)' does not exist"))
+        } elseif (-not $Verification.ReportCommitted) {
+            [void]$findings.Add(@('RECOVERY_REQUIRED', "the required report '$($Verification.ExpectedReportPath)' exists but is not committed"))
+        }
+    }
+    if ($Verification.RequiresPush) {
+        if (-not $Verification.RemoteReachable) {
+            [void]$findings.Add(@('RECOVERY_REQUIRED', 'the push could not be confirmed because origin was unreachable'))
+        } elseif (-not $Verification.PushedToOrigin) {
+            [void]$findings.Add(@('RECOVERY_REQUIRED', "origin/$ExpectedBranch does not contain the local commits; the push did not reach GitHub"))
+        } elseif (-not $Verification.OriginSynchronised) {
+            [void]$findings.Add(@('RECOVERY_REQUIRED', "local $ExpectedBranch and origin/$ExpectedBranch are not synchronised"))
+        }
+    }
+
+    if ($findings.Count -eq 0) {
+        return [pscustomobject]@{
+            Status  = 'COMPLETED'
+            Reasons = @('every completion requirement for this instruction was verified')
+        }
+    }
+
+    return [pscustomobject]@{
+        Status  = [string]$findings[0][0]
+        Reasons = @($findings | ForEach-Object { [string]$_[1] })
+    }
+}
+
+function New-RunVerification {
+    <#  Gathers the observable facts the completion assessment needs.
+
+        Deliberately separated from the decision so the self-test suite can
+        assess constructed states without running a child.  #>
+    param(
+        [Parameter(Mandatory = $true)][string]$HeadBefore,
+        [Parameter(Mandatory = $true)]$Requirements
+    )
+
+    $headAfter   = (Invoke-Git @('rev-parse', 'HEAD')).Text
+    $statusAfter = (Invoke-Git @('status', '--porcelain')).Text
+    $clean       = [string]::IsNullOrWhiteSpace($statusAfter)
+
+    $reportExists    = $false
+    $reportCommitted = $false
+    $reportPath      = $Requirements.ExpectedReportPath
+    if (-not [string]::IsNullOrWhiteSpace($reportPath)) {
+        $reportFull   = Join-Path $RepoRoot ($reportPath -replace '/', '\')
+        $reportExists = (Test-Path -LiteralPath $reportFull)
+        $tracked      = Invoke-Git @('ls-files', '--error-unmatch', '--', $reportPath)
+        $reportCommitted = ($tracked.ExitCode -eq 0)
+    }
+
+    # Confirm the push actually reached GitHub rather than trusting the child.
+    $remoteReachable = $true
+    $pushed          = $false
+    $synchronised    = $false
+    if ($Requirements.RequiresPush) {
+        $fetch = Invoke-Git @('fetch', 'origin', '--prune')
+        if ($fetch.ExitCode -ne 0) {
+            $remoteReachable = $false
+        } else {
+            $contains = Invoke-Git @('merge-base', '--is-ancestor', $headAfter, "origin/$ExpectedBranch")
+            $pushed   = ($contains.ExitCode -eq 0)
+            $originHead = Invoke-Git @('rev-parse', "origin/$ExpectedBranch")
+            $synchronised = ($originHead.ExitCode -eq 0 -and $originHead.Text -eq $headAfter)
+        }
+    }
+
+    return [pscustomobject]@{
+        HeadBefore         = $HeadBefore
+        HeadAfter          = $headAfter
+        WorkingTreeStatus  = $statusAfter
+        WorkingTreeClean   = $clean
+        RequiresCommit     = [bool]$Requirements.RequiresCommit
+        RequiresPush       = [bool]$Requirements.RequiresPush
+        ExpectedReportPath = $reportPath
+        ReportExists       = $reportExists
+        ReportCommitted    = $reportCommitted
+        RemoteReachable    = $remoteReachable
+        PushedToOrigin     = $pushed
+        OriginSynchronised = $synchronised
     }
 }
 
@@ -509,22 +739,52 @@ function Test-LockStale {
     return ($age -gt $StaleHeartbeatMinutes)
 }
 
+function Get-LeaseIdentity {
+    <#  The ownership fingerprint of a lease.
+
+        Any change of owner, generation, acquisition time or heartbeat produces
+        a different fingerprint. Stale-lease reclaim is conditional on this
+        value being unchanged, so a lease that was handed over while stale
+        analysis was in progress can never be taken.  #>
+    param($Lock)
+
+    if ($null -eq $Lock -or $Lock -eq 'UNREADABLE') { return $null }
+    $names = @($Lock.PSObject.Properties.Name)
+    $get = {
+        param($n)
+        if ($names -contains $n) { return [string]$Lock.$n }
+        return ''
+    }
+    return (@(
+        (& $get 'owner_token'), (& $get 'app'), (& $get 'pid'),
+        (& $get 'generation'), (& $get 'acquired_utc'), (& $get 'heartbeat_utc')
+    ) -join '|')
+}
+
+function New-LeasePayload {
+    param([string]$InstructionId = '', [int]$Generation = 1)
+    $now = Get-UtcNowString
+    return [ordered]@{
+        app             = $AppId
+        owner_token     = [guid]::NewGuid().ToString()
+        generation      = $Generation
+        pid             = $PID
+        child_pid       = $null
+        instruction_id  = $InstructionId
+        acquired_utc    = $now
+        heartbeat_utc   = $now
+        host            = $env:COMPUTERNAME
+        repo            = $RepoRoot
+    }
+}
+
 function Request-GlobalLock {
-    <#  Atomic acquisition: CreateNew fails if the lease already exists.
+    <#  Atomic first acquisition: CreateNew fails if the lease already exists.
         Returns $true on success.  #>
     param([string]$InstructionId = '')
 
     Initialize-GlobalDir
-    $payload = @{
-        app             = $AppId
-        pid             = $PID
-        child_pid       = $null
-        instruction_id  = $InstructionId
-        acquired_utc    = (Get-UtcNowString)
-        heartbeat_utc   = (Get-UtcNowString)
-        host            = $env:COMPUTERNAME
-        repo            = $RepoRoot
-    }
+    $payload = New-LeasePayload -InstructionId $InstructionId -Generation 1
 
     try {
         $stream = [System.IO.File]::Open($LockFile, [System.IO.FileMode]::CreateNew,
@@ -535,42 +795,222 @@ function Request-GlobalLock {
         } finally {
             $stream.Close()
         }
-        $Script:HeldLock = $true
-        Write-RunnerLog "acquired machine-wide application lease ($AppId, pid $PID)"
+        $Script:HeldLock   = $true
+        $Script:LeaseToken = [string]$payload.owner_token
+        Write-RunnerLog "acquired machine-wide application lease ($AppId, pid $PID, token $($Script:LeaseToken))"
         return $true
     } catch [System.IO.IOException] {
         return $false
     }
 }
 
-function Update-GlobalLockHeartbeat {
-    param([int]$ChildPid = 0)
-    if (-not $Script:HeldLock) { return }
+function Invoke-LeaseReclaim {
+    <#  Ownership-safe reclaim of a lease that stale analysis judged abandoned.
+
+        The whole check-and-replace happens under ONE exclusive handle
+        (FileShare::None). While that handle is open no other participant can
+        create, read, replace or delete the lease, so the observation and the
+        replacement cannot be separated by another process.
+
+        Two properties make this safe:
+
+          * The lease is REPLACED IN PLACE, never deleted and recreated.
+            Deleting first would leave a window in which a third participant
+            could legitimately CreateNew the lease and then have it removed
+            underneath - exactly the race this corrects.
+
+          * The replacement only happens if the ownership fingerprint captured
+            during stale analysis is still the one in the file. If the lease
+            changed hands in the meantime, nothing is written at all.
+
+        Returns 'RECLAIMED' | 'CHANGED' | 'ABSENT' | 'ERROR:<reason>'.  #>
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$ObservedIdentity,
+        [string]$InstructionId = ''
+    )
+
+    if ([string]::IsNullOrEmpty($ObservedIdentity)) { return 'CHANGED' }
+
+    $fs = $null
     try {
-        $lock = Get-GlobalLock
-        if ($null -eq $lock -or $lock -eq 'UNREADABLE') { return }
-        if ([int]$lock.pid -ne $PID) { return }   # never write over another owner
-        $lock.heartbeat_utc = (Get-UtcNowString)
-        if ($ChildPid -gt 0) { $lock.child_pid = $ChildPid }
-        ($lock | ConvertTo-Json -Depth 6) | Set-Content -Path $LockFile -Encoding utf8
-    } catch { }
+        try {
+            $fs = New-Object System.IO.FileStream(
+                $LockFile,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None)
+        } catch [System.IO.FileNotFoundException] {
+            return 'ABSENT'
+        } catch [System.IO.DirectoryNotFoundException] {
+            return 'ABSENT'
+        } catch [System.IO.IOException] {
+            # Somebody else holds the lease file open: it is live, not ours.
+            return 'CHANGED'
+        }
+
+        $reader  = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8, $false, 4096, $true)
+        $current = $reader.ReadToEnd()
+        $reader.Dispose()
+
+        $currentObj = $null
+        try { $currentObj = $current | ConvertFrom-Json } catch { $currentObj = $null }
+
+        if ((Get-LeaseIdentity -Lock $currentObj) -ne $ObservedIdentity) {
+            return 'CHANGED'
+        }
+
+        $generation = 0
+        $names = @()
+        if ($null -ne $currentObj) { $names = @($currentObj.PSObject.Properties.Name) }
+        if ($names -contains 'generation') {
+            try { $generation = [int]$currentObj.generation } catch { $generation = 0 }
+        }
+
+        $payload = New-LeasePayload -InstructionId $InstructionId -Generation ($generation + 1)
+        $bytes   = [System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Depth 6))
+        $fs.SetLength(0)
+        $fs.Position = 0
+        $fs.Write($bytes, 0, $bytes.Length)
+        $fs.Flush()
+
+        $Script:HeldLock   = $true
+        $Script:LeaseToken = [string]$payload.owner_token
+        return 'RECLAIMED'
+    } catch {
+        return "ERROR:$($_.Exception.Message)"
+    } finally {
+        if ($null -ne $fs) { $fs.Dispose() }
+    }
+}
+
+function Request-GlobalLease {
+    <#  Acquire the machine-wide lease, reclaiming a provably stale one if
+        necessary. Never steals a live lease.
+
+        Returns 'ACQUIRED' | 'RECLAIMED' | 'HELD' | 'CHANGED' | 'UNREADABLE'
+                | 'ERROR:<reason>'  #>
+    param([string]$InstructionId = '')
+
+    Initialize-GlobalDir
+    if (Request-GlobalLock -InstructionId $InstructionId) { return 'ACQUIRED' }
+
+    $lock = Get-GlobalLock
+    if ($null -eq $lock) {
+        # Released in the gap between our failed CreateNew and this read.
+        if (Request-GlobalLock -InstructionId $InstructionId) { return 'ACQUIRED' }
+        return 'CHANGED'
+    }
+    if ($lock -eq 'UNREADABLE') { return 'UNREADABLE' }
+    if (-not (Test-LockStale -Lock $lock)) { return 'HELD' }
+
+    # Stale analysis said this lease is abandoned. Capture what we analysed and
+    # only act if that is still exactly what is on disk.
+    $identity = Get-LeaseIdentity -Lock $lock
+    Write-RunnerLog -Level 'WARN' -Message ("machine-wide lease from '$($lock.app)' pid $($lock.pid) looks stale " +
+                                            "(owner process gone and heartbeat older than $StaleHeartbeatMinutes min); " +
+                                            'attempting ownership-verified reclaim')
+
+    $result = Invoke-LeaseReclaim -ObservedIdentity $identity -InstructionId $InstructionId
+    switch ($result) {
+        'RECLAIMED' {
+            Write-RunnerLog "reclaimed the stale machine-wide lease ($AppId, pid $PID, token $($Script:LeaseToken))"
+            return 'RECLAIMED'
+        }
+        'ABSENT' {
+            if (Request-GlobalLock -InstructionId $InstructionId) { return 'ACQUIRED' }
+            return 'CHANGED'
+        }
+        'CHANGED' { return 'CHANGED' }
+        default   { return $result }
+    }
+}
+
+function Update-GlobalLockHeartbeat {
+    <#  Refresh our own heartbeat. Writes only if the lease still carries our
+        owner token, under an exclusive handle so the update cannot tear or
+        land on somebody else's lease. Process ids are recycled by Windows;
+        the token is not.  #>
+    param([int]$ChildPid = 0)
+
+    if (-not $Script:HeldLock) { return }
+    $fs = $null
+    try {
+        $fs = New-Object System.IO.FileStream(
+            $LockFile, [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+
+        $reader  = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8, $false, 4096, $true)
+        $current = $reader.ReadToEnd()
+        $reader.Dispose()
+
+        $obj = $null
+        try { $obj = $current | ConvertFrom-Json } catch { $obj = $null }
+        if ($null -eq $obj) { return }
+        $names = @($obj.PSObject.Properties.Name)
+        if (-not ($names -contains 'owner_token')) { return }
+        if ([string]$obj.owner_token -ne $Script:LeaseToken) { return }   # not ours any more
+
+        $obj.heartbeat_utc = (Get-UtcNowString)
+        if ($ChildPid -gt 0) { $obj.child_pid = $ChildPid }
+
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 6))
+        $fs.SetLength(0)
+        $fs.Position = 0
+        $fs.Write($bytes, 0, $bytes.Length)
+        $fs.Flush()
+    } catch {
+        # A heartbeat that cannot be written is not fatal; the lease simply
+        # ages, and only a dead owner plus an old heartbeat makes it stale.
+    } finally {
+        if ($null -ne $fs) { $fs.Dispose() }
+    }
 }
 
 function Remove-GlobalLock {
+    <#  Release our own lease.
+
+        The token is verified under an exclusive handle before the delete. The
+        gap between closing that handle and deleting is not exploitable: while
+        this process is alive its lease can never satisfy the stale test, and
+        CreateNew cannot succeed while the file still exists.  #>
     if (-not $Script:HeldLock) { return }
+    $fs = $null
+    $ours = $false
     try {
-        $lock = Get-GlobalLock
-        if ($lock -ne 'UNREADABLE' -and $null -ne $lock -and [int]$lock.pid -ne $PID) {
-            Write-RunnerLog -Level 'WARN' -Message 'machine-wide lease is owned by another process; not releasing it'
-            $Script:HeldLock = $false
+        try {
+            $fs = New-Object System.IO.FileStream(
+                $LockFile, [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        } catch [System.IO.FileNotFoundException] {
+            $Script:HeldLock = $false; $Script:LeaseToken = $null
             return
         }
+
+        $reader  = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8, $false, 4096, $true)
+        $current = $reader.ReadToEnd()
+        $reader.Dispose()
+        $fs.Dispose(); $fs = $null
+
+        $obj = $null
+        try { $obj = $current | ConvertFrom-Json } catch { $obj = $null }
+        if ($null -ne $obj) {
+            $names = @($obj.PSObject.Properties.Name)
+            $ours  = ($names -contains 'owner_token') -and ([string]$obj.owner_token -eq $Script:LeaseToken)
+        }
+
+        if (-not $ours) {
+            Write-RunnerLog -Level 'WARN' -Message 'machine-wide lease is no longer ours; not releasing it'
+            return
+        }
+
         Remove-Item -Path $LockFile -Force -ErrorAction Stop
-        Write-RunnerLog "released machine-wide application lease"
+        Write-RunnerLog 'released machine-wide application lease'
     } catch {
         Write-RunnerLog -Level 'WARN' -Message "could not release machine-wide lease: $($_.Exception.Message)"
     } finally {
-        $Script:HeldLock = $false
+        if ($null -ne $fs) { $fs.Dispose() }
+        $Script:HeldLock   = $false
+        $Script:LeaseToken = $null
     }
 }
 
@@ -702,16 +1142,24 @@ function Invoke-BoundedClaude {
     $env:COOKING_LAB_REPO_ROOT  = $RepoRoot
     $env:COOKING_LAB_DENY_PATHS = ($ProtectedPaths -join ';')
 
+    # --setting-sources "" loads NO user, project or local settings, so no
+    # user-level hook, permission rule or model preference can reach this
+    # child. The gate is supplied separately through --settings, which is not
+    # a settings *source* and is therefore still honoured. Both halves of that
+    # behaviour were verified empirically on CLI 2.1.240 rather than assumed.
+    # --strict-mcp-config with an empty server map removes inherited MCP
+    # servers, so the child has no tool surface beyond --tools.
     $argString = '-p --output-format json --permission-mode acceptEdits ' +
-                 '--setting-sources user ' +
+                 '--setting-sources "" ' +
+                 '--strict-mcp-config --mcp-config "{\"mcpServers\":{}}" ' +
                  ('--settings "{0}" ' -f $settings) +
                  ('--tools "{0}"' -f $ChildTools)
 
     Write-RunnerLog -Level 'RUN' -Message "launching bounded Claude child for '$InstructionId' with prompt $PromptRelPath"
-    Write-RunnerLog "child invocation: claude $argString"
+    Write-RunnerLog "child invocation: $ClaudeExe $argString"
 
     $started = Get-UtcNowString
-    $proc = Start-Process -FilePath 'claude' `
+    $proc = Start-Process -FilePath $ClaudeExe `
                           -ArgumentList $argString `
                           -WorkingDirectory $RepoRoot `
                           -RedirectStandardInput $promptFull `
@@ -769,10 +1217,11 @@ function Get-ChildOutcome {
     param([Parameter(Mandatory = $true)]$Run)
 
     $summary = [pscustomobject]@{
-        IsError          = $null
-        Result           = $null
-        PermissionDenied = 0
-        NumTurns         = $null
+        IsError              = $null
+        Result               = $null
+        PermissionDenied     = 0
+        NumTurns             = $null
+        HumanActionRequired  = $false
     }
     try {
         if (Test-Path $Run.StdoutFile) {
@@ -789,6 +1238,14 @@ function Get-ChildOutcome {
         }
     } catch {
         Write-RunnerLog -Level 'WARN' -Message "could not parse child output: $($_.Exception.Message)"
+    }
+
+    # A child that reached a human-authorisation boundary says so in its final
+    # message. That signal outranks a clean exit code: the work is not done.
+    if (-not [string]::IsNullOrWhiteSpace($summary.Result)) {
+        if ($summary.Result -match '(?i)HUMAN[ _]ACTION[ _]REQUIRED') {
+            $summary.HumanActionRequired = $true
+        }
     }
     return $summary
 }
@@ -819,20 +1276,18 @@ function Invoke-RunnerCycle {
     }
 
     # 3. machine-wide application lease held by someone else
+    #
+    # This is a read-only look. A stale lease is NOT reclaimed here: ownership
+    # is only taken at step 8, when the runner is actually ready to run, and
+    # only through the ownership-verified protocol.
     $lock = Get-GlobalLock
     if ($lock -eq 'UNREADABLE') {
         Write-RunnerLog -Level 'BLOCK' -Message 'machine-wide lease file is unreadable; not starting'
         return
     }
-    if ($null -ne $lock) {
-        if (Test-LockStale -Lock $lock) {
-            Write-RunnerLog -Level 'WARN' -Message ("machine-wide lease from '$($lock.app)' pid $($lock.pid) is stale " +
-                                                    "(process gone and heartbeat older than $StaleHeartbeatMinutes min); reclaiming")
-            Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
-        } else {
-            Write-RunnerLog -Level 'BLOCK' -Message "machine-wide application lease is held by '$($lock.app)' (pid $($lock.pid)); waiting"
-            return
-        }
+    if ($null -ne $lock -and -not (Test-LockStale -Lock $lock)) {
+        Write-RunnerLog -Level 'BLOCK' -Message "machine-wide application lease is held by '$($lock.app)' (pid $($lock.pid)); waiting"
+        return
     }
 
     # 4. repository preconditions
@@ -885,21 +1340,42 @@ function Invoke-RunnerCycle {
     if ($consumable -like 'BLOCK:*') {
         Write-RunnerLog -Level 'BLOCK' -Message $consumable.Substring(6)
         $state = Read-InstructionState
-        if ($state.ContainsKey($id) -and [string]$state[$id].status -eq 'STARTED') {
+        if ($state.ContainsKey($id)) {
             $rec = @{}
             foreach ($p in $state[$id].PSObject.Properties) { $rec[$p.Name] = $p.Value }
-            $rec['status'] = 'BLOCKED_RECOVERY'
-            $rec['notes']  = 'previous run was interrupted; held for a human decision rather than repeated'
+            if ([string]$rec['status'] -eq 'STARTED') {
+                # An interrupted run. The previous child may already have
+                # committed or pushed, so the outcome is unknown. Preserve the
+                # evidence and hand it to a human; never re-run it.
+                $rec['status'] = 'RECOVERY_REQUIRED'
+                $rec['ended_utc'] = (Get-UtcNowString)
+                $rec['notes'] = ('previous run was interrupted before reaching a terminal state; ' +
+                                 'held for a human decision rather than repeated. ' +
+                                 "Evidence: $($rec['log_dir'])")
+                Write-RunnerLog -Level 'BLOCK' -Message "instruction '$id' moved from STARTED to RECOVERY_REQUIRED"
+            } else {
+                $rec['status'] = 'BLOCKED'
+                $rec['notes']  = 'refused: ' + $consumable.Substring(6)
+            }
             Set-InstructionRecord -InstructionId $id -Record $rec
         }
-        Write-HumanActionRequired "review instruction '$id' before it can run again"
+        Write-HumanActionRequired "review instruction '$id'; a new explicit Build Control instruction is required before it can run again"
         return
     }
 
-    # 8. acquire the machine-wide lease atomically, then re-check nothing changed
-    if (-not (Request-GlobalLock -InstructionId $id)) {
-        Write-RunnerLog -Level 'BLOCK' -Message 'another application acquired the machine-wide lease first; waiting'
-        return
+    # 8. acquire the machine-wide lease, reclaiming a provably stale one only
+    #    through the ownership-verified protocol
+    $lease = Request-GlobalLease -InstructionId $id
+    switch ($lease) {
+        'ACQUIRED'   { }
+        'RECLAIMED'  { }
+        'HELD'       { Write-RunnerLog -Level 'BLOCK' -Message 'another application holds the machine-wide lease; waiting'; return }
+        'CHANGED'    { Write-RunnerLog -Level 'BLOCK' -Message 'the machine-wide lease changed hands during acquisition; retrying next cycle'; return }
+        'UNREADABLE' { Write-RunnerLog -Level 'BLOCK' -Message 'machine-wide lease file is unreadable; not starting'; return }
+        default      {
+            Write-RunnerLog -Level 'BLOCK' -Message "could not acquire the machine-wide lease: $lease"
+            return
+        }
     }
 
     try {
@@ -913,7 +1389,12 @@ function Invoke-RunnerCycle {
             return
         }
 
+        $requirements = Get-InstructionRequirements -Instruction $inst
+        $headBefore   = (Invoke-Git @('rev-parse', 'HEAD')).Text
+        $runDir       = Join-Path $LogDir $id
+
         # 9. mark STARTED before launching, so an interrupted run is detectable
+        #    and enough state survives a crash to work out what happened
         Set-InstructionRecord -InstructionId $id -Record @{
             instruction_id       = $id
             prompt_path          = [string]$inst.prompt_path
@@ -925,49 +1406,50 @@ function Invoke-RunnerCycle {
             started_utc          = (Get-UtcNowString)
             ended_utc            = $null
             exit_code            = $null
+            runner_pid           = $PID
+            head_before          = $headBefore
+            log_dir              = $runDir
+            requires_commit      = $requirements.RequiresCommit
+            requires_push        = $requirements.RequiresPush
+            expected_report_path = $requirements.ExpectedReportPath
             notes                = ''
         }
-
-        $headBefore = (Invoke-Git @('rev-parse', 'HEAD')).Text
 
         # 10. run exactly one bounded child
         $run = Invoke-BoundedClaude -PromptRelPath ([string]$inst.prompt_path) -InstructionId $id
 
-        # 11. post-run repository assessment
-        $outcome    = Get-ChildOutcome -Run $run
-        $headAfter  = (Invoke-Git @('rev-parse', 'HEAD')).Text
-        $statusAfter= (Invoke-Git @('status', '--porcelain')).Text
-
-        # An unreadable exit code is not itself a failure: fall back to the
-        # child's own reported outcome rather than condemning a good run.
-        $finalStatus = 'COMPLETED'
-        if ($run.TimedOut) {
-            $finalStatus = 'FAILED'
-        } elseif ($null -ne $run.ExitCode -and $run.ExitCode -ne 0) {
-            $finalStatus = 'FAILED'
-        } elseif ($outcome.IsError -eq $true) {
-            $finalStatus = 'FAILED'
-        } elseif ($null -eq $run.ExitCode -and $outcome.IsError -ne $false) {
-            $finalStatus = 'FAILED'
-        }
+        # 11. post-run verification and completion assessment
+        #
+        # A successful exit is only one of the requirements. The repository is
+        # inspected directly, and where a push was required origin is queried
+        # rather than the child's account of it being trusted.
+        $outcome      = Get-ChildOutcome -Run $run
+        $verification = New-RunVerification -HeadBefore $headBefore -Requirements $requirements
+        $assessment   = Get-CompletionAssessment -Run $run -Outcome $outcome -Verification $verification
+        $finalStatus  = $assessment.Status
 
         $notes = @()
         $notes += "exit_code=$(if ($null -eq $run.ExitCode) { 'unreadable' } else { $run.ExitCode })"
         $notes += "child_is_error=$($outcome.IsError)"
-        $notes += "head_before=$headBefore"
-        $notes += "head_after=$headAfter"
-        if (-not [string]::IsNullOrWhiteSpace($statusAfter)) {
-            $notes += 'working tree is NOT clean after the run'
-            Write-RunnerLog -Level 'WARN' -Message "working tree is not clean after the run:`n$statusAfter"
-            Write-HumanActionRequired 'uncommitted changes remain after the bounded run'
+        $notes += "head_before=$($verification.HeadBefore)"
+        $notes += "head_after=$($verification.HeadAfter)"
+        $notes += "clean=$($verification.WorkingTreeClean)"
+        if ($verification.RequiresPush) {
+            $notes += "pushed_to_origin=$($verification.PushedToOrigin)"
+            $notes += "origin_synchronised=$($verification.OriginSynchronised)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($verification.ExpectedReportPath)) {
+            $notes += "report_exists=$($verification.ReportExists)"
+            $notes += "report_committed=$($verification.ReportCommitted)"
         }
         if ($outcome.PermissionDenied -gt 0) {
             $notes += "permission_denials=$($outcome.PermissionDenied)"
             Write-RunnerLog -Level 'WARN' -Message "the permission gate denied $($outcome.PermissionDenied) tool call(s) during this run"
         }
-        if ($null -ne $outcome.Result -and $outcome.Result -match 'HUMAN ACTION REQUIRED') {
-            Write-HumanActionRequired 'the bounded run reported a human-authorisation boundary'
-            $notes += 'child reported HUMAN ACTION REQUIRED'
+        $notes += $assessment.Reasons
+
+        if (-not $verification.WorkingTreeClean) {
+            Write-RunnerLog -Level 'WARN' -Message "working tree is not clean after the run:`n$($verification.WorkingTreeStatus)"
         }
 
         Set-InstructionRecord -InstructionId $id -Record @{
@@ -981,13 +1463,22 @@ function Invoke-RunnerCycle {
             started_utc          = $run.StartedUtc
             ended_utc            = $run.EndedUtc
             exit_code            = $run.ExitCode
+            runner_pid           = $PID
+            head_before          = $verification.HeadBefore
+            head_after           = $verification.HeadAfter
+            log_dir              = $run.RunDir
+            requires_commit      = $requirements.RequiresCommit
+            requires_push        = $requirements.RequiresPush
+            expected_report_path = $requirements.ExpectedReportPath
             notes                = ($notes -join '; ')
         }
 
         Write-RunnerLog -Level 'RUN' -Message "instruction '$id' recorded as $finalStatus (exit $($run.ExitCode))"
-        if ($finalStatus -eq 'FAILED') {
-            Write-RunnerLog -Level 'BLOCK' -Message 'the bounded run failed; it will not be relaunched automatically'
-            Write-HumanActionRequired "review the failed run under $($run.RunDir)"
+        foreach ($r in $assessment.Reasons) { Write-RunnerLog "  assessment: $r" }
+
+        if ($finalStatus -ne 'COMPLETED') {
+            Write-RunnerLog -Level 'BLOCK' -Message "the bounded run did not reach COMPLETED ($finalStatus); it will not be relaunched automatically"
+            Write-HumanActionRequired "review the $finalStatus run for '$id' under $($run.RunDir)"
         }
     }
     finally {
@@ -998,6 +1489,10 @@ function Invoke-RunnerCycle {
 # =====================================================================
 # Entry point
 # =====================================================================
+
+# Dot-sourced by the self-test suite to exercise the real functions without
+# starting a polling loop. Nothing below this point runs in that mode.
+if ($Script:LibraryOnly) { return }
 
 try {
     Initialize-LocalDirs

@@ -47,6 +47,8 @@ by the presence of `app.lock.json`:
 ```json
 {
   "app": "cooking-lab",
+  "owner_token": "8f1c0d3e-5a42-4b91-9d77-2c6e0a4b1f33",
+  "generation": 1,
   "pid": 24596,
   "child_pid": 21156,
   "instruction_id": "runner-self-test-001",
@@ -57,9 +59,23 @@ by the presence of `app.lock.json`:
 }
 ```
 
-Required fields are `app`, `pid`, `acquired_utc` and `heartbeat_utc`.
-`instruction_id` is required where the owner is executing a queued instruction.
-`child_pid` records the bounded worker process while one is running.
+Required fields are `app`, `owner_token`, `generation`, `pid`, `acquired_utc`
+and `heartbeat_utc`. `instruction_id` is required where the owner is executing a
+queued instruction. `child_pid` records the bounded worker process while one is
+running.
+
+`owner_token` is a fresh GUID minted on every acquisition. It, not the process
+id, is what identifies an owner: Windows recycles process ids, so a pid can
+point at an unrelated process later. `generation` increments each time the lease
+is reclaimed from a stale owner, so takeovers are visible in the audit trail.
+
+Together those two fields form the lease's **ownership fingerprint**:
+
+```
+owner_token | app | pid | generation | acquired_utc | heartbeat_utc
+```
+
+Any change of owner — or even a heartbeat — produces a different fingerprint.
 
 ### Acquisition must be atomic
 
@@ -72,7 +88,10 @@ runners racing cannot both succeed:
 ```
 
 An owner refreshes `heartbeat_utc` at least every 30 seconds while it holds the
-lease, and deletes the file to release it.
+lease, and deletes the file to release it. Both the heartbeat and the release
+first verify that the lease still carries the owner's own `owner_token`, under
+an exclusive handle. An owner never writes over, or deletes, a lease that has
+become somebody else's.
 
 ### Stale leases
 
@@ -83,6 +102,36 @@ A lease may be treated as stale **only when both** of the following hold:
 
 Elapsed time alone never makes a live lease stale. A running owner keeps its
 lease however long its work takes.
+
+### Reclaiming a stale lease is ownership-safe
+
+Deciding that a lease is stale and acting on that decision are two separate
+moments. Between them the lease may legitimately have been released and
+acquired by somebody else. A reclaim that simply deleted the file would then
+delete a **live** lease belonging to another application.
+
+The protocol closes that window:
+
+1. Stale analysis records the ownership fingerprint it analysed.
+2. The reclaim opens the lease file with `FileShare::None` — an exclusive
+   handle. While it is held, no other participant can create, read, replace or
+   delete the lease, so the check and the replacement cannot be separated.
+3. Under that handle, the fingerprint on disk is compared with the one that was
+   analysed. **If it differs in any respect, nothing is written at all** and the
+   reclaim is abandoned; the runner waits and retries on a later cycle.
+4. If it matches, the lease is **replaced in place** with the new owner's
+   payload and an incremented `generation`.
+
+Replacing in place matters. Deleting first and recreating would leave a window
+in which a third participant could legitimately `CreateNew` the lease and then
+have it removed underneath — exactly the race being corrected. The file never
+ceases to exist, so `CreateNew` continues to fail for everyone else throughout.
+
+A reclaim is also abandoned if the lease file cannot be opened exclusively:
+somebody holding it open means it is live, not abandoned.
+
+Ownership is taken only at the moment the runner is actually ready to launch.
+Earlier cycle checks look at the lease read-only and never modify it.
 
 ### Absolute prohibitions
 
@@ -153,10 +202,12 @@ Every cycle performs these checks in this order, and stops at the first failure:
 1. no conflicting instance of this runner is already live;
 2. `PAUSE_UNATTENDED` is absent;
 3. no foreign Claude Code CLI session is running;
-4. `app.lock.json` is absent, or provably stale by the rule in §3;
+4. `app.lock.json` is absent, or provably stale by the rule in §3 (read-only —
+   nothing is reclaimed at this point);
 5. the repository is on its expected branch, remote and is clean;
 6. the queue holds exactly one valid, not-yet-consumed instruction;
-7. **then** acquire the lease atomically.
+7. **then** acquire the lease — atomically with `CreateNew`, or, if a stale
+   lease is in the way, through the ownership-safe reclaim in §3.
 
 After acquiring the lease, the pause switch and the foreign-session check are
 re-tested once more, because either may have changed during validation. If
@@ -170,7 +221,10 @@ repository state has been assessed.
 A new participant needs only to:
 
 1. choose a stable application identifier;
-2. implement §3 acquisition, heartbeat, release and the two-condition stale rule;
+2. implement §3 acquisition, heartbeat, release, the two-condition stale rule
+   and the ownership-safe reclaim — including writing `owner_token` and
+   `generation`, since other participants rely on them to decide whether a
+   lease changed hands;
 3. honour `PAUSE_UNATTENDED`;
 4. implement §5 manual-session detection, failing safe;
 5. never touch another application's processes, leases or repository.

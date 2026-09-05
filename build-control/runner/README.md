@@ -6,6 +6,7 @@ Infrastructure only. Nothing here affects Cooking Lab at build or run time.
 |---|---|
 | Runner | `scripts/build-control-runner.ps1` |
 | Permission gate | `scripts/build-control-gate.ps1` |
+| Self-test suite | `scripts/build-control-selftest.ps1` |
 | Prompts | `build-control/prompts/` |
 | Queue | `build-control/queue/NEXT_RUN.json` (+ `NEXT_RUN.schema.json`) |
 | Cross-app protocol | `build-control/runner/CROSS_APP_PROTOCOL.md` |
@@ -77,67 +78,230 @@ git cat-file blob <commit>:build-control/prompts/M1.md | sha256sum
   "expected_base_commit": "<40 hex chars — commit A>",
   "milestone": "M1",
   "scope": "Implement bounded M1 local persistence",
-  "allow_unattended": true
+  "allow_unattended": true,
+  "requires_commit": true,
+  "requires_push": true,
+  "expected_report_path": "build-control/reports/M1_REPORT.md"
 }
 ```
 
 To stand the queue down, set `allow_unattended` to `false`. There is never more
 than one pending instruction.
 
-## Duplicate-execution protection
+### Strict schema
+
+The runtime validator matches the documented schema exactly and is **closed**.
+A queue file is rejected outright for any of: an unknown property, a missing
+required property, a wrong JSON type, a malformed hash or commit id, path
+traversal, a prompt outside `build-control/prompts/`, an untracked prompt, a
+prompt/hash mismatch, an activation commit whose first parent is not
+`expected_base_commit`, or `allow_unattended` that is not exactly `true`.
+
+A queue file the runner does not *fully* understand is never executed.
+
+### Completion requirements
+
+Three optional properties declare what "done" means for the instruction:
+
+| Property | Default | Meaning |
+|---|---|---|
+| `requires_commit` | `true` | HEAD must move |
+| `requires_push` | `true` | the commits must be present on `origin/main` |
+| `expected_report_path` | none | that report must exist and be tracked |
+
+Both git requirements default to **true** when the queue is silent. An unstated
+requirement must never be the reason something is called COMPLETED. A prompt
+that is forbidden from touching git — the runner self-test, for example — has to
+say so explicitly with `"requires_commit": false, "requires_push": false`.
+
+## Instruction states
 
 An instruction is identified by `instruction_id` + `prompt_sha256` +
 `expected_base_commit`, recorded in `.build-control-local/state/instructions.json`.
 
 | Recorded status | Meaning | Next cycle |
 |---|---|---|
-| `STARTED` | written immediately **before** the child launches | not repeated; moved to `BLOCKED_RECOVERY` and reported as HUMAN ACTION REQUIRED |
-| `COMPLETED` | child exited and the repository was assessed | skipped |
-| `FAILED` | child failed, timed out, or reported an error | skipped; a new instruction is required |
-| `BLOCKED_RECOVERY` | an interrupted run awaiting a human decision | skipped |
+| `STARTED` | written immediately **before** the child launches; the only non-terminal state | not repeated; moved to `RECOVERY_REQUIRED` and reported as HUMAN ACTION REQUIRED |
+| `COMPLETED` | every completion requirement was verified | skipped |
+| `FAILED` | the child failed, timed out, reported an error, or a required commit or report never appeared | skipped; a new instruction is required |
+| `HUMAN_ACTION_REQUIRED` | the child stopped at an authorisation boundary | skipped; a new instruction is required |
+| `BLOCKED` | the runner refused to launch this instruction and will not retry it | skipped |
+| `RECOVERY_REQUIRED` | the outcome is ambiguous and awaits a human decision | skipped |
 
 Merely *seeing* an instruction never consumes it. Reusing an `instruction_id`
-for a different prompt or base commit is refused outright.
+for a different prompt or base commit is refused outright and recorded as
+`BLOCKED`.
+
+### COMPLETED is earned, not assumed
+
+**A Claude process exiting successfully is not sufficient.** After the child
+exits, the runner inspects the repository itself and records `COMPLETED` only
+when every requirement appropriate to the instruction holds:
+
+- the child exited successfully and did not time out;
+- the child did not report `HUMAN ACTION REQUIRED`;
+- the working tree is clean;
+- HEAD moved, where `requires_commit`;
+- the declared report exists **and is tracked**, where one was declared;
+- `origin/main` actually contains the commits, and local and remote are
+  synchronised, where `requires_push`.
+
+The push check re-fetches and queries origin. The child's own account of having
+pushed is never accepted as evidence.
+
+Anything ambiguous resolves **away** from `COMPLETED`:
+
+| Observation | Recorded as |
+|---|---|
+| working tree unexpectedly dirty | `RECOVERY_REQUIRED` |
+| child reported HUMAN ACTION REQUIRED | `HUMAN_ACTION_REQUIRED` |
+| commits exist locally but not on origin | `RECOVERY_REQUIRED` |
+| origin unreachable, so the push is unconfirmed | `RECOVERY_REQUIRED` |
+| required report exists but is uncommitted | `RECOVERY_REQUIRED` |
+| required report missing, or a required commit never made | `FAILED` |
+
+### Crash and restart
 
 After a crash or restart, a `STARTED` instruction is **never** blindly repeated —
-the previous child may already have committed or pushed. It is held for a human
-decision.
+the previous child may already have committed or pushed. The record keeps
+`runner_pid`, `head_before`, the log directory and the timestamps, so what
+happened can be reconstructed. The instruction moves to `RECOVERY_REQUIRED` and
+a **new explicit Build Control instruction** is required before any retry.
 
 ## Permission model
 
-The child is launched with:
+The child is launched with exactly this invocation:
 
 ```
 claude -p --output-format json --permission-mode acceptEdits
-       --setting-sources user --settings <generated> --tools "Bash,Read,Write,Edit,Glob,Grep,TodoWrite"
+       --setting-sources ""
+       --strict-mcp-config --mcp-config "{\"mcpServers\":{}}"
+       --settings <generated>
+       --tools "Bash,Read,Write,Edit,Glob,Grep,TodoWrite"
 ```
 
 `--dangerously-skip-permissions` and `--permission-mode bypassPermissions` are
 **not used**, and the runner is not a wrapper for unrestricted shell access.
 
-This matters, because of a property of the CLI that was verified rather than
-assumed (CLI 2.1.240): in `-p` mode there is no terminal to answer a permission
-prompt, so a tool call that would normally prompt is simply **allowed** — even
-under `--permission-mode manual`. Permission modes alone therefore do not bound
-an unattended child, and a deny list alone is only a blacklist.
+### No uncontrolled configuration is inherited
+
+`--setting-sources ""` loads **no** user, project or local settings. No
+user-level hook, permission rule, environment injection or model preference can
+reach the unattended child. `--strict-mcp-config` with an empty server map
+removes inherited MCP servers, so the child's tool surface is exactly what
+`--tools` names and nothing more.
+
+`--settings <file>` is not a settings *source*; it is the runner's own
+controlled settings, and it is still honoured. That combination is what makes
+the gate installable while everything else is excluded.
+
+Both halves were verified empirically on CLI 2.1.240, not assumed: with a
+settings source present, its `PreToolUse` hook executes; with
+`--setting-sources ""` the same hook does not, while the hook supplied through
+`--settings` still does. `scripts/build-control-selftest.ps1 -LiveInvocationCheck`
+re-runs that experiment.
+
+Interactive Claude Code configuration is untouched. The runner reads no user
+settings file and writes only `.build-control-local/claude-settings.json`, which
+is local and never committed.
+
+### The gate
+
+A permission *mode* alone does not bound an unattended child. Verified on CLI
+2.1.240: in `-p` mode there is no terminal to answer a permission prompt, so a
+tool call that would normally prompt is simply **allowed** — even under
+`--permission-mode manual`. A deny list alone is only a blacklist.
 
 `scripts/build-control-gate.ps1` closes that gap. It is a `PreToolUse` hook, so
-it is enforced by the runner rather than decided by the model, and it is
-**deny-by-default**:
+it is enforced by the runner rather than decided by the model, and it is a
+**fail-closed allowlist** in five layers:
 
-- `--tools` limits the child to seven built-in tools; nothing else exists for it
-  (no web access, no subagents).
-- Every `Bash` command is split on `;`, `&&`, `||` and `|`, and **every** segment
-  must match the allowlist — an allowed prefix cannot smuggle a tail.
-- Hard denials always win: destructive git, history rewrite, tagging, force push,
-  signing tools, `adb`/device access, outbound network, global toolchain changes,
-  machine persistence, references to another application repository, nested
-  unattended Claude launches, and any permission bypass.
-- Every file-touching tool call must resolve inside this repository. Other
-  application repositories are denied explicitly, by absolute path.
-- An internal gate error fails **closed** (exit 2 blocks the call).
+1. **Path safety.** Every file-touching call must resolve inside this
+   repository; other application repositories are denied by absolute path.
+2. **Shell syntax.** Command substitution `$( )`, backticks, process
+   substitution, parameter and variable expansion, heredocs, redirection and
+   backgrounding are refused outright, so an allowed command cannot carry a
+   disallowed one inside it. Single-quoted spans are treated as literal, as
+   bash does.
+3. **Content denials.** References to another application repository, to the
+   coordination directory, to `.git/` paths, to Claude settings flags, or to any
+   permission bypass.
+4. **Per-segment allowlist.** The command is split on `;`, `&&`, `||` and `|`,
+   and **every** segment must clear the command-position denials and match an
+   allow pattern — an allowed prefix cannot smuggle a tail.
+5. **npm verification.** See below.
 
-Denials are recorded in the child's JSON output and counted in the runner log.
+An internal gate error fails **closed** (exit 2 blocks the call). Denials are
+recorded in the child's JSON output and counted in the runner log.
+
+### npm is not a loophole
+
+`npm run <anything>` is **not** permitted. Only three named scripts may run —
+`test`, `typecheck`, `lint` — and a script is never allowed merely because the
+invocation begins with `npm`.
+
+Each allowed name is **pinned** to the exact command it must still resolve to in
+`package.json`:
+
+| Script | Pinned command |
+|---|---|
+| `test` | `jest` |
+| `typecheck` | `tsc --noEmit` |
+| `lint` | `eslint .` |
+
+Before allowing the call, the gate reads `package.json` and compares. If a
+script body has changed, the call is denied and Build Control must re-pin it.
+That closes the indirect path where an allowed name is edited to run something
+else. Extra arguments (`npm run lint -- --fix`) are refused, as are
+`npm install`, `npm ci`, `npm exec`, `npm publish` and every other subcommand.
+
+`adb`, `gradlew`/`gradle`, Expo, native toolchains, emulators and signing tools
+remain denied. They stay denied unless a future authorised prompt explicitly
+permits them, which would require a change here first.
+
+### Files the child may never modify
+
+Repository containment is not enough on its own, so mutating tools (`Write`,
+`Edit`, `MultiEdit`, `NotebookEdit`) are additionally refused on:
+
+- `.git/` — objects, refs, configuration and hooks; also `.githooks/`,
+  `.gitattributes` (content filters execute), `.gitmodules`, `.gitconfig`;
+- credentials — `.npmrc`, `.netrc`, `.git-credentials`, `.ssh/`, `.aws/`,
+  `.gnupg/`;
+- signing material — `*.keystore`, `*.jks`, `*.p12`, `*.pfx`, `*.p8`, `*.pem`,
+  `*.key`, `*.cer`, `*.crt`, `*.mobileprovision`, `keystore.properties`,
+  `signing.properties`;
+- environment secrets — `.env`, `.env.*`, `secrets.json`,
+  `google-services.json`, `GoogleService-Info.plist`;
+- Claude configuration — `.claude/`, `CLAUDE.md`;
+- the control plane itself — `scripts/build-control-*`, `.build-control-local/`
+  (except `selftest/`), `build-control/queue/`, `build-control/acceptance/`.
+
+The last group matters most: a child that could rewrite the gate, forge its own
+`COMPLETED` record, or author its own next instruction would have no boundary at
+all. Changing the runner, the gate or the queue requires an authorised
+interactive session, not an unattended one.
+
+Reading remains allowed where it is legitimate — an authorised prompt may read
+the queue entry that activated it. Only mutation is refused.
+
+## Self-test
+
+```
+powershell -NoProfile -File .\scripts\build-control-selftest.ps1
+powershell -NoProfile -File .\scripts\build-control-selftest.ps1 -LiveInvocationCheck
+```
+
+The suite is harmless: it builds a scratch git repository with a local bare
+origin, a scratch coordination directory and a stub worker, and never operates
+on real repository state, the real machine-wide lease, or another application.
+`-LiveInvocationCheck` additionally makes one small real model call to confirm
+the hardened flag set behaves as documented.
+
+Those redirections are honoured only under the runner's documented test seams —
+`-SelfTest`, or the library-load mode the suite uses. In normal unattended
+operation every path, remote and executable is the fixed production value and no
+environment variable can change it.
 
 ## Git safety
 

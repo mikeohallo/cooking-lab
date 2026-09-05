@@ -52,6 +52,19 @@
     "notes": {
       "type": "string",
       "description": "Optional free text for the audit trail. Never interpreted or executed."
+    },
+    "requires_commit": {
+      "type": "boolean",
+      "description": "Whether this instruction must leave a new commit behind. Defaults to true when absent: an unstated requirement must never be the reason a run is called COMPLETED. Set it to false for a prompt that is forbidden from touching git, such as the runner self-test."
+    },
+    "requires_push": {
+      "type": "boolean",
+      "description": "Whether the resulting commits must reach origin/main. Defaults to true when absent. The runner confirms this by fetching and querying origin itself; it never trusts the child's account of the push."
+    },
+    "expected_report_path": {
+      "type": "string",
+      "pattern": "^build-control/reports/[A-Za-z0-9._-]+\\.md$",
+      "description": "Optional. A Build Control report the instruction must produce. The runner refuses to record COMPLETED unless the file exists and is tracked in git."
     }
   }
 }
