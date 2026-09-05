@@ -1,10 +1,13 @@
-{
-  "instruction_id": "none",
-  "prompt_path": "build-control/prompts/RUNNER_SELF_TEST.md",
-  "prompt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-  "expected_base_commit": "0000000000000000000000000000000000000000",
-  "milestone": "NONE",
-  "scope": "No pending instruction.",
-  "allow_unattended": false,
-  "notes": "Inactive. The runner treats allow_unattended=false as 'nothing is authorised' and does not launch Claude. To activate work, Build Control commits the prompt (commit A), then commits this file (commit B) with allow_unattended=true, expected_base_commit set to A, and prompt_sha256 set to the SHA-256 of `git cat-file blob A:<prompt_path>`. See build-control/runner/README.md."
+﻿{
+    "instruction_id":  "runner-final-trial-001",
+    "prompt_path":  "build-control/prompts/RUNNER_FINAL_TRIAL.md",
+    "prompt_sha256":  "f2f583a0700c0c219ec387ca03c2ec3e4de061f02f4e2198f455c882eee81925",
+    "expected_base_commit":  "dcf3f088532fa20fbbbbb081a08d79cd1eaababc",
+    "milestone":  "RUNNER",
+    "scope":  "Bounded controlled trial of the corrected unattended runner. Proves normal authorised work still completes under the reduced command surface. No milestone work.",
+    "allow_unattended":  true,
+    "requires_commit":  true,
+    "requires_push":  true,
+    "expected_report_path":  "build-control/reports/RUNNER_FINAL_TRIAL_EVIDENCE.md",
+    "notes":  "Commit B of the two-commit activation protocol. Stood down again immediately after the trial."
 }
