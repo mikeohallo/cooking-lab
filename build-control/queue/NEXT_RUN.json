@@ -1,13 +1,13 @@
 ﻿{
-    "instruction_id":  "runner-final-trial-002",
+    "instruction_id":  "runner-final-trial-003",
     "prompt_path":  "build-control/prompts/RUNNER_FINAL_TRIAL.md",
     "prompt_sha256":  "f2f583a0700c0c219ec387ca03c2ec3e4de061f02f4e2198f455c882eee81925",
-    "expected_base_commit":  "e06fe7f2b506d911fa5755f435654f72e735d551",
+    "expected_base_commit":  "75a473a4a4f10382b8d0befb60a144978c6c6e4f",
     "milestone":  "RUNNER",
     "scope":  "Bounded controlled trial of the corrected unattended runner. Proves normal authorised work still completes under the reduced command surface. No milestone work.",
     "allow_unattended":  true,
     "requires_commit":  true,
     "requires_push":  true,
     "expected_report_path":  "build-control/reports/RUNNER_FINAL_TRIAL_EVIDENCE.md",
-    "notes":  "Re-run after the file-tool absolute-path defect found by runner-final-trial-001 was corrected. Stood down again immediately after the trial."
+    "notes":  "Third activation, after the CLI permission-rule defect found by trial 002 was corrected. The prompt is unchanged throughout."
 }
