@@ -66,11 +66,18 @@ export const expoPrivateFileSystemPort: PrivateFileSystemPort = {
     return fileAt(relativePath).bytes();
   },
 
+  /**
+   * Create the file and write to it, refusing to replace one that is there.
+   *
+   * `overwrite: false` is the second line of defence. `PrivateFileStore` has
+   * already proved the path is free before calling this, so in normal operation
+   * the flag never comes into play — which is exactly why it is set this way: if
+   * that check is ever bypassed or broken, this throws instead of quietly
+   * writing over a photograph.
+   */
   async write(relativePath: string, bytes: Uint8Array): Promise<void> {
     const file = fileAt(relativePath);
-    // `overwrite` replaces whatever was there, which is what a write means; the
-    // caller has already decided this path is the right one for these bytes.
-    file.create({ intermediates: true, overwrite: true });
+    file.create({ intermediates: true, overwrite: false });
     file.write(bytes);
   },
 
@@ -87,6 +94,10 @@ export const expoPrivateFileSystemPort: PrivateFileSystemPort = {
     const destination = fileAt(relativePath);
     ensureParent(destination);
     const source = new File(sourceUri);
+    // Neither call is given `overwrite`, so both refuse an occupied
+    // destination. `PrivateFileStore` has already proved the path is free; this
+    // is the second line of defence, and it is a refusal rather than a
+    // replacement for the same reason the first one is.
     try {
       await source.move(destination);
     } catch {

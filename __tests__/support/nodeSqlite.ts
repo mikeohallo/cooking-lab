@@ -112,9 +112,27 @@ export type RecordingConnection = {
   readonly closed: () => boolean;
 };
 
-export function recordingConnection(
-  options: { readonly failOnKey?: boolean; readonly failProbe?: boolean } = {},
-): RecordingConnection {
+export type RecordingOptions = {
+  readonly failOnKey?: boolean;
+  readonly failProbe?: boolean;
+  /** `COMMIT` throws, as a disk-full or locked database would make it. */
+  readonly failOnCommit?: boolean;
+  /**
+   * `ROLLBACK` throws.
+   *
+   * The case the adapter cannot reason its way out of: the transaction failed
+   * and the undo failed, so what is on disk no longer follows from anything the
+   * code did. There is no way to provoke this reliably on a real engine, which
+   * is why it is an option here.
+   */
+  readonly failOnRollback?: boolean;
+  /** Every `run` throws, to make the work inside a transaction fail. */
+  readonly failOnRun?: boolean;
+  /** `close` throws, to prove poisoning survives a close that also fails. */
+  readonly failOnClose?: boolean;
+};
+
+export function recordingConnection(options: RecordingOptions = {}): RecordingConnection {
   const statements: string[] = [];
   let isClosed = false;
 
@@ -126,9 +144,18 @@ export function recordingConnection(
         // precisely why the adapter must not pass the cause through.
         throw new Error(`could not run: ${sql}`);
       }
+      if (options.failOnCommit === true && sql === 'COMMIT') {
+        throw new Error('could not commit');
+      }
+      if (options.failOnRollback === true && sql === 'ROLLBACK') {
+        throw new Error('could not roll back');
+      }
     },
     async run(sql: string): Promise<SqlExecutionResult> {
       statements.push(sql);
+      if (options.failOnRun === true) {
+        throw new Error('the statement was refused');
+      }
       return { rowsAffected: 0 };
     },
     async all(sql: string): Promise<readonly SqlRow[]> {
@@ -140,6 +167,9 @@ export function recordingConnection(
     },
     async close(): Promise<void> {
       isClosed = true;
+      if (options.failOnClose === true) {
+        throw new Error('could not close');
+      }
     },
   };
 

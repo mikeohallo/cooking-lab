@@ -3,7 +3,7 @@
  *
  * `DatabaseAdapter` (see `src/data/adapters.ts`) is what the repositories talk
  * to. This module turns a `RawConnection` — the small set of things a native
- * SQLite binding actually does — into one, and in doing so owns the three
+ * SQLite binding actually does — into one, and in doing so owns the four
  * things that are easy to get wrong and impossible to notice afterwards:
  *
  *   The key goes on first.  A SQLCipher connection is unusable until it has
@@ -22,6 +22,14 @@
  *   unrelated write slipped between the two it would silently join the
  *   transaction. Every call is therefore queued, so a transaction is never
  *   interleaved with anything else.
+ *
+ *   A failed undo ends the connection.  A transaction that fails is rolled
+ *   back; a rollback that *also* fails is a different situation entirely,
+ *   because at that point what is on disk no longer follows from anything this
+ *   code did. Carrying on would mean writing more rows on top of a state
+ *   nobody can describe, so the connection is given up on instead: it is
+ *   marked unusable, closed, and every later call is refused. Nothing is
+ *   retried and nothing is reopened behind the caller's back.
  *
  * Nothing in this file logs, formats or returns the key. `PRAGMA key` is built
  * here and the statement text never leaves the function that builds it: the
@@ -85,6 +93,36 @@ export class DatabaseOpenError extends Error {
     super(message);
     this.name = 'DatabaseOpenError';
     this.reason = reason;
+  }
+}
+
+export type DatabaseUnusableReason =
+  /** The connection was closed deliberately. */
+  | 'closed'
+  /**
+   * A transaction failed and the rollback that should have undone it failed
+   * too, so what is on disk no longer follows from anything this code did.
+   */
+  | 'rollback_failed';
+
+/**
+ * The connection cannot be used, and will not be used again.
+ *
+ * Thrown by every operation on an adapter that has been closed or given up on.
+ * It carries the reason, and — when a failed rollback is what poisoned it —
+ * the failure that caused that, because "the database stopped working" is not
+ * a diagnosis.
+ */
+export class DatabaseUnusableError extends Error {
+  readonly reason: DatabaseUnusableReason;
+  /** The rollback failure, when there was one. */
+  readonly rollbackFailure: Error | null;
+
+  constructor(reason: DatabaseUnusableReason, message: string, rollbackFailure: Error | null = null) {
+    super(message);
+    this.name = 'DatabaseUnusableError';
+    this.reason = reason;
+    this.rollbackFailure = rollbackFailure;
   }
 }
 
@@ -209,11 +247,51 @@ async function closeQuietly(connection: RawConnection): Promise<void> {
 
 function createAdapter(connection: RawConnection): DatabaseAdapter {
   const enqueue = createQueue();
-  let closed = false;
 
-  const refuseIfClosed = (): void => {
-    if (closed) {
-      throw new Error('the database connection is closed');
+  /**
+   * Why this adapter can no longer be used, once it cannot.
+   *
+   * Deliberately one-way. There is no path that clears it, because there is no
+   * evidence that would justify clearing it: a connection whose rollback failed
+   * is a connection whose contents no longer follow from anything this code
+   * did, and carrying on with it would write further rows on top of a state
+   * nobody can describe. Reopening is a separate, deliberate act through
+   * `openCookingLabDatabase`, which starts from the file and the key again.
+   */
+  let unusable: DatabaseUnusableError | null = null;
+
+  const refuseIfUnusable = (): void => {
+    if (unusable !== null) {
+      throw unusable;
+    }
+  };
+
+  /**
+   * Give up on the connection, permanently.
+   *
+   * Called only when a rollback has failed. It marks the adapter unusable
+   * before it does anything else, so nothing can slip through while the close
+   * is in flight, and it does not reopen, retry or replay: the transaction that
+   * failed stays failed, and the caller is told about that failure rather than
+   * about this one. There is no way back: reopening is a separate, deliberate
+   * act through `openCookingLabDatabase`.
+   */
+  const poison = async (rollbackFailure: Error): Promise<void> => {
+    if (unusable !== null) {
+      return;
+    }
+    unusable = new DatabaseUnusableError(
+      'rollback_failed',
+      'the database connection was given up on: a transaction failed and the rollback ' +
+        `that should have undone it also failed (${rollbackFailure.message})`,
+      rollbackFailure,
+    );
+    try {
+      await connection.close();
+    } catch {
+      // The connection was already past reasoning about; a close that fails too
+      // adds nothing a caller could act on, and the adapter is refused from
+      // here on either way.
     }
   };
 
@@ -227,15 +305,29 @@ function createAdapter(connection: RawConnection): DatabaseAdapter {
     },
   };
 
+  /**
+   * Every call checks twice.
+   *
+   * Once before queueing, so a caller holding a dead adapter is told
+   * immediately, and once inside the queue, because a call that was already
+   * waiting when the adapter was poisoned would otherwise reach the connection
+   * after it had been given up on.
+   */
+  const guarded = <T>(work: () => Promise<T>): Promise<T> => {
+    refuseIfUnusable();
+    return enqueue(() => {
+      refuseIfUnusable();
+      return work();
+    });
+  };
+
   return {
     async execute(statement: SqlStatement): Promise<SqlExecutionResult> {
-      refuseIfClosed();
-      return enqueue(() => connection.run(statement.sql, paramsOf(statement)));
+      return guarded(() => connection.run(statement.sql, paramsOf(statement)));
     },
 
     async select(statement: SqlStatement): Promise<readonly SqlRow[]> {
-      refuseIfClosed();
-      return enqueue(() => connection.all(statement.sql, paramsOf(statement)));
+      return guarded(() => connection.all(statement.sql, paramsOf(statement)));
     },
 
     /**
@@ -245,49 +337,80 @@ function createAdapter(connection: RawConnection): DatabaseAdapter {
      * start rather than at the first write, so a transaction that is going to
      * fail for want of the lock fails before it has done half its work.
      * Returning commits, throwing rolls back, and there is no third outcome.
+     *
+     * Unless the rollback itself fails. Then there is a fourth: the transaction
+     * failed, the undo failed, and this code no longer knows what is on disk.
+     * It does not retry, does not reopen and does not carry on — it poisons
+     * the connection and reports the original failure, which is the one that
+     * explains what the caller was trying to do.
      */
     async withTransaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
-      refuseIfClosed();
-      return enqueue(async () => {
+      return guarded(async () => {
         await connection.executeRaw('BEGIN IMMEDIATE');
         let result: T;
         try {
           result = await work(transaction);
         } catch (cause) {
-          await rollback(connection);
+          await undo();
           throw cause;
         }
         try {
           await connection.executeRaw('COMMIT');
         } catch (cause) {
-          await rollback(connection);
+          await undo();
           throw cause;
         }
         return result;
       });
     },
 
+    /**
+     * Release the connection.
+     *
+     * Safe to call twice, and safe to call on an adapter that has already been
+     * poisoned — in that case the connection is already closed and there is
+     * nothing left to do.
+     */
     async close(): Promise<void> {
-      if (closed) {
+      if (unusable !== null) {
         return;
       }
-      closed = true;
+      unusable = new DatabaseUnusableError('closed', 'the database connection is closed');
       await enqueue(() => connection.close());
     },
   };
+
+  /**
+   * Undo a failed transaction, and poison the connection if the undo fails.
+   *
+   * Throws nothing. The caller's own error is the one that explains what they
+   * were trying to do, so the caller rethrows that; this only decides whether
+   * the connection is still fit to be used afterwards.
+   */
+  async function undo(): Promise<void> {
+    const rollbackFailure = await rollback(connection);
+    if (rollbackFailure !== null) {
+      await poison(rollbackFailure);
+    }
+  }
 }
 
 /**
- * Undo the transaction, keeping the caller's original failure.
+ * Undo the transaction, and report whether the undo worked.
  *
- * A rollback that itself fails leaves the connection in a state this code
- * cannot reason about, but the caller's error is the one that explains what
- * went wrong, so it is the one that propagates.
+ * Returns `null` when the rollback succeeded and the failure when it did not.
+ * The failure is returned rather than thrown because the caller's own error is
+ * the one that explains what they were trying to do, and it is the one that
+ * should reach them — but a rollback that failed cannot simply be dropped
+ * either, because the connection is no longer in a state this code can describe.
+ * Reporting it is what lets `withTransaction` poison the connection rather
+ * than carry on writing to it.
  */
-async function rollback(connection: RawConnection): Promise<void> {
+async function rollback(connection: RawConnection): Promise<Error | null> {
   try {
     await connection.executeRaw('ROLLBACK');
-  } catch {
-    // Intentionally swallowed; see above.
+    return null;
+  } catch (cause) {
+    return cause instanceof Error ? cause : new Error(String(cause));
   }
 }

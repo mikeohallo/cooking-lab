@@ -7,6 +7,7 @@ import {
   staysInsideRoot,
 } from '../src/data/files/privateFileStore';
 import { buildPhotoLogicalPath } from '../src/data/photos/photoPaths';
+import { openTestDatabase } from './support/database';
 import { memoryFileSystem, nodeDigest, type MemoryFileSystem } from './support/memoryPorts';
 
 /**
@@ -243,5 +244,160 @@ describe('importing a photograph', () => {
       'read',
       'write',
     ]);
+  });
+});
+
+describe('a stored photograph is never replaced or destroyed by a failure', () => {
+  const ORIGINAL = new Uint8Array([1, 2, 3, 4, 5]);
+  const REPLACEMENT = new Uint8Array([9, 9, 9]);
+
+  /** The photo that is already there, and the digest that proves it is untouched. */
+  async function alreadyStored(path: string) {
+    const stored = await store.write(path, ORIGINAL);
+    return stored;
+  }
+
+  it('imports to a path that is free', async () => {
+    const path = logicalPath();
+    device.elsewhere.set('file:///cache/capture-1.jpg', ORIGINAL);
+
+    const stored = await store.importFile('file:///cache/capture-1.jpg', path);
+
+    expect(stored.sha256).toBe(expectedDigest(ORIGINAL));
+    expect(await store.read(path)).toEqual(ORIGINAL);
+  });
+
+  it('refuses an import onto a path that already holds a photograph', async () => {
+    const path = logicalPath();
+    const original = await alreadyStored(path);
+    device.elsewhere.set('file:///cache/capture-2.jpg', REPLACEMENT);
+
+    await expect(
+      store.importFile('file:///cache/capture-2.jpg', path),
+    ).rejects.toMatchObject({ reason: 'already_exists' });
+
+    // The photograph that was there is exactly the photograph that is there.
+    expect(await store.read(path)).toEqual(ORIGINAL);
+    expect((await store.info(path))?.sha256).toBe(original.sha256);
+    expect((await store.info(path))?.byteLength).toBe(ORIGINAL.length);
+    // And the incoming file was not consumed either, so nothing was lost.
+    expect(device.elsewhere.get('file:///cache/capture-2.jpg')).toEqual(REPLACEMENT);
+  });
+
+  it('refuses before it reaches the device, so no overwriting call is ever made', async () => {
+    const path = logicalPath();
+    await alreadyStored(path);
+    // If the refusal happened after the native call, this would have run and the
+    // original bytes would already be gone.
+    device.elsewhere.set('file:///cache/capture-2.jpg', REPLACEMENT);
+    const before = device.files.get(path);
+
+    await expect(store.importFile('file:///cache/capture-2.jpg', path)).rejects.toBeDefined();
+
+    expect(device.files.get(path)).toBe(before);
+  });
+
+  it('leaves no partial file when an import to a free path fails', async () => {
+    const path = logicalPath();
+
+    await expect(
+      store.importFile('file:///cache/never-existed.jpg', path),
+    ).rejects.toMatchObject({ reason: 'device_refused' });
+
+    expect(await store.exists(path)).toBe(false);
+    expect(device.files.size).toBe(0);
+  });
+
+  it('refuses a write onto a path that already holds a photograph', async () => {
+    const path = logicalPath();
+    const original = await alreadyStored(path);
+
+    await expect(store.write(path, REPLACEMENT)).rejects.toMatchObject({
+      reason: 'already_exists',
+    });
+
+    expect(await store.read(path)).toEqual(ORIGINAL);
+    expect((await store.info(path))?.sha256).toBe(original.sha256);
+  });
+
+  it('leaves no partial file when a write to a free path fails', async () => {
+    const path = logicalPath();
+    device.refuseWrites = true;
+
+    await expect(store.write(path, ORIGINAL)).rejects.toMatchObject({
+      reason: 'device_refused',
+    });
+
+    expect(await store.exists(path)).toBe(false);
+    expect(device.files.size).toBe(0);
+  });
+
+  it('never removes a stored photograph while recovering from a failure', async () => {
+    const kept = logicalPath(1);
+    const attempted = logicalPath(2);
+    const original = await alreadyStored(kept);
+    device.refuseWrites = true;
+
+    await expect(store.write(attempted, REPLACEMENT)).rejects.toBeDefined();
+    await expect(store.importFile('file:///cache/missing.jpg', attempted)).rejects.toBeDefined();
+
+    // Cleanup touched only the path the failing operation was writing to.
+    expect(await store.exists(attempted)).toBe(false);
+    expect((await store.info(kept))?.sha256).toBe(original.sha256);
+    expect(await store.read(kept)).toEqual(ORIGINAL);
+  });
+
+  it('still allows a replacement after the photograph is explicitly deleted', async () => {
+    // Refusing to overwrite is not refusing to ever change: it makes the
+    // destruction a separate, deliberate act instead of a side effect.
+    const path = logicalPath();
+    await alreadyStored(path);
+
+    await store.delete(path);
+    const replaced = await store.write(path, REPLACEMENT);
+
+    expect(replaced.sha256).toBe(expectedDigest(REPLACEMENT));
+  });
+});
+
+describe('a photo failure never reaches the cook or the timeline', () => {
+  const T0 = '2026-09-05T18:00:00.000Z';
+  const T1 = '2026-09-05T19:00:00.000Z';
+
+  it('leaves the cook, the timeline and the photo event intact when the import fails', async () => {
+    const db = await openTestDatabase('photo-failure.db');
+    try {
+      const started = await db.data.capture.startCook(
+        { id: COOK_ID, title: 'Weeknight rice', startedAt: T0 },
+        'user',
+        T0,
+      );
+      expect(started.allowed).toBe(true);
+
+      const path = logicalPath();
+      const added = await db.data.capture.addEvent(
+        { id: EVENT_ID, cookId: COOK_ID, ts: T1, kind: 'photo', photoPath: path },
+        'user',
+      );
+      expect(added.allowed).toBe(true);
+
+      // Both ways a photo write can fail, against a store that has no database.
+      device.refuseWrites = true;
+      await expect(store.importFile('file:///cache/capture.jpg', path)).rejects.toBeDefined();
+      await expect(store.write(path, BYTES)).rejects.toBeDefined();
+
+      // The evidence is untouched: the cook, its timeline and the photo event's
+      // own reference all survive a photograph that could not be stored.
+      const cook = await db.data.cooks.findById(COOK_ID);
+      expect(cook).not.toBeNull();
+      expect(cook?.title).toBe('Weeknight rice');
+
+      const timeline = await db.data.cookEvents.listForCook({ cookId: COOK_ID });
+      expect(timeline.map((event) => event.id)).toEqual([EVENT_ID]);
+      expect(timeline[0]?.photoPath).toBe(path);
+      expect(timeline[0]?.kind).toBe('photo');
+    } finally {
+      await db.close();
+    }
   });
 });
