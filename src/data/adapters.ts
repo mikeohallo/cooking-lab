@@ -25,10 +25,14 @@
 import type {
   Cook,
   CookEvent,
+  CookId,
   DatabaseSnapshot,
+  ImportBatchId,
   IsoTimestamp,
+  JsonValue,
   PhotoLogicalPath,
 } from '../domain/entities';
+import type { CookEventKind, CreatedBy } from '../domain/enums';
 import type { AiCandidateSet } from '../domain/evidence';
 import type { BackupEnvelope, BackupPhotoManifestEntry } from './backup/contract';
 
@@ -212,6 +216,7 @@ export type BackupBuilder = {
   ): BackupEnvelope;
 };
 
+
 // ---------------------------------------------------------------------------
 // The assistant
 // ---------------------------------------------------------------------------
@@ -219,36 +224,154 @@ export type BackupBuilder = {
 /**
  * What an assistant is shown: one cook and its timeline, as values.
  *
- * A copy of the records, not a query interface. An adapter cannot go looking
- * for anything it was not given, which means what the assistant saw is exactly
- * what the app decided to show it, and that decision is in the app's code.
+ * A copy of the records, not a query interface. A service cannot go looking for
+ * anything it was not given, which means what the assistant saw is exactly what
+ * the app decided to show it, and that decision is in the app's code.
  */
 export type AiReviewContext = {
   readonly cook: Cook;
   readonly events: readonly CookEvent[];
 };
 
+/** Why an assistant operation produced nothing. */
+export type AiUnavailableReason =
+  /** No assistant is wired into this build. The M1 state, and the only one. */
+  | 'ai_not_connected'
+  /** An assistant exists but could not answer this time. */
+  | 'ai_request_failed';
+
 /**
- * The assistant seam.
+ * The result of an assistant operation.
  *
- * This interface has one method and it returns candidates. There is no
- * database handle, no repository, no data layer and no write of any kind
- * anywhere in it — not because an implementation would be trusted not to use
- * one, but because it is never given one. Candidates become rows in
- * `ReviewService`, as proposals, and only there.
- *
- * No implementation exists in this milestone: a stub that fabricated plausible
- * findings would be indistinguishable in review from a real one and would put
- * invented claims in front of the cook.
+ * Every operation returns one of these rather than throwing or returning an
+ * empty answer, because "the assistant is not connected" and "the assistant
+ * looked and found nothing" are different facts and a screen must be able to
+ * tell them apart. An implementation that cannot answer says so; it never
+ * returns a plausible-looking empty result.
  */
-export type AiAdapter = {
-  proposeCandidates(context: AiReviewContext): Promise<AiCandidateSet>;
+export type AiOutcome<T> =
+  | { readonly available: true; readonly result: T }
+  | {
+      readonly available: false;
+      readonly reason: AiUnavailableReason;
+      readonly message: string;
+    };
+
+/** Everything a briefing is built from: the new cook, and earlier cooks as values. */
+export type AiBriefingRequest = {
+  readonly cookId: CookId;
+  readonly sourceCooks: readonly AiReviewContext[];
 };
 
 /**
- * Property names an assistant adapter may never carry.
+ * A briefing the assistant proposes.
  *
- * Lowercased; matched exactly against the adapter's own property names.
+ * `content` is JSON shaped by the screen that renders it; `sourceCookIds` are
+ * the earlier cooks it was read out of, which become `briefing_sources` rows.
+ * There is no status here: a briefing is prepared, shown, and either helped or
+ * did not.
+ */
+export type AiBriefingDraft = {
+  readonly content: JsonValue;
+  readonly sourceCookIds: readonly CookId[];
+};
+
+/** One turn of a conversation about a cook. */
+export type AiChatTurn = {
+  readonly speaker: CreatedBy;
+  readonly text: string;
+};
+
+export type AiChatRequest = {
+  readonly context: AiReviewContext;
+  readonly history: readonly AiChatTurn[];
+  readonly message: string;
+};
+
+/**
+ * What the assistant said.
+ *
+ * Text and nothing else. A reply is not a finding: if the assistant wants to
+ * make a claim about the cook it goes through `extractCook` and arrives as a
+ * candidate, like every other claim.
+ */
+export type AiChatReply = {
+  readonly text: string;
+};
+
+/** A timeline entry read out of an imported document. */
+export type AiImportEventDraft = {
+  readonly kind: CookEventKind;
+  readonly ts: IsoTimestamp | null;
+  readonly body: string | null;
+};
+
+/**
+ * A cook the assistant thinks it found in an imported document.
+ *
+ * A draft, not a cook. Nothing here becomes a row until the person importing
+ * has looked at it and said so, and turning a confirmed draft into records is
+ * the M2 import workflow. Note what a draft cannot carry: no verdict, no
+ * status, no findings. A verdict is the cook's own words about their own
+ * cooking, and an assistant reading a document is not the cook.
+ */
+export type AiImportCandidate = {
+  readonly title: string | null;
+  readonly startedAt: IsoTimestamp | null;
+  readonly events: readonly AiImportEventDraft[];
+};
+
+export type AiImportRequest = {
+  readonly batchId: ImportBatchId;
+  /** The text of the document being brought in, as the app read it. */
+  readonly documentText: string;
+};
+
+export type AiImportResult = {
+  readonly batchId: ImportBatchId;
+  readonly candidates: readonly AiImportCandidate[];
+};
+
+/**
+ * The assistant seam.
+ *
+ * Four operations, and every one of them returns a value the app then decides
+ * what to do with. There is no database handle, no repository, no data layer
+ * and no write of any kind anywhere in this interface — not because an
+ * implementation would be trusted not to use one, but because it is never given
+ * one. Candidates become rows in `ReviewService`, as proposals, and only there.
+ *
+ *   `extractCook`       reads a finished cook and its timeline, and proposes
+ *                       findings and lessons as candidates.
+ *   `createBriefing`    reads earlier cooks and proposes advice for a new one.
+ *   `chat`              answers a question about a cook, in words.
+ *   `importCandidates`  reads a document brought in from outside and proposes
+ *                       the cooks it thinks are in it.
+ *
+ * The production implementation for this milestone is
+ * `createUnavailableAiService`, which answers every one of them with
+ * `ai_not_connected`.
+ */
+export type AiService = {
+  extractCook(context: AiReviewContext): Promise<AiOutcome<AiCandidateSet>>;
+  createBriefing(request: AiBriefingRequest): Promise<AiOutcome<AiBriefingDraft>>;
+  chat(request: AiChatRequest): Promise<AiOutcome<AiChatReply>>;
+  importCandidates(request: AiImportRequest): Promise<AiOutcome<AiImportResult>>;
+};
+
+/** The operations every assistant implementation must provide, by name. */
+export const AI_SERVICE_OPERATIONS: readonly string[] = [
+  'extractCook',
+  'createBriefing',
+  'chat',
+  'importCandidates',
+];
+
+/**
+ * Property names an assistant service may never carry.
+ *
+ * Lowercased; matched against every property name the object exposes, its
+ * prototype chain included.
  */
 const FORBIDDEN_ADAPTER_MEMBERS: readonly string[] = [
   'execute',
@@ -268,13 +391,67 @@ const FORBIDDEN_ADAPTER_MEMBERS: readonly string[] = [
   'repository',
   'repositories',
   'store',
+  'filestore',
+  'keyprovider',
+  'adapter',
+  'connection',
+  'data',
+  'files',
+  'photos',
+  'snapshots',
+];
+
+/**
+ * The shapes that are a way to write, whatever the property holding one is called.
+ *
+ * Names are the weaker half of this check: a leaky service is unlikely to call
+ * its database `database`. So each group below is a set of members that only an
+ * object which can reach storage would have, and an object carrying all of any
+ * one group is a handle regardless of what it was named.
+ */
+const STORAGE_SHAPES: readonly (readonly string[])[] = [
+  // A database connection.
+  ['execute', 'select'],
+  ['withTransaction'],
+  // A whole data layer.
+  ['cooks', 'cookEvents', 'findings'],
+  ['review', 'capture'],
+  // A single repository.
+  ['findById', 'save'],
+  ['findById', 'create'],
+  ['createWithSources'],
+  // The photo store.
+  ['importFile', 'write', 'delete'],
+  ['readSnapshot'],
 ];
 
 function looksLikeADatabase(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  return ['execute', 'withTransaction', 'select', 'save'].some((method) => method in value);
+  return STORAGE_SHAPES.some((shape) => shape.every((member) => member in value));
+}
+
+/**
+ * Every property name an object exposes, its prototype chain included.
+ *
+ * `Object.entries` sees own enumerable properties only, so a service written as
+ * a class would hide all of its methods — and therefore any handle among them —
+ * from the check below. The walk stops at `Object.prototype`, whose members
+ * belong to every object and mean nothing here.
+ */
+function reachableMembers(subject: object): readonly string[] {
+  const names = new Set<string>();
+  let current: object | null = subject;
+  while (current !== null && current !== Object.prototype) {
+    for (const name of Object.getOwnPropertyNames(current)) {
+      if (name !== 'constructor') {
+        names.add(name);
+      }
+    }
+    current = Object.getPrototypeOf(current) as object | null;
+  }
+  return [...names];
 }
 
 /**
@@ -282,16 +459,17 @@ function looksLikeADatabase(value: unknown): boolean {
  *
  * Returns the offending property names, empty when there are none. This is a
  * runtime check on top of a type-level guarantee, because the type only binds
- * code that was compiled against it: an adapter assembled from a plain object,
- * a mock or a future plug-in is still checkable here.
- * `__tests__/evidence.test.ts` runs it against both a compliant adapter and a
+ * code that was compiled against it: a service assembled from a plain object, a
+ * class, a mock or a future plug-in is still checkable here.
+ * `__tests__/evidence.test.ts` runs it against both a compliant service and a
  * leaky one, so it is known to fire.
  */
 export function findDatabaseHandles(adapter: object): readonly string[] {
-  return Object.entries(adapter)
-    .filter(
-      ([name, value]) =>
-        FORBIDDEN_ADAPTER_MEMBERS.includes(name.toLowerCase()) || looksLikeADatabase(value),
-    )
-    .map(([name]) => name);
+  return reachableMembers(adapter).filter((name) => {
+    if (FORBIDDEN_ADAPTER_MEMBERS.includes(name.toLowerCase())) {
+      return true;
+    }
+    const value = (adapter as Record<string, unknown>)[name];
+    return looksLikeADatabase(value);
+  });
 }

@@ -1,5 +1,5 @@
 import { findDatabaseHandles } from '../src/data/adapters';
-import type { AiAdapter, AiReviewContext, DatabaseAdapter } from '../src/data/adapters';
+import type { AiService, AiReviewContext, DatabaseAdapter } from '../src/data/adapters';
 import type { Cook, CookEvent, Finding, Lesson } from '../src/domain/entities';
 import type {
   AiCandidateSet,
@@ -182,18 +182,28 @@ describe('rule 1 — raw evidence belongs to the cook', () => {
   });
 });
 
-describe('rule 2 — an adapter returns candidates and holds no write handle', () => {
-  const compliant: AiAdapter = {
-    async proposeCandidates(_context: AiReviewContext): Promise<AiCandidateSet> {
-      return { findings: [], lessons: [] };
+describe('rule 2 — an assistant returns candidates and holds no write handle', () => {
+  const compliant: AiService = {
+    async extractCook(_context: AiReviewContext) {
+      const candidates: AiCandidateSet = { findings: [], lessons: [] };
+      return { available: true as const, result: candidates };
+    },
+    async createBriefing() {
+      return { available: false as const, reason: 'ai_not_connected' as const, message: 'n/a' };
+    },
+    async chat() {
+      return { available: false as const, reason: 'ai_not_connected' as const, message: 'n/a' };
+    },
+    async importCandidates() {
+      return { available: false as const, reason: 'ai_not_connected' as const, message: 'n/a' };
     },
   };
 
-  it('finds no handle on a compliant adapter', () => {
+  it('finds no handle on a compliant assistant', () => {
     expect(findDatabaseHandles(compliant)).toEqual([]);
   });
 
-  it('finds one on an adapter that was handed a database', () => {
+  it('finds one on an assistant that was handed a database', () => {
     const database = {
       execute: async () => ({ rowsAffected: 0 }),
       select: async () => [],
@@ -206,6 +216,24 @@ describe('rule 2 — an adapter returns candidates and holds no write handle', (
       'anythingAtAll',
     );
     expect(findDatabaseHandles({ ...compliant, save: async () => undefined })).toContain('save');
+  });
+
+  it('finds one hidden on a prototype, where own-property enumeration would miss it', () => {
+    // A service written as a class keeps its methods on the prototype, so a
+    // check that only read own properties would report a leaky class as clean.
+    class LeakyAssistant {
+      async extractCook() {
+        return { available: false as const, reason: 'ai_not_connected' as const, message: 'n/a' };
+      }
+      async save(): Promise<void> {
+        return undefined;
+      }
+    }
+
+    const leaky = new LeakyAssistant();
+
+    expect(Object.keys(leaky)).toEqual([]);
+    expect(findDatabaseHandles(leaky)).toContain('save');
   });
 });
 

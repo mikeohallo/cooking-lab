@@ -46,18 +46,44 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       versionCode: 1,
       softwareKeyboardLayoutMode: 'resize',
       predictiveBackGestureEnabled: true,
-      // Milestone 0 needs no device capabilities. These are pulled in by
+      // Cooking Lab needs no device capabilities yet. These are pulled in by
       // transitive Expo/React Native tooling, not requested by Cooking Lab, so
       // they are stripped from the merged manifest. INTERNET is deliberately
       // retained: the Metro development client cannot connect without it.
+      //
+      // The two biometric entries arrived with `expo-secure-store`, which
+      // declares them because it *can* gate a value behind a fingerprint. This
+      // app does not: the database key is stored without `requireAuthentication`
+      // (see `src/data/native/expoSecureStore.ts`), because the store is opened
+      // before the first frame is drawn. An unused permission on the app's
+      // listing is a claim about the app that is not true, so it is stripped by
+      // the same rule as the rest. Wanting a biometric gate later means removing
+      // these two lines deliberately, which is the point.
       blockedPermissions: [
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.WRITE_EXTERNAL_STORAGE',
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.VIBRATE',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
       ],
     },
-    plugins: ['expo-router', 'expo-status-bar'],
+    plugins: [
+      'expo-router',
+      'expo-status-bar',
+      // The local database is encrypted at rest. `useSQLCipher` swaps the
+      // bundled SQLite for SQLCipher in the native build; the key is applied to
+      // each connection by `src/data/sqlite/connection.ts` and is generated and
+      // held by `src/data/sqlite/keyProvider.ts`. It never appears here, and it
+      // never appears in a backup.
+      ['expo-sqlite', { android: { useSQLCipher: true } }],
+      // Left at its default `configureAndroidBackup: true`, which is the
+      // module's normal behaviour: the key is excluded from Android Auto
+      // Backup, because a key copied off the device is a key that is no longer
+      // only on the device. This is not the recovery strategy — the portable
+      // Cooking Lab backup is, and it is deliberately independent of this key.
+      'expo-secure-store',
+    ],
     extra: {
       appVariant: requested,
     },
