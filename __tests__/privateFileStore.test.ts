@@ -401,3 +401,217 @@ describe('a photo failure never reaches the cook or the timeline', () => {
     }
   });
 });
+
+describe('two operations cannot write the same path at once', () => {
+  const FIRST = new Uint8Array([1, 1, 1, 1]);
+  const SECOND = new Uint8Array([2, 2]);
+
+  /** The settled outcomes of two operations started against the same path. */
+  type Settled = PromiseSettledResult<unknown>[];
+
+  function winnerAndLoser(results: Settled): {
+    readonly fulfilled: PromiseFulfilledResult<unknown>[];
+    readonly refusal: PrivateFileError;
+  } {
+    const fulfilled = results.filter(
+      (result): result is PromiseFulfilledResult<unknown> => result.status === 'fulfilled',
+    );
+    const rejected = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    expect(rejected).toHaveLength(1);
+    return { fulfilled, refusal: rejected[0]?.reason as PrivateFileError };
+  }
+
+  it('lets exactly one write win, and the loser never reaches the device', async () => {
+    const path = logicalPath();
+    const reachedDevice = jest.spyOn(device, 'write');
+
+    // The first operation is suspended inside its existence check — precisely
+    // where two operations used to be able to agree the path was free.
+    const openGate = device.pauseExists();
+    const first = store.write(path, FIRST);
+    const second = store.write(path, SECOND);
+    openGate();
+    const { fulfilled, refusal } = winnerAndLoser(await Promise.allSettled([first, second]));
+
+    expect(fulfilled).toHaveLength(1);
+    expect(refusal).toBeInstanceOf(PrivateFileError);
+    expect(refusal.reason).toBe('already_in_progress');
+    // Refused before the filesystem, not by it.
+    expect(reachedDevice).toHaveBeenCalledTimes(1);
+    // And the winner's photograph is intact, not half of one and not the other.
+    expect(await store.read(path)).toEqual(FIRST);
+    expect((await store.info(path))?.sha256).toBe(expectedDigest(FIRST));
+    reachedDevice.mockRestore();
+  });
+
+  it('lets exactly one import win, and does not consume the loser source file', async () => {
+    const path = logicalPath();
+    device.elsewhere.set('file:///cache/a.jpg', FIRST);
+    device.elsewhere.set('file:///cache/b.jpg', SECOND);
+
+    const openGate = device.pauseExists();
+    const first = store.importFile('file:///cache/a.jpg', path);
+    const second = store.importFile('file:///cache/b.jpg', path);
+    openGate();
+    const { fulfilled, refusal } = winnerAndLoser(await Promise.allSettled([first, second]));
+
+    expect(fulfilled).toHaveLength(1);
+    expect(refusal.reason).toBe('already_in_progress');
+    expect(await store.read(path)).toEqual(FIRST);
+    // The refused import never touched its source, so nothing was lost either.
+    expect(device.elsewhere.get('file:///cache/b.jpg')).toEqual(SECOND);
+    expect(device.elsewhere.has('file:///cache/a.jpg')).toBe(false);
+  });
+
+  it('never lets a write and an import delete each other result', async () => {
+    // The exact shape of the old race: the loser failed at the device and then
+    // cleaned up, taking the winner's file with it.
+    const path = logicalPath();
+    device.elsewhere.set('file:///cache/a.jpg', SECOND);
+
+    const openGate = device.pauseExists();
+    const written = store.write(path, FIRST);
+    const imported = store.importFile('file:///cache/a.jpg', path);
+    openGate();
+    const { fulfilled, refusal } = winnerAndLoser(await Promise.allSettled([written, imported]));
+
+    expect(fulfilled).toHaveLength(1);
+    expect(refusal.reason).toBe('already_in_progress');
+    // A file is still there, and it is the winner's.
+    expect(await store.exists(path)).toBe(true);
+    expect(await store.read(path)).toEqual(FIRST);
+    expect(device.files.size).toBe(1);
+  });
+
+  it('refuses the second operation whichever order they are started in', async () => {
+    const path = logicalPath();
+    device.elsewhere.set('file:///cache/a.jpg', FIRST);
+
+    const openGate = device.pauseExists();
+    const imported = store.importFile('file:///cache/a.jpg', path);
+    const written = store.write(path, SECOND);
+    openGate();
+    const { fulfilled, refusal } = winnerAndLoser(await Promise.allSettled([imported, written]));
+
+    expect(fulfilled).toHaveLength(1);
+    expect(refusal.reason).toBe('already_in_progress');
+    expect(await store.read(path)).toEqual(FIRST);
+  });
+});
+
+describe('a reservation is always given back', () => {
+  const BYTES_A = new Uint8Array([7, 7, 7]);
+  const BYTES_B = new Uint8Array([8, 8]);
+
+  it('releases the path after a successful write', async () => {
+    const path = logicalPath();
+    await store.write(path, BYTES_A);
+
+    // The refusal is now about the photograph that is there, not about a
+    // reservation nobody gave back. Any other reason would mean the path had
+    // been locked for the rest of the run.
+    await expect(store.write(path, BYTES_B)).rejects.toMatchObject({
+      reason: 'already_exists',
+    });
+  });
+
+  it('releases the path after a successful import', async () => {
+    const path = logicalPath();
+    device.elsewhere.set('file:///cache/a.jpg', BYTES_A);
+    await store.importFile('file:///cache/a.jpg', path);
+
+    device.elsewhere.set('file:///cache/b.jpg', BYTES_B);
+    await expect(store.importFile('file:///cache/b.jpg', path)).rejects.toMatchObject({
+      reason: 'already_exists',
+    });
+  });
+
+  it('releases the path after a failed write, so a later attempt can use it', async () => {
+    const path = logicalPath();
+    device.refuseWrites = true;
+    await expect(store.write(path, BYTES_A)).rejects.toMatchObject({
+      reason: 'device_refused',
+    });
+    expect(await store.exists(path)).toBe(false);
+
+    device.refuseWrites = false;
+    const stored = await store.write(path, BYTES_B);
+
+    expect(stored.sha256).toBe(expectedDigest(BYTES_B));
+    expect(await store.read(path)).toEqual(BYTES_B);
+  });
+
+  it('releases the path after a failed import, so a later attempt can use it', async () => {
+    const path = logicalPath();
+    await expect(store.importFile('file:///cache/missing.jpg', path)).rejects.toMatchObject({
+      reason: 'device_refused',
+    });
+    expect(await store.exists(path)).toBe(false);
+
+    device.elsewhere.set('file:///cache/a.jpg', BYTES_A);
+    const stored = await store.importFile('file:///cache/a.jpg', path);
+
+    expect(stored.sha256).toBe(expectedDigest(BYTES_A));
+  });
+
+  it('releases the path when the refusal was that a photograph is already there', async () => {
+    const path = logicalPath();
+    await store.write(path, BYTES_A);
+
+    await expect(store.write(path, BYTES_B)).rejects.toMatchObject({ reason: 'already_exists' });
+    // Twice, because a reservation leaked by the first refusal would change the
+    // second refusal's reason.
+    await expect(store.write(path, BYTES_B)).rejects.toMatchObject({ reason: 'already_exists' });
+    await store.delete(path);
+    await expect(store.write(path, BYTES_B)).resolves.toBeDefined();
+  });
+
+  it('releases the path when the device could not say whether anything was there', async () => {
+    // Ownership is unprovable here, so nothing is deleted — but the reservation
+    // still has to come back, or the path is locked for good.
+    const path = logicalPath();
+    const failing = jest
+      .spyOn(device, 'exists')
+      .mockRejectedValueOnce(new Error('the device is busy'));
+
+    await expect(store.write(path, BYTES_A)).rejects.toMatchObject({
+      reason: 'device_refused',
+    });
+    failing.mockRestore();
+
+    await expect(store.write(path, BYTES_A)).resolves.toBeDefined();
+  });
+});
+
+describe('the reservation is not per-store', () => {
+  it('holds across a second store built over the same device', async () => {
+    // Constructing another store must not be a way around the protection: two
+    // stores over one device resolve the same logical path to the same file.
+    const other = createPrivateFileStore(device, nodeDigest);
+    const path = logicalPath();
+
+    const openGate = device.pauseExists();
+    const first = store.write(path, BYTES);
+    const second = other.write(path, new Uint8Array([3, 3, 3]));
+    openGate();
+    const results = await Promise.allSettled([first, second]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect((rejected?.reason as PrivateFileError).reason).toBe('already_in_progress');
+    expect(await store.read(path)).toEqual(BYTES);
+  });
+
+  it('still protects a photograph that is already stored, whichever store asks', async () => {
+    const other = createPrivateFileStore(device, nodeDigest);
+    const path = logicalPath();
+    const original = await store.write(path, BYTES);
+
+    await expect(other.write(path, new Uint8Array([4, 4]))).rejects.toMatchObject({
+      reason: 'already_exists',
+    });
+    expect((await other.info(path))?.sha256).toBe(original.sha256);
+  });
+});

@@ -35,12 +35,21 @@
  *   with the wrong argument. The check is here, above the device, so a
  *   pre-existing file is never handed to a native call that would overwrite it.
  *
+ *   One writer at a time.  A logical destination is reserved *synchronously*
+ *   before anything is awaited, and held until the operation ends. An
+ *   asynchronous "is this path free?" check cannot reserve anything: between
+ *   the question and the answer the operation yields, a second one asks the
+ *   same question, and both are told yes. The reservation is what makes "there
+ *   is exactly one operation writing this path" true rather than merely likely.
+ *
  *   A failed import destroys nothing.  Cleanup after a failure removes only a
  *   destination this operation itself created, which is knowable because the
- *   path was proved empty before the write began. A photograph that was already
- *   there is never deleted as part of recovering from an error. This store also
- *   has no database handle and cannot delete a cook or an event, so a photo that
- *   failed to save can never take the evidence of the cook with it either.
+ *   path was proved empty before the write began *and* has been owned by this
+ *   operation ever since. A photograph that was already there — or one another
+ *   operation is writing — is never deleted as part of recovering from an
+ *   error. This store also has no database handle and cannot delete a cook or
+ *   an event, so a photo that failed to save can never take the evidence of the
+ *   cook with it either.
  *
  * The device itself is behind two ports so that all of the above is exercised
  * by the test suite rather than only on a phone. Their implementations live in
@@ -76,6 +85,14 @@ export type FileFailureReason =
    * not replace it on the way to doing something else.
    */
   | 'already_exists'
+  /**
+   * Another write or import is using that path right now.
+   *
+   * Distinct from `already_exists` on purpose: nothing is stored there yet, but
+   * something is being stored there, and two operations writing the same path
+   * cannot both be the one that owns what ends up on disk.
+   */
+  | 'already_in_progress'
   /** The device refused the operation. */
   | 'device_refused';
 
@@ -243,19 +260,25 @@ export function createPrivateFileStore(
       sourceUri: string,
       logicalPath: PhotoLogicalPath,
     ): Promise<StoredFileInfo> {
-      const relative = await claim(files, logicalPath);
-      await files.ensureRoot();
+      const reservation = await claim(files, logicalPath);
       try {
-        await files.importFrom(sourceUri, relative);
-      } catch (cause) {
-        await discard(files, relative);
-        throw deviceRefused(logicalPath, 'bring the photo into app-private storage', cause);
-      }
-      try {
-        return await describe(logicalPath, await files.read(relative));
-      } catch (cause) {
-        await discard(files, relative);
-        throw deviceRefused(logicalPath, 'read back the photo that was just stored', cause);
+        try {
+          await files.ensureRoot();
+          await files.importFrom(sourceUri, reservation.relativePath);
+        } catch (cause) {
+          await discard(files, reservation);
+          throw deviceRefused(logicalPath, 'bring the photo into app-private storage', cause);
+        }
+        try {
+          return await describe(logicalPath, await files.read(reservation.relativePath));
+        } catch (cause) {
+          await discard(files, reservation);
+          throw deviceRefused(logicalPath, 'read back the photo that was just stored', cause);
+        }
+      } finally {
+        // Released whichever way this ended, so a failed import does not leave
+        // the path locked against the next legitimate attempt.
+        reservation.release();
       }
     },
 
@@ -283,15 +306,19 @@ export function createPrivateFileStore(
      * exactly the visibility a silent overwrite would remove.
      */
     async write(logicalPath: PhotoLogicalPath, bytes: Uint8Array): Promise<StoredFileInfo> {
-      const relative = await claim(files, logicalPath);
-      await files.ensureRoot();
+      const reservation = await claim(files, logicalPath);
       try {
-        await files.write(relative, bytes);
-      } catch (cause) {
-        await discard(files, relative);
-        throw deviceRefused(logicalPath, 'write the photo', cause);
+        try {
+          await files.ensureRoot();
+          await files.write(reservation.relativePath, bytes);
+        } catch (cause) {
+          await discard(files, reservation);
+          throw deviceRefused(logicalPath, 'write the photo', cause);
+        }
+        return await describe(logicalPath, bytes);
+      } finally {
+        reservation.release();
       }
-      return describe(logicalPath, bytes);
     },
 
     /** Deleting something that is not there is not an error; the outcome is the same. */
@@ -335,43 +362,138 @@ export function createPrivateFileStore(
 }
 
 /**
- * Check the path and prove it is free, returning it for use.
+ * The logical paths currently being written to, anywhere in this process.
  *
- * The single gate in front of every write. Two things happen here and they
- * belong together: the path is checked for safety, and it is checked for being
- * empty. Callers get the relative path back only once both hold, which means a
- * write path in this module is always one that was unoccupied a moment ago —
- * and that is precisely the fact that makes cleanup on failure safe.
+ * Module-level, and deliberately not per-store. Two `PrivateFileStore`
+ * instances built over the same device resolve the same logical path to the
+ * same file, so a reservation held by one has to be visible to the other — a
+ * per-instance set would be bypassed by the simple act of constructing a second
+ * store. One app, one sandbox, one set.
+ *
+ * The keys are logical paths, which are already canonical: they are generated
+ * by `buildPhotoLogicalPath` from validated ids and an instant, and
+ * `isSafePhotoLogicalPath` rejects everything that is not in that exact form,
+ * so two spellings of the same destination cannot exist.
+ */
+const RESERVED_PATHS = new Set<string>();
+
+/**
+ * One operation's exclusive right to write a logical path.
+ *
+ * Held for the whole of a write or an import and released in a `finally`,
+ * whichever way the operation ends. While it is held, no other write or import
+ * can reach that path — which is what makes "anything at this path was put
+ * there by me" true, and therefore what makes cleanup on failure safe.
+ */
+export type PathReservation = {
+  readonly relativePath: string;
+  /** True while this operation still owns the path. */
+  isHeld(): boolean;
+  release(): void;
+};
+
+/**
+ * Take the path, or refuse.
+ *
+ * Deliberately synchronous, and deliberately called before anything is
+ * awaited. An asynchronous check cannot reserve anything: between the `await`
+ * and its answer the operation yields, a second operation runs the same check,
+ * and both conclude the path is free. Doing this first, in one uninterrupted
+ * step, is the whole of the fix.
+ */
+function reserve(logicalPath: PhotoLogicalPath, relativePath: string): PathReservation {
+  if (RESERVED_PATHS.has(relativePath)) {
+    throw new PrivateFileError(
+      'already_in_progress',
+      logicalPath,
+      'another write or import is already using that path',
+    );
+  }
+  RESERVED_PATHS.add(relativePath);
+
+  let held = true;
+  return {
+    relativePath,
+    isHeld: () => held,
+    release(): void {
+      if (held) {
+        held = false;
+        RESERVED_PATHS.delete(relativePath);
+      }
+    },
+  };
+}
+
+/**
+ * Check the path, take it, and prove it is empty.
+ *
+ * The single gate in front of every write, and the order of the three steps is
+ * the safety property:
+ *
+ *   1. the path is checked for safety — synchronous;
+ *   2. the path is reserved — synchronous, so no other operation can be between
+ *      its own check and its own reservation;
+ *   3. only then is the device asked whether anything is stored there.
+ *
+ * A caller gets a reservation back only once all three hold, which means a
+ * write path in this module is one that was empty *and* is owned — and that is
+ * what makes cleanup on failure safe. The reservation is released here if the
+ * path turns out to be occupied, and by the caller's `finally` otherwise.
  */
 async function claim(
   files: PrivateFileSystemPort,
   logicalPath: PhotoLogicalPath,
-): Promise<string> {
+): Promise<PathReservation> {
   const relative = checked(logicalPath);
-  if (await files.exists(relative)) {
+  const reservation = reserve(logicalPath, relative);
+
+  let occupied: boolean;
+  try {
+    occupied = await files.exists(relative);
+  } catch (cause) {
+    // Whether anything is stored there is now unknown, so nothing is removed:
+    // an unproven path is not a path to delete.
+    reservation.release();
+    throw deviceRefused(logicalPath, 'check whether a photograph is already stored there', cause);
+  }
+
+  if (occupied) {
+    reservation.release();
     throw new PrivateFileError(
       'already_exists',
       logicalPath,
       'there is already a photograph stored at that path, and it will not be replaced',
     );
   }
-  return relative;
+
+  return reservation;
 }
 
 /**
  * Remove a file this operation created, without replacing the failure that
  * caused it.
  *
- * Only ever called on a path `claim` proved empty moments earlier, so what it
- * removes is what the failing operation was in the middle of writing. It is not
- * a general delete and must never be pointed at a path that was already
- * occupied: cleaning up after an error is not a licence to destroy a
- * photograph that was already stored.
+ * Takes the reservation rather than a path, and does nothing without it. That
+ * is not ceremony: it is the difference between deleting the file this
+ * operation was writing and deleting whatever happens to be sitting at that
+ * path now. Only ever called on a path `claim` proved empty and still owns, so
+ * what it removes is what the failing operation was in the middle of writing.
+ *
+ * It is not a general delete and must never be pointed at a path that was
+ * already occupied or is owned by somebody else: cleaning up after an error is
+ * not a licence to destroy a photograph.
  */
-async function discard(files: PrivateFileSystemPort, relativePath: string): Promise<void> {
+async function discard(
+  files: PrivateFileSystemPort,
+  reservation: PathReservation,
+): Promise<void> {
+  if (!reservation.isHeld()) {
+    // Ownership can no longer be proved, so whatever is there stays there.
+    return;
+  }
   try {
-    if (await files.exists(relativePath)) {
-      await files.delete(relativePath);
+    if (await files.exists(reservation.relativePath)) {
+      await files.delete(reservation.relativePath);
     }
   } catch {
     // The caller is about to be told why the operation failed; a failure to

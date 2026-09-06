@@ -85,23 +85,64 @@ export type MemoryFileSystem = PrivateFileSystemPort & {
   rootCreated: boolean;
   /** When set, every write and import fails, as a full or read-only device would. */
   refuseWrites: boolean;
+  /**
+   * Hold every `exists` call until the returned function is called.
+   *
+   * The point of the concurrency tests is to force the interleaving rather than
+   * hope for it. Pausing here suspends an operation at exactly the moment the
+   * old code was unsafe — after it had asked whether the path was free and
+   * before it had been told — so a second operation can be started while the
+   * first is provably in flight.
+   */
+  pauseExists(): () => void;
+  /** Hold every `write` and `importFrom` until the returned function is called. */
+  pauseWrites(): () => void;
 };
+
+/** A gate a test can hold shut and then open. */
+function createGate(): { readonly wait: () => Promise<void>; readonly pause: () => () => void } {
+  let held: Promise<void> | null = null;
+  let open: (() => void) | null = null;
+
+  return {
+    async wait(): Promise<void> {
+      if (held !== null) {
+        await held;
+      }
+    },
+    pause(): () => void {
+      held = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      return () => {
+        open?.();
+        held = null;
+        open = null;
+      };
+    },
+  };
+}
 
 export function memoryFileSystem(): MemoryFileSystem {
   const files = new Map<string, Uint8Array>();
   const elsewhere = new Map<string, Uint8Array>();
+  const existsGate = createGate();
+  const writeGate = createGate();
 
   const system: MemoryFileSystem = {
     files,
     elsewhere,
     rootCreated: false,
     refuseWrites: false,
+    pauseExists: existsGate.pause,
+    pauseWrites: writeGate.pause,
 
     async ensureRoot(): Promise<void> {
       system.rootCreated = true;
     },
 
     async exists(relativePath: string): Promise<boolean> {
+      await existsGate.wait();
       return files.has(relativePath);
     },
 
@@ -118,15 +159,25 @@ export function memoryFileSystem(): MemoryFileSystem {
     },
 
     async write(relativePath: string, bytes: Uint8Array): Promise<void> {
+      await writeGate.wait();
       if (system.refuseWrites) {
         throw new Error('the device refused the write');
+      }
+      // The native layer refuses an occupied destination; so does this one, so
+      // a test cannot accidentally prove safety that the device would not give.
+      if (files.has(relativePath)) {
+        throw new Error(`there is already a file at ${relativePath}`);
       }
       files.set(relativePath, bytes);
     },
 
     async importFrom(sourceUri: string, relativePath: string): Promise<void> {
+      await writeGate.wait();
       if (system.refuseWrites) {
         throw new Error('the device refused the write');
+      }
+      if (files.has(relativePath)) {
+        throw new Error(`there is already a file at ${relativePath}`);
       }
       const bytes = elsewhere.get(sourceUri);
       if (bytes === undefined) {
