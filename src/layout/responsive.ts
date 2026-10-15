@@ -18,8 +18,8 @@ export const WIDE_BREAKPOINT = 720;
 /** Text and cards never stretch wider than this, however large the screen. */
 export const CONTENT_MAX_WIDTH = 560;
 
-/** Horizontal gutters, kept small on cover-screen-class widths. */
-const NARROW_GUTTER = 16;
+/** Horizontal gutters from Design Baseline v1: 20 dp on a cover screen, 24 dp wider. */
+const NARROW_GUTTER = 20;
 const WIDE_GUTTER = 24;
 
 export type LayoutMetrics = {

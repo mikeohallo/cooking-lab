@@ -1,13 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 
+import { useFocusRefresh } from '../src/app/useFocusRefresh';
+import type { CookId } from '../src/domain/entities';
 import { HomeScreen } from '../src/screens/HomeScreen';
 
 export default function HomeRoute() {
   const router = useRouter();
+  const refreshToken = useFocusRefresh();
 
-  const goToNewCook = useCallback(() => router.push('/new-cook'), [router]);
+  const openCook = useCallback((cookId: CookId) => router.push(`/cook/${cookId}`), [router]);
   const goToHistory = useCallback(() => router.push('/history'), [router]);
 
-  return <HomeScreen onNewCook={goToNewCook} onHistory={goToHistory} />;
+  return <HomeScreen onOpenCook={openCook} onHistory={goToHistory} refreshToken={refreshToken} />;
 }

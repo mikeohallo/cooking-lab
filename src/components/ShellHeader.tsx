@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { getAppIdentity, isTestBuild } from '../config/appIdentity';
 import { TEST_BUILD_NOTICE } from '../content/product';
-import { colors, fontSize, radius, space } from '../theme/tokens';
+import { colors, radius, space } from '../theme/tokens';
+import { AppText } from './AppText';
 import { TestBadge } from './TestBadge';
 
 type ShellHeaderProps = {
@@ -11,9 +12,9 @@ type ShellHeaderProps = {
 };
 
 /**
- * Application chrome. Shows the variant display name and, on the TEST variant
- * only, an unmistakable TEST badge plus a short explanation of what this build
- * is. Production renders neither.
+ * Home's compact brand row. Shows the variant display name and, on the TEST
+ * variant only, an unmistakable TEST badge plus a short explanation of what
+ * this build is. Production renders neither.
  */
 export function ShellHeader({ subtitle }: ShellHeaderProps) {
   const identity = getAppIdentity();
@@ -22,15 +23,19 @@ export function ShellHeader({ subtitle }: ShellHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Text style={styles.appName} accessibilityRole="header">
+        <AppText variant="display" accessibilityRole="header" style={styles.appName}>
           {identity.name}
-        </Text>
+        </AppText>
         {showTestAffordances ? <TestBadge /> : null}
       </View>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {subtitle ? (
+        <AppText variant="secondary" tone="muted">
+          {subtitle}
+        </AppText>
+      ) : null}
       {showTestAffordances ? (
         <View style={styles.testNotice}>
-          <Text style={styles.testNoticeText}>{TEST_BUILD_NOTICE}</Text>
+          <AppText variant="caption">{TEST_BUILD_NOTICE}</AppText>
         </View>
       ) : null}
     </View>
@@ -39,34 +44,23 @@ export function ShellHeader({ subtitle }: ShellHeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
-    gap: space.sm,
+    gap: space.xs,
     marginBottom: space.lg,
   },
   titleRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: space.sm,
+    gap: space.xs,
   },
   appName: {
-    color: colors.text,
-    fontSize: fontSize.display,
-    fontWeight: '700',
     flexShrink: 1,
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: fontSize.bodyLarge,
   },
   testNotice: {
     backgroundColor: colors.testSurface,
     borderColor: colors.testBorder,
     borderWidth: 1,
-    borderRadius: radius.sm,
-    padding: space.sm,
-  },
-  testNoticeText: {
-    color: colors.text,
-    fontSize: fontSize.caption,
+    borderRadius: radius.control,
+    padding: space.xs,
   },
 });

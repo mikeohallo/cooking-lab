@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { colors, fontSize, radius, space } from '../theme/tokens';
+import { colors, radius, space } from '../theme/tokens';
+import { AppText } from './AppText';
 
 export const TEST_BADGE_LABEL = 'TEST';
 export const TEST_BADGE_TEST_ID = 'test-build-badge';
@@ -17,7 +18,9 @@ export function TestBadge() {
       accessibilityRole="text"
       accessibilityLabel="Test build"
     >
-      <Text style={styles.label}>{TEST_BADGE_LABEL}</Text>
+      <AppText variant="caption" tone="onPrimary" style={styles.label}>
+        {TEST_BADGE_LABEL}
+      </AppText>
     </View>
   );
 }
@@ -26,13 +29,12 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.testBadge,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.xs,
+    paddingVertical: space.xxs,
   },
   label: {
     color: colors.onTestBadge,
-    fontSize: fontSize.caption,
     fontWeight: '700',
     letterSpacing: 1,
   },

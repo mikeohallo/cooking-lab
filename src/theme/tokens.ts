@@ -1,47 +1,111 @@
 /**
- * Minimal styling tokens. Deliberately not a design system: just enough shared
- * values to keep the Milestone 0 shell readable and consistent.
+ * Design tokens for Cooking Lab.
+ *
+ * These are the controlled values from `build-control/design/DESIGN_BASELINE_V1.md`
+ * ("Calm Modern Companion"). Screens and components style themselves from
+ * these and from nothing else, so that the look of the app is decided in one
+ * place and a hue change is a token change rather than a hunt through screens.
+ *
+ * The baseline's own words for the palette: warm stone background, deep muted
+ * sage as the one action colour, amber kept for temperature and inference,
+ * ink text rather than black. Raw evidence and assistant suggestions must never
+ * look interchangeable, and no state may rely on colour alone — which is why
+ * the status treatments below come paired with text labels wherever they are
+ * used.
  */
 
+import type { TextStyle } from 'react-native';
+
 export const colors = {
-  background: '#FAF7F2',
-  surface: '#FFFFFF',
-  border: '#E4DCD2',
-  text: '#1E1A15',
-  textMuted: '#5B5349',
-  accent: '#8A3B12',
-  accentPressed: '#6C2D0D',
-  onAccent: '#FFFFFF',
+  background: '#F7F4EE',
+  surface: '#FFFCF7',
+  surfaceStrong: '#FFFFFF',
+  surfaceMuted: '#EEF0E8',
+  text: '#20251F',
+  textMuted: '#687064',
+  border: '#D9DED2',
+  primary: '#526A55',
+  primaryPressed: '#435747',
+  primarySoft: '#E5EDE4',
+  onPrimary: '#FFFFFF',
+  accent: '#D39542',
+  accentPressed: '#B87829',
+  accentSoft: '#F6E8D3',
+  danger: '#9B4D47',
+  dangerSoft: '#F5E7E5',
   testBadge: '#B3261E',
   onTestBadge: '#FFFFFF',
   testSurface: '#FDECEA',
   testBorder: '#E8A9A3',
 } as const;
 
+/**
+ * Evidence and status treatments: a background and a foreground for each
+ * meaning. Always rendered with the meaning spelled out next to the colour.
+ */
+export const statusTreatments = {
+  observed: { background: '#E5EFE6', foreground: '#35543B' },
+  inference: { background: '#F7E8CF', foreground: '#735019' },
+  knowledge: { background: '#E8EDF3', foreground: '#3F556A' },
+  proposed: { background: '#F4EEE2', foreground: '#6A593D' },
+  approved: { background: '#E5EFE6', foreground: '#35543B' },
+  rejected: { background: '#F5E7E5', foreground: '#7A3F39' },
+  imported: { background: '#EEEAF4', foreground: '#5C4F70' },
+  /** An open cook, still being cooked. Neutral: it is a state, not a verdict. */
+  open: { background: '#F4EEE2', foreground: '#6A593D' },
+  /** A reviewed cook. Shares the approved treatment: the cook has sat down with it. */
+  reviewed: { background: '#E5EFE6', foreground: '#35543B' },
+} as const;
+
+export type StatusTreatment = keyof typeof statusTreatments;
+
+/** The baseline spacing scale, by name rather than by number. */
 export const space = {
-  xs: 4,
-  sm: 8,
+  xxs: 4,
+  xs: 8,
+  sm: 12,
   md: 16,
+  ml: 20,
   lg: 24,
   xl: 32,
+  xxl: 40,
 } as const;
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  /** Inputs and buttons. */
+  control: 14,
+  /** Standard cards. */
+  card: 18,
+  /** Hero cards. */
+  hero: 24,
+  /** Chips and pills. */
+  pill: 999,
+  /** Photos in the timeline. */
+  photo: 16,
 } as const;
 
 /** Android/Material minimum. Applied to every interactive control. */
 export const MIN_TOUCH_TARGET = 48;
 
-/** Primary navigation controls are deliberately larger than the minimum. */
+/** The one main action on a screen is deliberately larger than the minimum. */
 export const PRIMARY_TOUCH_TARGET = 64;
 
-export const fontSize = {
-  caption: 13,
-  body: 16,
-  bodyLarge: 18,
-  title: 22,
-  display: 28,
-} as const;
+/**
+ * The type scale. Each style carries its size, line height and weight together
+ * so a screen cannot pair a display size with a body line height by accident.
+ * Font family is the platform's own sans; no custom font is loaded.
+ */
+export const type = {
+  display: { fontSize: 30, lineHeight: 36, fontWeight: '700' },
+  screenTitle: { fontSize: 24, lineHeight: 30, fontWeight: '700' },
+  sectionTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700' },
+  body: { fontSize: 16, lineHeight: 23, fontWeight: '400' },
+  bodyStrong: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  secondary: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
+  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
+  button: { fontSize: 16, lineHeight: 20, fontWeight: '700' },
+  temperature: { fontSize: 28, lineHeight: 34, fontWeight: '700' },
+} as const satisfies Record<string, Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight'>>;
+
+export type TypeStyle = keyof typeof type;

@@ -4,9 +4,12 @@ A private, local-first cooking notebook for a single Android device.
 
     Cook -> Observe -> Review -> Learn -> Cook Again
 
-**Milestone 0 is the application shell only.** There is no persistence, no AI, no
-network backend, no account and no cloud storage. Screens beyond Home state
-plainly that they are not implemented yet.
+**Current state (slice 1 of the core loop):** a cook can be started in one tap,
+captured as notes and Celsius readings in a timeline, reviewed with a verdict
+in the cook's own words, and found again in History. All of it is stored in the
+encrypted local database. There is no AI, no photos, no export, no network
+backend, no account and no cloud storage yet; those arrive in later slices
+(see `build-control/slices/`).
 
 ## Baseline
 

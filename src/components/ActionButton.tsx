@@ -1,105 +1,148 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import {
-  PRIMARY_TOUCH_TARGET,
-  colors,
-  fontSize,
-  radius,
-  space,
-} from '../theme/tokens';
+import { MIN_TOUCH_TARGET, PRIMARY_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { AppText } from './AppText';
+
+export type ActionButtonVariant =
+  /** The one main action on the screen: solid sage, white label. */
+  | 'primary'
+  /** A utility or non-primary progression: soft sage surface, primary text. */
+  | 'secondary'
+  /** A quiet text-only control for an uncommon or destructive-leaning action. */
+  | 'quiet';
 
 type ActionButtonProps = {
   label: string;
-  /** Short line of supporting text shown under the label. */
-  hint?: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: ActionButtonVariant;
+  /** Hero buttons are the full-width ~64 dp action; standard ones meet the 48 dp minimum. */
+  size?: 'hero' | 'standard';
+  /** Short line of supporting text under the label. Hero buttons only. */
+  hint?: string;
+  disabled?: boolean;
+  /** Shows progress and disables the control while a write is in flight. */
+  pending?: boolean;
+  /** Danger tone for the quiet variant. Never a filled red button. */
+  tone?: 'default' | 'danger';
   accessibilityHint?: string;
+  testID?: string;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
- * The one interactive control the Milestone 0 shell needs.
+ * The app's one button.
  *
- * Sized well above the 48 dp minimum, full width so it stays reachable on a
- * cover screen, and free of fixed heights so Android font scaling grows the
- * button instead of clipping its label.
+ * Full width when it is the main action, never fixed in height so Android font
+ * scaling grows it instead of clipping the label, and with distinct pressed,
+ * pending and disabled states.
  */
 export function ActionButton({
   label,
-  hint,
   onPress,
   variant = 'primary',
+  size = 'standard',
+  hint,
+  disabled = false,
+  pending = false,
+  tone = 'default',
   accessibilityHint,
+  testID,
+  style,
 }: ActionButtonProps) {
-  const isPrimary = variant === 'primary';
+  const inactive = disabled || pending;
+  const labelTone =
+    variant === 'primary' ? 'onPrimary' : tone === 'danger' ? 'danger' : 'primary';
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: inactive, busy: pending }}
+      disabled={inactive}
       onPress={onPress}
+      testID={testID}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.secondary,
-        pressed && (isPrimary ? styles.primaryPressed : styles.secondaryPressed),
+        size === 'hero' ? styles.hero : styles.standard,
+        variantStyles[variant].rest,
+        pressed && !inactive && variantStyles[variant].pressed,
+        inactive && styles.inactive,
+        style,
       ]}
     >
       <View style={styles.content}>
-        <Text style={[styles.label, isPrimary ? styles.primaryText : styles.secondaryText]}>
-          {label}
-        </Text>
-        {hint ? (
-          <Text style={[styles.hint, isPrimary ? styles.primaryText : styles.secondaryHint]}>
-            {hint}
-          </Text>
+        {pending ? (
+          <ActivityIndicator
+            color={variant === 'primary' ? colors.onPrimary : colors.primary}
+            accessibilityLabel="Working"
+          />
         ) : null}
+        <View style={styles.labels}>
+          <AppText variant="button" tone={labelTone} style={styles.label}>
+            {label}
+          </AppText>
+          {hint && size === 'hero' ? (
+            <AppText variant="secondary" tone={labelTone} style={styles.hint}>
+              {hint}
+            </AppText>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
 }
 
+const variantStyles = {
+  primary: StyleSheet.create({
+    rest: { backgroundColor: colors.primary, borderColor: colors.primary },
+    pressed: { backgroundColor: colors.primaryPressed, borderColor: colors.primaryPressed },
+  }),
+  secondary: StyleSheet.create({
+    rest: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },
+    pressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+  }),
+  quiet: StyleSheet.create({
+    rest: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    pressed: { backgroundColor: colors.surfaceMuted, borderColor: 'transparent' },
+  }),
+} as const;
+
 const styles = StyleSheet.create({
   base: {
-    minHeight: PRIMARY_TOUCH_TARGET,
     justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingVertical: space.md,
-    paddingHorizontal: space.md,
+    borderRadius: radius.control,
     borderWidth: 1,
+    paddingHorizontal: space.md,
+  },
+  hero: {
+    minHeight: PRIMARY_TOUCH_TARGET,
+    paddingVertical: space.sm,
+    width: '100%',
+  },
+  standard: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingVertical: space.xs,
+  },
+  inactive: {
+    opacity: 0.55,
   },
   content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: space.xs,
   },
-  primary: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  primaryPressed: {
-    backgroundColor: colors.accentPressed,
-    borderColor: colors.accentPressed,
-  },
-  secondary: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  secondaryPressed: {
-    backgroundColor: colors.background,
+  labels: {
+    alignItems: 'center',
+    gap: 2,
+    flexShrink: 1,
   },
   label: {
-    fontSize: fontSize.bodyLarge,
-    fontWeight: '600',
+    textAlign: 'center',
   },
   hint: {
-    fontSize: fontSize.caption,
-  },
-  primaryText: {
-    color: colors.onAccent,
-  },
-  secondaryText: {
-    color: colors.text,
-  },
-  secondaryHint: {
-    color: colors.textMuted,
+    textAlign: 'center',
+    opacity: 0.9,
   },
 });

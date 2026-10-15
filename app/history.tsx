@@ -1,12 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 
-import { HISTORY_BODY, HISTORY_TITLE } from '../src/content/product';
-import { PlaceholderScreen } from '../src/screens/PlaceholderScreen';
+import { useFocusRefresh } from '../src/app/useFocusRefresh';
+import type { CookId } from '../src/domain/entities';
+import { HistoryScreen } from '../src/screens/HistoryScreen';
 
 export default function HistoryRoute() {
   const router = useRouter();
-  const goHome = useCallback(() => {
+  const refreshToken = useFocusRefresh();
+
+  const openCook = useCallback((cookId: CookId) => router.push(`/cook/${cookId}`), [router]);
+  const goBack = useCallback(() => {
     if (router.canGoBack()) {
       router.back();
       return;
@@ -14,12 +18,5 @@ export default function HistoryRoute() {
     router.replace('/');
   }, [router]);
 
-  return (
-    <PlaceholderScreen
-      title={HISTORY_TITLE}
-      body={HISTORY_BODY}
-      onBack={goHome}
-      testID="history-screen"
-    />
-  );
+  return <HistoryScreen onOpenCook={openCook} onBack={goBack} refreshToken={refreshToken} />;
 }

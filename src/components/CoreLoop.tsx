@@ -1,15 +1,17 @@
 import { Fragment } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { CORE_LOOP_STEPS } from '../content/product';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
-import { colors, fontSize, radius, space } from '../theme/tokens';
+import { colors, radius, space } from '../theme/tokens';
+import { AppText } from './AppText';
 
 /**
  * The Cook -> Observe -> Review -> Learn -> Cook Again loop.
  *
- * Steps wrap rather than scroll, and on cover-screen-class widths they stack
- * vertically so nothing is ever pushed off the right edge.
+ * Shown on first use, when there is nothing else to show. Steps wrap rather
+ * than scroll, and on cover-screen-class widths they stack vertically so
+ * nothing is ever pushed off the right edge.
  */
 export function CoreLoop() {
   const { allowsInlineLoop } = useLayoutMetrics();
@@ -22,12 +24,17 @@ export function CoreLoop() {
       {CORE_LOOP_STEPS.map((step, index) => (
         <Fragment key={step}>
           {index > 0 ? (
-            <Text style={styles.arrow} accessibilityElementsHidden importantForAccessibility="no">
+            <AppText
+              variant="secondary"
+              tone="muted"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
               {allowsInlineLoop ? '→' : '↓'}
-            </Text>
+            </AppText>
           ) : null}
           <View style={styles.step}>
-            <Text style={styles.stepText}>{step}</Text>
+            <AppText variant="label">{step}</AppText>
           </View>
         </Fragment>
       ))}
@@ -37,7 +44,7 @@ export function CoreLoop() {
 
 const styles = StyleSheet.create({
   loop: {
-    gap: space.sm,
+    gap: space.xs,
   },
   loopInline: {
     flexDirection: 'row',
@@ -52,17 +59,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-  },
-  stepText: {
-    color: colors.text,
-    fontSize: fontSize.body,
-    fontWeight: '600',
-  },
-  arrow: {
-    color: colors.textMuted,
-    fontSize: fontSize.body,
+    paddingVertical: space.xxs,
   },
 });
