@@ -46,6 +46,11 @@ type StorageProviderProps = {
   start: () => Promise<StorageStartupResult>;
   newId: () => string;
   now?: () => string;
+  /**
+   * Called with the outcome, success or failure. The app uses it to write the
+   * one startup line the device log is read from; it never sees the key.
+   */
+  onStarted?: (result: StorageStartupResult) => void;
 };
 
 /** ISO-8601 in UTC with millisecond precision, the one timestamp form the model accepts. */
@@ -54,13 +59,20 @@ export function isoNow(): string {
 }
 
 /** Open the store on mount and publish the outcome. */
-export function StorageProvider({ children, start, newId, now = isoNow }: StorageProviderProps) {
+export function StorageProvider({
+  children,
+  start,
+  newId,
+  now = isoNow,
+  onStarted,
+}: StorageProviderProps) {
   const [state, setState] = useState<StorageState>({ status: 'starting' });
 
   useEffect(() => {
     let live = true;
     start()
       .then((result) => {
+        onStarted?.(result);
         if (!live) {
           return;
         }
@@ -90,7 +102,7 @@ export function StorageProvider({ children, start, newId, now = isoNow }: Storag
     return () => {
       live = false;
     };
-  }, [start, newId, now]);
+  }, [start, newId, now, onStarted]);
 
   return <StorageContext.Provider value={state}>{children}</StorageContext.Provider>;
 }

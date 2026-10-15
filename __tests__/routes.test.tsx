@@ -6,7 +6,7 @@
  * cannot find, which no screen test can. The store is the Node SQLite harness,
  * handed to the root layout in place of the native startup.
  */
-import { screen, waitFor } from '@testing-library/react-native';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import path from 'node:path';
 
@@ -14,21 +14,34 @@ import { NEW_COOK_TITLE } from '../src/content/product';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { openTestDatabase, type TestDatabase } from './support/database';
 
-const mockDb: { current: TestDatabase | null } = { current: null };
+const mockDb: {
+  current: TestDatabase | null;
+  /** When set, startup waits until the test resolves it, like a real device. */
+  release: ((result: StorageStartupResult) => void) | null;
+  hold: boolean;
+} = { current: null, release: null, hold: false };
+
+function mockReadyResult(): StorageStartupResult {
+  return {
+    ok: true,
+    storage: {
+      data: mockDb.current!.data,
+      photos: {} as never,
+      assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
+      schemaVersion: 1,
+      freshInstall: true,
+      close: async () => undefined,
+    },
+  };
+}
 
 jest.mock('../src/data/startup', () => ({
   initialiseStorage: (): Promise<StorageStartupResult> =>
-    Promise.resolve({
-      ok: true,
-      storage: {
-        data: mockDb.current!.data,
-        photos: {} as never,
-        assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
-        schemaVersion: 1,
-        freshInstall: true,
-        close: async () => undefined,
-      },
-    }),
+    mockDb.hold
+      ? new Promise((resolve) => {
+          mockDb.release = resolve;
+        })
+      : Promise.resolve(mockReadyResult()),
   describeStartup: () => 'test',
 }));
 
@@ -47,6 +60,8 @@ let db: TestDatabase;
 beforeEach(async () => {
   db = await openTestDatabase('routes.db');
   mockDb.current = db;
+  mockDb.hold = false;
+  mockDb.release = null;
 });
 
 afterEach(async () => {
@@ -81,5 +96,31 @@ describe('routes', () => {
     await waitFor(() => expect(screen.getByTestId('history-screen')).toBeOnTheScreen(), {
       timeout: 4000,
     });
+  });
+
+  it('shows the starting state inside the route while the store opens, then Home', async () => {
+    mockDb.hold = true;
+    await renderRouter(APP_DIR, { initialUrl: 'cookinglab:///' });
+
+    expect(screen.getByTestId('startup-starting')).toBeOnTheScreen();
+    expect(screen.queryByTestId('home-screen')).toBeNull();
+    expect(screen.queryByTestId('not-found-screen')).toBeNull();
+
+    await act(async () => {
+      mockDb.release!(mockReadyResult());
+    });
+
+    expect(await screen.findByTestId('home-screen', {}, { timeout: 4000 })).toBeOnTheScreen();
+  });
+
+  it('explains an unknown path and offers a working way home', async () => {
+    const user = userEvent.setup();
+    await renderRouter(APP_DIR, { initialUrl: '/no/such/screen' });
+
+    expect(await screen.findByTestId('not-found-screen', {}, { timeout: 4000 })).toBeOnTheScreen();
+    expect(screen.getByTestId('not-found-path')).toHaveTextContent(/\/no\/such\/screen/);
+
+    await user.press(screen.getByRole('button', { name: 'Back to Home' }));
+    expect(await screen.findByTestId('home-screen', {}, { timeout: 4000 })).toBeOnTheScreen();
   });
 });
