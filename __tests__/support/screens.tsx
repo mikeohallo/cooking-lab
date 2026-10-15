@@ -9,6 +9,7 @@
 
 import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ReadyStorageProvider, type AppStorage } from '../../src/state/StorageProvider';
 import { createUnavailableAiService } from '../../src/data/ai/unavailable';
@@ -25,6 +26,12 @@ export type ScreenHarness = {
 };
 
 const START = Date.parse('2026-10-15T08:30:00.000Z');
+
+/** A cover-screen-sized frame with a navigation bar, as the app's root provides. */
+export const TEST_SAFE_AREA = {
+  frame: { x: 0, y: 0, width: 360, height: 800 },
+  insets: { top: 24, left: 0, right: 0, bottom: 48 },
+};
 
 export async function openScreenHarness(fileName?: string): Promise<ScreenHarness> {
   const db = await openTestDatabase(fileName);
@@ -46,7 +53,11 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
       return new Date(clock).toISOString();
     },
     async render(element, override = storage) {
-      await render(<ReadyStorageProvider storage={override}>{element}</ReadyStorageProvider>);
+      await render(
+        <SafeAreaProvider initialMetrics={TEST_SAFE_AREA}>
+          <ReadyStorageProvider storage={override}>{element}</ReadyStorageProvider>
+        </SafeAreaProvider>,
+      );
     },
     close: () => db.close(),
   };

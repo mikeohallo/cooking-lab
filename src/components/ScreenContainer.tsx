@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { bottomClearance, useKeyboardHeight } from '../layout/useKeyboardClearance';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { colors, space } from '../theme/tokens';
 
@@ -26,20 +27,24 @@ type ScreenContainerProps = {
  *  - a centred content column capped at `contentMaxWidth` so text does not
  *    stretch edge to edge on an unfolded Fold or a tablet;
  *  - width-derived gutters instead of hard-coded phone padding;
- *  - an optional footer that stays reachable with the keyboard open.
+ *  - an optional footer that stays above the keyboard while it is open.
+ *
+ * The bottom edge is handled here rather than by SafeAreaView, because with
+ * the keyboard open it must clear the navigation bar *and* the keyboard; see
+ * `src/layout/useKeyboardClearance.ts`.
  *
  * It never scrolls horizontally, which is what keeps the primary workflow free
  * of horizontal overflow at ~320 dp.
  */
 export function ScreenContainer({ children, footer, testID }: ScreenContainerProps) {
   const { gutter, contentMaxWidth } = useLayoutMetrics();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
+  const clearance = bottomClearance(Platform.OS, insets.bottom, keyboardHeight);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={[styles.flex, { paddingBottom: clearance }]} testID="screen-body">
         <ScrollView
           style={styles.flex}
           contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
@@ -57,7 +62,7 @@ export function ScreenContainer({ children, footer, testID }: ScreenContainerPro
             <View style={[styles.footerColumn, { maxWidth: contentMaxWidth }]}>{footer}</View>
           </View>
         ) : null}
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

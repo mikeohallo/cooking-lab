@@ -93,3 +93,22 @@ as a page. Every automated test passed because the screen and route tests name
 
 The earlier fix (`bebf86e`: navigator mounted from the first frame, own
 not-found screen) was a reasonable change but not the cause, and stays.
+
+## Correction — 16 October 2026: the keyboard covered the composer
+
+**Symptom.** On the Fold the soft keyboard slid over the composer; the note
+field, Temperature and Send were hidden while typing, and the temperature row
+was covered as soon as it opened (`reports/2026-10-16-loop-walkthrough.md`).
+
+**Cause.** From Android 15 apps draw edge to edge and the window is no longer
+resized for the keyboard, so `softwareKeyboardLayoutMode: 'resize'` has no
+effect and React Native's KeyboardAvoidingView (with no behaviour on Android)
+did nothing. React Native's Android keyboard height is the IME inset *minus*
+the system-bar inset (`ReactRootView`), so the clearance needed is the
+navigation-bar inset plus that height.
+
+**Fix.** `ScreenContainer` now handles its own bottom edge:
+`src/layout/useKeyboardClearance.ts` listens for keyboard show/hide and pads the
+screen by navigation bar + keyboard on Android (the larger of the two on iOS).
+`__tests__/keyboardClearance.test.tsx` drives a real `keyboardDidShow` event
+through the container; it fails if the keyboard is ignored (checked).

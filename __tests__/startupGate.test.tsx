@@ -3,11 +3,13 @@
  */
 import { render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { StartupGate } from '../src/state/StartupGate';
 import { StorageProvider } from '../src/state/StorageProvider';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { STARTING_TITLE } from '../src/content/product';
+import { TEST_SAFE_AREA } from './support/screens';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -19,11 +21,13 @@ function deferred<T>() {
 
 async function renderGate(start: () => Promise<StorageStartupResult>) {
   await render(
-    <StorageProvider start={start} newId={() => 'id'}>
-      <StartupGate>
-        <Text>the real app</Text>
-      </StartupGate>
-    </StorageProvider>,
+    <SafeAreaProvider initialMetrics={TEST_SAFE_AREA}>
+      <StorageProvider start={start} newId={() => 'id'}>
+        <StartupGate>
+          <Text>the real app</Text>
+        </StartupGate>
+      </StorageProvider>
+    </SafeAreaProvider>,
   );
 }
 
