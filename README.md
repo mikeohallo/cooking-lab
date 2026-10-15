@@ -1,8 +1,32 @@
 # Cooking Lab
 
+[![CI](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml)
+
 A private, local-first cooking notebook for a single Android device.
 
     Cook -> Observe -> Review -> Learn -> Cook Again
+
+## About this project
+
+Cooking Lab is a personal product built to answer one question: does a kitchen
+get better at a dish when it keeps an honest record of what actually happened?
+The app records a cook as it happens — notes, temperatures, later photos —
+asks one question afterwards, and stores the answer in the cook's own words.
+Evidence is kept strictly separate from interpretation: an assistant may
+*propose* findings and lessons, but nothing enters history until the cook
+approves it, and nothing the cook wrote is ever rewritten.
+
+It is also an experiment in how a product leader builds software with AI.
+The product owner sets direction, makes product decisions and tests on the
+phone; Claude acts as architect and engineer, writing the code, the tests and
+the records in `build-control/`; Claude Code on the owner's PC handles native
+builds and device installs. The repository history, including the earlier
+milestone process and the lighter "slices" process that replaced it, is left
+intact on purpose — it is part of the record.
+
+Privacy is the architecture, not a setting: encrypted on-device storage, no
+account, no cloud backend, no analytics. The only remote call the app will
+ever make is to an AI model, and that arrives in a later slice.
 
 **Current state (slice 1 of the core loop):** a cook can be started in one tap,
 captured as notes and Celsius readings in a timeline, reviewed with a verdict

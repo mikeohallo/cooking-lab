@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest",
-    "doctor": "npx --yes expo-doctor@latest"
+    "doctor": "npx --yes expo-doctor@latest",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "expo": "^57.0.19",

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: typecheck · lint · test · secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Nothing key-shaped in the tree
+        run: npm run check:secrets
+
+      - name: TypeScript (strict)
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Jest (real SQLite, real services)
+        run: npm test -- --ci --silent
