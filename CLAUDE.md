@@ -35,6 +35,10 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   must pass before any push. CI runs all four on GitHub.
 - Release builds strip `console.log`. Device-visible state belongs on screen,
   not in the log.
+- **Never create a `src/app` folder.** Expo silently uses it as the routes
+  folder instead of `app/`; that shipped a build with no Home screen. The
+  routes root is pinned in `app.config.ts` and guarded by
+  `__tests__/routerRoot.test.ts`.
 - TEST package only (`APP_VARIANT=test`, `com.cookinglab.personal.test`) until
   Mike approves production signing. Synthetic data only in TEST.
 - British English, Celsius, sentence case.

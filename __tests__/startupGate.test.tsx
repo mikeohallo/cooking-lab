@@ -4,8 +4,8 @@
 import { render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
-import { StartupGate } from '../src/app/StartupGate';
-import { StorageProvider } from '../src/app/StorageProvider';
+import { StartupGate } from '../src/state/StartupGate';
+import { StorageProvider } from '../src/state/StorageProvider';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { STARTING_TITLE } from '../src/content/product';
 

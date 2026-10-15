@@ -86,6 +86,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ],
     extra: {
       appVariant: requested,
+      // The routes live in `app/`, and that is pinned rather than left to
+      // detection: Expo silently prefers a `src/app` folder over `app` when one
+      // exists, which is exactly how the first slice-1 TEST build shipped with
+      // no Home screen. `__tests__/routerRoot.test.ts` holds this in place.
+      router: { root: 'app' },
     },
   };
 };

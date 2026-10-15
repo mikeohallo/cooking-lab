@@ -3,8 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { StartupGate } from '../src/app/StartupGate';
-import { StorageProvider } from '../src/app/StorageProvider';
+import { StartupGate } from '../src/state/StartupGate';
+import { StorageProvider } from '../src/state/StorageProvider';
 import { newDeviceId } from '../src/data/native/expoCrypto';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { describeStartup, initialiseStorage } from '../src/data/startup';

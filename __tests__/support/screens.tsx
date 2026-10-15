@@ -10,7 +10,7 @@
 import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
-import { ReadyStorageProvider, type AppStorage } from '../../src/app/StorageProvider';
+import { ReadyStorageProvider, type AppStorage } from '../../src/state/StorageProvider';
 import { createUnavailableAiService } from '../../src/data/ai/unavailable';
 import { countingIds, openTestDatabase, type TestDatabase } from './database';
 

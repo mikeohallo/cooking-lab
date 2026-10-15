@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 
-import { useFocusRefresh } from '../../../src/app/useFocusRefresh';
+import { useFocusRefresh } from '../../../src/state/useFocusRefresh';
 import { ScreenContainer } from '../../../src/components/ScreenContainer';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { StateNotice } from '../../../src/components/StateNotice';

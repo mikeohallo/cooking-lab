@@ -65,3 +65,31 @@ A native TEST build and the Fold have not been exercised from this environment; 
 7. Unfold: same screens, centred, nothing clipped.
 
 What to report: anything that felt wrong, slow, or in the way — in your words.
+
+## Correction — 16 October 2026: the first TEST build had no Home screen
+
+**Symptom.** The first slice-1 TEST build opened on expo-router's default
+"Unmatched Route" page (`cookinglab:///`), and its Sitemap link closed the app
+(`reports/2026-10-16-launch-screen.md`, screenshot in `reports/screens/`).
+
+**Cause.** Slice 1 put the app's composition code (storage provider, startup
+gate, data hooks) in `src/app/`. Expo picks the routes folder at bundle time and
+silently prefers `src/app` over `app` whenever `src/app` exists. The release
+bundle was therefore built with hooks and providers as its "routes" — no index,
+no layout — so `/` matched nothing, and Sitemap crashed trying to render a hook
+as a page. Every automated test passed because the screen and route tests name
+`app/` explicitly; none asked the question the bundler asks.
+
+**Fix.**
+- `src/app/` renamed to `src/state/`.
+- `extra.router.root = 'app'` pinned in `app.config.ts`, so detection is no
+  longer involved.
+- `__tests__/routerRoot.test.ts` calls Expo CLI's own resolver against the real
+  config and fails if it resolves anywhere but `app/`, or if `src/app` exists.
+  Proven against both failure modes before commit: with a `src/app` folder
+  present it fails; with the pin also removed, Expo's resolver returns
+  `src/app` — the shipped bug, reproduced — and it fails.
+- `CLAUDE.md` records the rule.
+
+The earlier fix (`bebf86e`: navigator mounted from the first frame, own
+not-found screen) was a reasonable change but not the cause, and stays.

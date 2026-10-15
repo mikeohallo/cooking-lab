@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 
-import { useFocusRefresh } from '../src/app/useFocusRefresh';
+import { useFocusRefresh } from '../src/state/useFocusRefresh';
 import type { CookId } from '../src/domain/entities';
 import { HistoryScreen } from '../src/screens/HistoryScreen';
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { useCookList } from '../app/useCookList';
+import { useCookList } from '../state/useCookList';
 import { AppText } from '../components/AppText';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';

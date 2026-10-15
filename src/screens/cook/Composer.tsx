@@ -16,7 +16,7 @@ import {
 } from '../../content/product';
 import type { JsonObject } from '../../domain/entities';
 import { space } from '../../theme/tokens';
-import type { WriteState } from '../../app/useWrite';
+import type { WriteState } from '../../state/useWrite';
 import { parseTemperature } from './temperature';
 
 type ComposerProps = {
