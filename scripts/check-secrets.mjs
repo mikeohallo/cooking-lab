@@ -5,8 +5,10 @@
  * Scans every tracked file (or the staged files, with --staged) for the
  * patterns real secrets take: Anthropic and OpenAI API keys, AWS access keys,
  * GitHub tokens, private-key blocks, and a few generic `secret = "..."`
- * shapes. It is deliberately simple and deterministic: no network, no
- * dependencies, a non-zero exit when anything matches.
+ * shapes — plus the test phone's serial number, which is not a secret but is
+ * personal and does not belong in a public tree. It is deliberately simple
+ * and deterministic: no network, no dependencies, a non-zero exit when
+ * anything matches.
  *
  * This is the belt; GitHub's push protection is the braces. Neither replaces
  * the rule that keys live on the device and never in this tree.
@@ -27,6 +29,9 @@ const PATTERNS = [
     name: 'hard-coded secret assignment',
     re: /(api[_-]?key|secret|token|password)\s*[:=]\s*["'`][A-Za-z0-9_\-/+=]{16,}["'`]/i,
   },
+  // Not a secret, but personal: the test phone's serial number as adb prints
+  // it. It has reached a report once already. Say "the Fold" instead.
+  { name: 'device serial number', re: /\bRF[A-Z0-9]{9}\b/ },
 ];
 
 /** Files that legitimately mention these shapes without containing a secret. */

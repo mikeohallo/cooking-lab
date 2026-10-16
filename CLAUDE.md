@@ -23,6 +23,9 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   `build-control/slices/reports/`, screenshots to
   `build-control/slices/reports/screens/`, commit, push to `origin main`.
   Never leave a finding only in a chat window.
+- **Never write a device identifier into any file** — not the serial `adb`
+  prints, not an IMEI, not an account name. The repo is public. Say "the Fold".
+  `npm run check:secrets` refuses serial-shaped strings and CI runs it.
 - **Prompts for Mike to carry are one line or a single block**, and only when no
   route exists without him.
 
