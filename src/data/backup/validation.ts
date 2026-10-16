@@ -499,22 +499,45 @@ export function canonicaliseBackup(envelope: BackupEnvelope): BackupEnvelope {
   };
 }
 
-/** JSON with object keys in sorted order at every depth. */
-function stableStringify(value: unknown): string {
+/** One level of indentation in a backup file. */
+const INDENT = '  ';
+
+/**
+ * JSON with object keys in sorted order at every depth, laid out one value
+ * per line.
+ *
+ * The layout is for the person, not the machine: a backup opened in Drive or
+ * a text editor on a phone reads as a document rather than as one unbroken
+ * line, and a verdict can be found by eye. The bytes are still deterministic
+ * — same data, same text — because the layout is a pure function of the
+ * value, and a reader ignores the whitespace.
+ */
+function stableStringify(value: unknown, depth = 0): string {
   if (value === undefined) {
     return 'null';
   }
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);
   }
+  const inner = INDENT.repeat(depth + 1);
+  const outer = INDENT.repeat(depth);
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
+    if (value.length === 0) {
+      return '[]';
+    }
+    const items = value.map((item) => `${inner}${stableStringify(item, depth + 1)}`);
+    return `[\n${items.join(',\n')}\n${outer}]`;
   }
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, entryValue]) => entryValue !== undefined)
     .sort(([left], [right]) => compareStrings(left, right))
-    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`);
-  return `{${entries.join(',')}}`;
+    .map(
+      ([key, entryValue]) => `${inner}${JSON.stringify(key)}: ${stableStringify(entryValue, depth + 1)}`,
+    );
+  if (entries.length === 0) {
+    return '{}';
+  }
+  return `{\n${entries.join(',\n')}\n${outer}}`;
 }
 
 /**

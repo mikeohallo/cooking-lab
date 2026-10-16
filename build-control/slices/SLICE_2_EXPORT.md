@@ -1,6 +1,6 @@
 # Slice 2a — Export
 
-**Status:** built, tests green, ready for a TEST build on the Fold  
+**Status:** built, tests green, **verified on the Fold by Mike, 16 October 2026, 19:02–19:06**  
 **Date:** 16 October 2026  
 **Builds on:** slice 1 (`SLICE_1_CORE_LOOP.md`), the portable backup format
 accepted in M1 (`src/data/backup/`), M2 spec §10 (portable export constraints)
@@ -85,11 +85,28 @@ records what it was given:
   and failed notices; reviewed cook offers *Export this cook*, open cook does
   not; History empty states per filter; the composer gives the note back
 
-## What was not verified here
+## Verified on the Fold (Mike, 16 October 2026, TEST build of `92c846b`)
 
-The real share sheet, on the Fold. In particular: that `expo-sharing` opens
-the sheet for a file in the cache directory, that Drive and Gmail accept it,
-and that the file opens readably on the phone afterwards.
+All five steps of the on-device check below passed, with screenshots sent in
+chat (not committed — the share sheet shows personal contacts):
+
+1. **Export everything** opened the Android share sheet with Drive, Gmail,
+   WhatsApp, Quick Share and others offered; the file was named
+   `cooking-lab-TEST-backup-2026-10-16.json`.
+2. The backup opened on the phone and held both cooks, the verdict, the
+   62.5 °C reading, and the format and version stamps. It was one unbroken
+   line of JSON, which is correct but hard on the eye — fixed in the commit
+   after this one: the backup is now laid out one value per line, same data,
+   same determinism.
+3. **Export this cook** produced the text file as designed: title, dates with
+   the year, the TEST notice, the verdict verbatim, the timeline in Celsius,
+   and the "exported from" line. (No *Next time* section, as that cook has
+   no lesson.)
+4. In flight mode the same share sheet opened — no network is involved.
+5. History → **Open** listed the still-open 2:41 cook.
+
+Nothing felt wrong, slow or in the way. Slice 2a is proven; slice 2b
+(production signing) is next.
 
 ## On-device check (Mike, ~5 minutes, TEST data only)
 

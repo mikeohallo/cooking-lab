@@ -206,7 +206,21 @@ describe('deterministic serialisation', () => {
     const text = serialiseBackup(syntheticBackupEnvelope());
 
     expect(text.indexOf('"createdAt"')).toBeLessThan(text.indexOf('"entities"'));
-    expect(text.startsWith('{"createdAt"')).toBe(true);
+    expect(text.startsWith('{\n  "createdAt"')).toBe(true);
+  });
+
+  it('is laid out one value per line, so a person can read it', () => {
+    const text = serialiseBackup(syntheticBackupEnvelope());
+    const lines = text.split('\n');
+
+    expect(lines.length).toBeGreaterThan(20);
+    expect(lines[0]).toBe('{');
+    expect(lines[lines.length - 1]).toBe('}');
+    expect(lines.some((line) => /^ {8}"verdict": /.test(line))).toBe(true);
+    // Empty collections stay on one line rather than opening an empty block.
+    const empty = buildBackupEnvelope(emptySnapshot(), [], LATEST_SCHEMA_VERSION, '2026-09-05T18:00:00.000Z');
+    expect(serialiseBackup(empty)).toMatch(/"cooks": \[\]/);
+    expect(serialiseBackup(empty)).toMatch(/"photoManifest": \[\]/);
   });
 
   it('round-trips through text without losing anything', () => {
