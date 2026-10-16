@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "jest",
     "doctor": "npx --yes expo-doctor@latest",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "prepare": "git config core.hooksPath scripts/hooks || exit 0"
   },
   "dependencies": {
     "expo": "^57.0.19",

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Refuse a commit that would add anything key-shaped or a device serial.
+# Runs on the staged files only, so it is fast and cannot be skipped by
+# "I ran the checks earlier, before I wrote the report".
+# Wired up by `npm run prepare` (git config core.hooksPath scripts/hooks).
+node scripts/check-secrets.mjs --staged || {
+  echo "pre-commit: commit refused by check-secrets (see above)." >&2
+  exit 1
+}

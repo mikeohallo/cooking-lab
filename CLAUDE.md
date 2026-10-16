@@ -25,7 +25,10 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   Never leave a finding only in a chat window.
 - **Never write a device identifier into any file** — not the serial `adb`
   prints, not an IMEI, not an account name. The repo is public. Say "the Fold".
-  `npm run check:secrets` refuses serial-shaped strings and CI runs it.
+  `npm run check:secrets` refuses serial-shaped strings; a pre-commit hook
+  (`scripts/hooks/pre-commit`, wired by `npm run prepare`) runs it on every
+  commit, and CI runs it again. Write the report, then run the checks — not
+  the other way round.
 - **Prompts for Mike to carry are one line or a single block**, and only when no
   route exists without him.
 
