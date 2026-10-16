@@ -1,5 +1,14 @@
 # Build Control
 
+> **Status, October 2026 — historical record.** This document, and the
+> `acceptance/`, `prompts/`, `queue/`, `reports/`, `runner/` and `specs/`
+> folders, describe the milestone / queue / runner process used from September
+> to early October 2026, with ChatGPT in the Build Control role. That process is
+> retired: Cooking Lab is now built in **slices**, with Claude as architect and
+> engineer — see [`slices/README.md`](slices/README.md) for the current roles,
+> loop and plan. Everything below is kept unchanged as part of the record.
+> The owner's other projects are referred to here as Project A and Project B.
+
 This directory holds the handoff record between implementation and acceptance for
 Cooking Lab. It is process documentation only — nothing here affects the
 application at build or run time.
