@@ -12,8 +12,10 @@ import {
   ADD_TEMPERATURE,
   CANCEL,
   EXPORT_COOK,
+  EXPORT_COOK_HINT,
   EXPORT_DONE_TITLE,
   EXPORT_EVERYTHING,
+  EXPORT_EVERYTHING_HINT,
   EXPORT_FAILED_TITLE,
   FILTER_OPEN,
   FILTER_REVIEWED,
@@ -60,6 +62,7 @@ describe('Export everything, on Home', () => {
 
     await user.press(await screen.findByRole('button', { name: EXPORT_EVERYTHING }));
 
+    expect(screen.getByText(EXPORT_EVERYTHING_HINT)).toBeOnTheScreen();
     expect(await screen.findByTestId('export-everything-done')).toBeOnTheScreen();
     expect(screen.getByText(EXPORT_DONE_TITLE)).toBeOnTheScreen();
     expect(screen.getByText(/1 cook in cooking-lab-TEST-backup-.*\.json\./)).toBeOnTheScreen();
@@ -89,6 +92,7 @@ describe('Export this cook, on a reviewed cook', () => {
     await seedReviewedCook();
     await harness.render(<CookScreen cookId="done-cook" onBack={jest.fn()} onReview={jest.fn()} />);
     await screen.findByTestId('cook-detail-screen');
+    expect(screen.getByText(EXPORT_COOK_HINT)).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: EXPORT_COOK }));
 

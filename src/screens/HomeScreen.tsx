@@ -139,12 +139,14 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
         <View style={styles.section} testID="export-section">
           <ActionButton
             label={EXPORT_EVERYTHING}
-            hint={EXPORT_EVERYTHING_HINT}
             onPress={() => void exportAll.run(() => exporter.exportEverything())}
             variant="quiet"
             pending={exportAll.state.status === 'pending'}
             testID="export-everything"
           />
+          <AppText variant="caption" tone="muted" style={styles.exportHint}>
+            {EXPORT_EVERYTHING_HINT}
+          </AppText>
           <ExportNotice state={exportAll.state} testID="export-everything" />
         </View>
       ) : null}
@@ -194,6 +196,9 @@ const styles = StyleSheet.create({
   history: {
     marginTop: space.lg,
     alignSelf: 'stretch',
+  },
+  exportHint: {
+    textAlign: 'center',
   },
   cardRow: {
     flexDirection: 'row',

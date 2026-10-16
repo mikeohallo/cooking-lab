@@ -212,12 +212,14 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
         <View style={styles.exportSection} testID="export-section">
           <ActionButton
             label={EXPORT_COOK}
-            hint={EXPORT_COOK_HINT}
             onPress={() => void exportOne.run(() => exporter.exportCook(cook.id))}
             variant="quiet"
             pending={exportOne.state.status === 'pending'}
             testID="export-cook"
           />
+          <AppText variant="caption" tone="muted" style={styles.exportHint}>
+            {EXPORT_COOK_HINT}
+          </AppText>
           <ExportNotice state={exportOne.state} testID="export-cook" />
         </View>
       ) : null}
@@ -306,6 +308,9 @@ const styles = StyleSheet.create({
   exportSection: {
     gap: space.xs,
     paddingBottom: space.lg,
+  },
+  exportHint: {
+    textAlign: 'center',
   },
   lessons: {
     gap: space.xxs,
