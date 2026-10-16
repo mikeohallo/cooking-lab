@@ -59,6 +59,17 @@ export const TAKEAWAY_LABEL = 'One thing to change next time (optional)';
 export const TAKEAWAY_PLACEHOLDER = 'Pull it earlier. More acid. Keep the tray.';
 export const REVIEW_SAVED_TITLE = 'Reviewed';
 
+// --- Export ---------------------------------------------------------------
+
+export const EXPORT_EVERYTHING = 'Export everything';
+export const EXPORT_EVERYTHING_HINT =
+  'Every cook as one file you can keep anywhere. Nothing in the app changes.';
+export const EXPORT_COOK = 'Export this cook';
+export const EXPORT_COOK_HINT = 'As a text file you can read, send or keep.';
+export const EXPORT_DONE_TITLE = 'Export ready';
+export const EXPORT_FAILED_TITLE = 'Nothing was exported';
+export const EXPORT_FAILED_BODY = 'Your cooks are unchanged. Try again in a moment.';
+
 // --- History --------------------------------------------------------------
 
 export const FILTER_ALL = 'All';
@@ -66,6 +77,11 @@ export const FILTER_OPEN = 'Open';
 export const FILTER_REVIEWED = 'Reviewed';
 export const EMPTY_HISTORY_TITLE = 'No cooks yet';
 export const EMPTY_HISTORY_BODY = 'Every cook you record will be listed here, newest first.';
+export const EMPTY_OPEN_TITLE = 'No open cooks';
+export const EMPTY_OPEN_BODY = 'Every cook here has been reviewed. Start a new one from Home.';
+export const EMPTY_REVIEWED_TITLE = 'Nothing reviewed yet';
+export const EMPTY_REVIEWED_BODY =
+  'Finish a cook and say how it went, and it will be listed here.';
 export const STATUS_OPEN = 'Open';
 export const STATUS_REVIEWED = 'Reviewed';
 

@@ -24,7 +24,8 @@ was built, in what order, and what was verified.
 | Slice | What | Status |
 |---|---|---|
 | 1 | Core loop, text only: Home, one-tap New Cook, timeline (notes, temperatures, title), Review with verdict and optional takeaway, History | **Built** — `SLICE_1_CORE_LOOP.md` |
-| 2 | Production signing identity and portable export, then first live cooks | Next |
+| 2a | Portable export: *Export everything* (the validated backup file) and *Export this cook* (plain text), via the share sheet | **Built** — `SLICE_2_EXPORT.md` |
+| 2b | Production signing identity, then first live cooks | Next — Mike's one-time step once 2a is proven on the Fold |
 | 3 | Photos in the timeline | Planned |
 | 4 | Real AI: extraction and proposals via the Anthropic API from the device, API key in the secure store | Planned |
 | 5 | Cook Again briefings | Planned |

@@ -46,6 +46,7 @@ describe('StartupGate', () => {
         data: {} as never,
         photos: {} as never,
         assistant: {} as never,
+        exporter: {} as never,
         schemaVersion: 1,
         freshInstall: false,
         close: async () => undefined,

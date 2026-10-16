@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
+import { useExport } from '../state/useExport';
 import { useWrite, type WriteState } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
@@ -21,6 +22,8 @@ import {
   EDIT_TITLE,
   EMPTY_TIMELINE_BODY,
   EMPTY_TIMELINE_TITLE,
+  EXPORT_COOK,
+  EXPORT_COOK_HINT,
   FINISH_AND_REVIEW,
   RETRY,
   SAVE_TITLE,
@@ -33,6 +36,7 @@ import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, space } from '../theme/tokens';
 import { Composer } from './cook/Composer';
 import { TimelineEvent } from './cook/TimelineEvent';
+import { ExportNotice } from './ExportNotice';
 
 type CookScreenProps = {
   cookId: CookId;
@@ -51,10 +55,11 @@ type CookScreenProps = {
  * timeline shows an entry only once the store has returned it.
  */
 export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookScreenProps) {
-  const { data, newId, now } = useStorage();
+  const { data, exporter, newId, now } = useStorage();
   const { load, reload, acceptCook, acceptEvent } = useCook(cookId, refreshToken);
   const eventWrite = useWrite();
   const titleWrite = useWrite();
+  const exportOne = useExport();
 
   if (load.status === 'loading') {
     return (
@@ -202,6 +207,20 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
           events.map((event) => <TimelineEvent key={event.id} event={event} />)
         )}
       </View>
+
+      {readOnly ? (
+        <View style={styles.exportSection} testID="export-section">
+          <ActionButton
+            label={EXPORT_COOK}
+            hint={EXPORT_COOK_HINT}
+            onPress={() => void exportOne.run(() => exporter.exportCook(cook.id))}
+            variant="quiet"
+            pending={exportOne.state.status === 'pending'}
+            testID="export-cook"
+          />
+          <ExportNotice state={exportOne.state} testID="export-cook" />
+        </View>
+      ) : null}
     </ScreenContainer>
   );
 }
@@ -281,6 +300,10 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
 
 const styles = StyleSheet.create({
   timeline: {
+    gap: space.xs,
+    paddingBottom: space.lg,
+  },
+  exportSection: {
     gap: space.xs,
     paddingBottom: space.lg,
   },

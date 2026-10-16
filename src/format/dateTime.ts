@@ -45,3 +45,27 @@ export function formatDateTime(iso: string, today: Date = new Date()): string {
   const date = formatDate(iso, today);
   return date === '' ? '' : `${date}, ${formatTime(iso)}`;
 }
+
+/**
+ * `Thu 15 Oct 2026, 7:42 pm` — the year always present.
+ *
+ * For text that leaves the phone: a file read next year must still say which
+ * year the cook happened, where a screen read today can leave it out.
+ */
+export function formatDateTimeWithYear(iso: string): string {
+  const date = parse(iso);
+  if (date === null) {
+    return '';
+  }
+  const day = `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return `${day}, ${formatTime(iso)}`;
+}
+
+/** `2026-10-16`, in local time, for a file name. */
+export function formatFileDate(iso: string): string {
+  const date = parse(iso);
+  if (date === null) {
+    return '';
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

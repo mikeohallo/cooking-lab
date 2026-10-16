@@ -15,6 +15,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import type { AiService } from '../data/adapters';
+import type { ExportService } from '../data/export/service';
 import type { DataLayer } from '../data/repositories';
 import type { StorageStartupResult } from '../data/runtime';
 import type { DatabaseStartupFailureReason } from '../data/sqlite/lifecycle';
@@ -23,6 +24,8 @@ import type { DatabaseStartupFailureReason } from '../data/sqlite/lifecycle';
 export type AppStorage = {
   readonly data: DataLayer;
   readonly assistant: AiService;
+  /** Hands history out of the phone. Reads only; see `src/data/export/`. */
+  readonly exporter: ExportService;
   /** Supplies ids for the records screens create: cooks, events, lessons. */
   readonly newId: () => string;
   /** The current instant, in the ISO UTC form the data model requires. */
@@ -82,6 +85,7 @@ export function StorageProvider({
             storage: {
               data: result.storage.data,
               assistant: result.storage.assistant,
+              exporter: result.storage.exporter,
               newId,
               now,
             },

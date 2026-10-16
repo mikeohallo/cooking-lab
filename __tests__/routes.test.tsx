@@ -28,6 +28,7 @@ function mockReadyResult(): StorageStartupResult {
       data: mockDb.current!.data,
       photos: {} as never,
       assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
+      exporter: {} as never,
       schemaVersion: 1,
       freshInstall: true,
       close: async () => undefined,

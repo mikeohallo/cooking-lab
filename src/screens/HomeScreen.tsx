@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCookList, verdictExcerpt } from '../state/useCookList';
+import { useExport } from '../state/useExport';
 import { useWrite } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
@@ -15,6 +16,8 @@ import {
   CONTINUE_COOKING,
   EMPTY_HOME_BODY,
   EMPTY_HOME_TITLE,
+  EXPORT_EVERYTHING,
+  EXPORT_EVERYTHING_HINT,
   NEW_COOK_HINT,
   NEW_COOK_TITLE,
   PRODUCT_TAGLINE,
@@ -27,6 +30,7 @@ import {
 import type { Cook, CookId } from '../domain/entities';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
+import { ExportNotice } from './ExportNotice';
 
 const RECENT_LIMIT = 5;
 
@@ -45,13 +49,14 @@ type HomeScreenProps = {
  * tagline appear only while there is nothing else to show.
  */
 export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScreenProps) {
-  const { data, newId, now } = useStorage();
+  const { data, exporter, newId, now } = useStorage();
   const open = useCookList({ status: 'open', sort: 'newest_first' }, refreshToken);
   const recent = useCookList(
     { status: 'reviewed', sort: 'newest_first', page: { limit: RECENT_LIMIT + 1 } },
     refreshToken,
   );
   const create = useWrite();
+  const exportAll = useExport();
 
   const startCook = async () => {
     const result = await create.run(() =>
@@ -129,6 +134,20 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
         testID="see-history"
         style={styles.history}
       />
+
+      {loaded && !isEmpty ? (
+        <View style={styles.section} testID="export-section">
+          <ActionButton
+            label={EXPORT_EVERYTHING}
+            hint={EXPORT_EVERYTHING_HINT}
+            onPress={() => void exportAll.run(() => exporter.exportEverything())}
+            variant="quiet"
+            pending={exportAll.state.status === 'pending'}
+            testID="export-everything"
+          />
+          <ExportNotice state={exportAll.state} testID="export-everything" />
+        </View>
+      ) : null}
     </ScreenContainer>
   );
 }

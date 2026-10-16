@@ -31,7 +31,10 @@ type ComposerProps = {
 /**
  * The bottom of the Active Cook screen: one line and Send is a complete
  * interaction. The temperature entry folds out from a secondary button rather
- * than living on screen as a second form.
+ * than living on screen as a second form — and while it is open it takes the
+ * note field's place rather than stacking above it, so with the keyboard up
+ * the timeline is not squeezed to a sliver. The note typed so far is kept and
+ * comes back when the temperature row closes.
  *
  * Nothing typed is cleared until the store has confirmed the write.
  */
@@ -132,38 +135,42 @@ export function Composer({ onSendNote, onAddTemperature, writeState }: ComposerP
         </View>
       ) : null}
 
-      <TextField
-        value={note}
-        onChangeText={(text) => {
-          setNote(text);
-          if (blankRefused) {
-            setBlankRefused(false);
-          }
-        }}
-        placeholder={NOTE_PLACEHOLDER}
-        accessibilityLabel="Note"
-        multiline
-        rows={2}
-        invalid={blankRefused}
-        helper={blankRefused ? 'Write something first. One word is enough.' : undefined}
-        testID="note-input"
-      />
-      <View style={styles.actions}>
-        <ActionButton
-          label={ADD_TEMPERATURE}
-          variant="secondary"
-          onPress={() => setTemperatureOpen((open) => !open)}
-          testID="temperature-toggle"
-        />
-        <ActionButton
-          label={SEND_NOTE}
-          variant="primary"
-          onPress={() => void sendNote()}
-          pending={pending}
-          style={styles.send}
-          testID="note-send"
-        />
-      </View>
+      {temperatureOpen ? null : (
+        <>
+          <TextField
+            value={note}
+            onChangeText={(text) => {
+              setNote(text);
+              if (blankRefused) {
+                setBlankRefused(false);
+              }
+            }}
+            placeholder={NOTE_PLACEHOLDER}
+            accessibilityLabel="Note"
+            multiline
+            rows={2}
+            invalid={blankRefused}
+            helper={blankRefused ? 'Write something first. One word is enough.' : undefined}
+            testID="note-input"
+          />
+          <View style={styles.actions}>
+            <ActionButton
+              label={ADD_TEMPERATURE}
+              variant="secondary"
+              onPress={() => setTemperatureOpen((open) => !open)}
+              testID="temperature-toggle"
+            />
+            <ActionButton
+              label={SEND_NOTE}
+              variant="primary"
+              onPress={() => void sendNote()}
+              pending={pending}
+              style={styles.send}
+              testID="note-send"
+            />
+          </View>
+        </>
+      )}
     </View>
   );
 }

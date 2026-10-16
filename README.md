@@ -30,12 +30,14 @@ Privacy is the architecture, not a setting: encrypted on-device storage, no
 account, no cloud backend, no analytics. The only remote call the app will
 ever make is to an AI model, and that arrives in a later slice.
 
-**Current state (slice 1 of the core loop):** a cook can be started in one tap,
+**Current state (slices 1 and 2a):** a cook can be started in one tap,
 captured as notes and Celsius readings in a timeline, reviewed with a verdict
 in the cook's own words, and found again in History. All of it is stored in the
-encrypted local database. There is no AI, no photos, no export, no network
-backend, no account and no cloud storage yet; those arrive in later slices
-(see `build-control/slices/`).
+encrypted local database, and all of it can leave the phone on demand — every
+cook as one portable backup file, or one cook as plain text — through the
+system share sheet. There is no AI, no photos, no restore, no network backend,
+no account and no cloud storage yet; those arrive in later slices (see
+`build-control/slices/`).
 
 ## Baseline
 

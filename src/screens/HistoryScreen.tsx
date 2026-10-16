@@ -9,6 +9,10 @@ import { StateNotice } from '../components/StateNotice';
 import {
   EMPTY_HISTORY_BODY,
   EMPTY_HISTORY_TITLE,
+  EMPTY_OPEN_BODY,
+  EMPTY_OPEN_TITLE,
+  EMPTY_REVIEWED_BODY,
+  EMPTY_REVIEWED_TITLE,
   FILTER_ALL,
   FILTER_OPEN,
   FILTER_REVIEWED,
@@ -21,6 +25,22 @@ import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
 import { CookCard } from './HomeScreen';
 
 type Filter = 'all' | CookStatus;
+
+/**
+ * An empty list means something different under each filter. "No cooks yet"
+ * under Open, when every cook has simply been reviewed, describes an empty
+ * notebook rather than an empty filter — and was read that way on the Fold.
+ */
+export function emptyStateFor(filter: Filter): { title: string; body: string } {
+  switch (filter) {
+    case 'open':
+      return { title: EMPTY_OPEN_TITLE, body: EMPTY_OPEN_BODY };
+    case 'reviewed':
+      return { title: EMPTY_REVIEWED_TITLE, body: EMPTY_REVIEWED_BODY };
+    case 'all':
+      return { title: EMPTY_HISTORY_TITLE, body: EMPTY_HISTORY_BODY };
+  }
+}
 
 const FILTERS: readonly { key: Filter; label: string }[] = [
   { key: 'all', label: FILTER_ALL },
@@ -80,7 +100,7 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
       ) : null}
 
       {list.status === 'ready' && list.cooks.length === 0 ? (
-        <StateNotice title={EMPTY_HISTORY_TITLE} body={EMPTY_HISTORY_BODY} testID="history-empty" />
+        <StateNotice {...emptyStateFor(filter)} testID="history-empty" />
       ) : null}
 
       {list.status === 'ready' ? (

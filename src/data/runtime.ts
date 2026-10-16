@@ -25,6 +25,7 @@ import type { AiService, DatabaseAdapter, PrivateFileStore } from './adapters';
 import type { DataLayer } from './repositories';
 import type { AppVariant } from '../config/variants';
 import { selectAiService } from './ai/selection';
+import { createExportService, type ExportService } from './export/service';
 import { createPrivateFileStore } from './files/privateFileStore';
 import { createSqliteDataLayer } from './sqlite/dataLayer';
 import { createDatabaseAdapterFactory } from './sqlite/connection';
@@ -36,12 +37,15 @@ import {
 import { expoDigestPort, expoRandomBytesPort } from './native/expoCrypto';
 import { expoPrivateFileSystemPort } from './native/expoFileSystem';
 import { expoSecureStorePort } from './native/expoSecureStore';
+import { expoSharingSink } from './native/expoSharing';
 import { expoDatabaseFilePresence, openExpoSqliteConnection } from './native/expoSqlite';
 
 export type CookingLabStorage = {
   readonly data: DataLayer;
   readonly photos: PrivateFileStore;
   readonly assistant: AiService;
+  /** Gets history out of the phone: the portable backup, or one cook as text. */
+  readonly exporter: ExportService;
   /** The schema version the open database reports. */
   readonly schemaVersion: number;
   /** True when this launch created the database and its key for the first time. */
@@ -58,6 +62,8 @@ export type StorageStartupOptions = {
   readonly variant: AppVariant;
   /** Supplies ids for tags the store creates. Injected so it can be made deterministic. */
   readonly newId: () => string;
+  /** The current instant, for export timestamps. Injected so it can be made deterministic. */
+  readonly now?: () => string;
 };
 
 /**
@@ -81,13 +87,23 @@ export async function startCookingLabStorage(
   }
 
   const database: DatabaseAdapter = started.database;
+  const data = createSqliteDataLayer(database, options.newId);
+  const photos = createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort);
 
   return {
     ok: true,
     storage: {
-      data: createSqliteDataLayer(database, options.newId),
-      photos: createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort),
+      data,
+      photos,
       assistant: selectAiService({ variant: options.variant }),
+      exporter: createExportService({
+        data,
+        photos,
+        schemaVersion: started.schema.schemaVersion,
+        sink: expoSharingSink,
+        variant: options.variant,
+        now: options.now ?? (() => new Date().toISOString()),
+      }),
       schemaVersion: started.schema.schemaVersion,
       freshInstall: started.keyCreated,
       async close(): Promise<void> {
