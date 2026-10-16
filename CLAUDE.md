@@ -45,6 +45,10 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   folder instead of `app/`; that shipped a build with no Home screen. The
   routes root is pinned in `app.config.ts` and guarded by
   `__tests__/routerRoot.test.ts`.
-- TEST package only (`APP_VARIANT=test`, `com.cookinglab.personal.test`) until
-  Mike approves production signing. Synthetic data only in TEST.
+- Two packages. TEST (`APP_VARIANT=test`, `com.cookinglab.personal.test`)
+  is signed with the debug key and holds synthetic data only. Production
+  (`com.cookinglab.personal`, no `APP_VARIANT`) is signed with Mike's release
+  key from `~/.gradle/gradle.properties` on his PC — the build fails without
+  it and never uses the debug key. Real cooking data lives only in production.
+  The key, its password and its path never enter this tree or any report.
 - British English, Celsius, sentence case.

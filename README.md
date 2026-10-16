@@ -93,12 +93,40 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 
 * Standalone — the JavaScript bundle is embedded, so **Metro is not required**.
 * Signed with the shared, disposable Android **debug** keystore
-  (`android/app/debug.keystore`). No production signing identity exists and none
-  is created until the product owner approves it (planned for slice 2).
+  (`android/app/debug.keystore`), which is fine for a test app and nothing else.
 * Drop `-PreactNativeArchitectures` to build all ABIs instead of arm64-v8a only.
 
 `APP_VARIANT` must be set for both the prebuild and the Gradle invocation: the
 first stamps the native identity, the second embeds the resolved app config.
+
+## Building the production APK
+
+```bash
+npx expo prebuild --platform android --clean
+cd android
+./gradlew assembleRelease --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+```
+
+Same output path. The difference is the signature: a production build is
+signed with Cooking Lab's own release key, which
+[`plugins/withReleaseSigning.js`](./plugins/withReleaseSigning.js) wires into
+the generated project on every prebuild. The key and its password live on the
+building machine only, as four lines in that machine's
+`~/.gradle/gradle.properties`:
+
+```
+COOKING_LAB_STORE_FILE=<absolute path to the .jks>
+COOKING_LAB_STORE_PASSWORD=<password>
+COOKING_LAB_KEY_ALIAS=cooking-lab
+COOKING_LAB_KEY_PASSWORD=<password>
+```
+
+Without them a production build **fails** with a message naming what is
+missing. It never falls back to the debug key: an app anyone could sign an
+update for is not the real app. Nothing in this repository can hold the key —
+`.gitignore` refuses `*.jks`, the pre-commit hook and CI refuse anything
+key-shaped — and losing the key is the one unrecoverable event in this
+project, so it is backed up outside the machine that builds with it.
 
 ## Permissions
 

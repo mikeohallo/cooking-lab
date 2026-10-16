@@ -38,7 +38,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: identity.name,
     slug: 'cooking-lab',
     scheme: 'cookinglab',
-    version: '0.0.0',
+    // The first version a real kitchen installs. Bump `versionCode` with every
+    // production build that follows; Android will not update an installed app
+    // to the same code.
+    version: '0.1.0',
     orientation: 'default',
     platforms: ['android'],
     android: {
@@ -83,6 +86,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // only on the device. This is not the recovery strategy — the portable
       // Cooking Lab backup is, and it is deliberately independent of this key.
       'expo-secure-store',
+      // Production builds are signed with Cooking Lab's own key, read from
+      // the building machine's ~/.gradle/gradle.properties — never from this
+      // tree. A production build without it fails; it never uses the debug
+      // key. TEST builds are left on the debug key. See the plugin's header.
+      ['./plugins/withReleaseSigning', { variant: requested }],
     ],
     extra: {
       appVariant: requested,
