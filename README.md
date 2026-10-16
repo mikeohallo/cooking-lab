@@ -22,7 +22,9 @@ phone; Claude acts as architect and engineer, writing the code, the tests and
 the records in `build-control/`; Claude Code on the owner's PC handles native
 builds and device installs. The repository history, including the earlier
 milestone process and the lighter "slices" process that replaced it, is left
-intact on purpose — it is part of the record.
+intact on purpose — it is part of the record. The working rules are in
+[`CLAUDE.md`](./CLAUDE.md); the current process and plan are in
+[`build-control/slices/README.md`](./build-control/slices/README.md).
 
 Privacy is the architecture, not a setting: encrypted on-device storage, no
 account, no cloud backend, no analytics. The only remote call the app will
@@ -65,6 +67,7 @@ cannot reach that behaviour.
 ## Commands
 
 ```bash
+npm run check:secrets    # nothing key-shaped in the tree (also runs in CI)
 npm run typecheck        # tsc --noEmit (strict)
 npm run lint             # eslint
 npm test                 # jest (jest-expo + React Native Testing Library)
@@ -89,7 +92,7 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 * Standalone — the JavaScript bundle is embedded, so **Metro is not required**.
 * Signed with the shared, disposable Android **debug** keystore
   (`android/app/debug.keystore`). No production signing identity exists and none
-  must be created outside a Build Control decision.
+  is created until the product owner approves it (planned for slice 2).
 * Drop `-PreactNativeArchitectures` to build all ABIs instead of arm64-v8a only.
 
 `APP_VARIANT` must be set for both the prebuild and the Gradle invocation: the
