@@ -28,6 +28,15 @@ import { openScreenHarness, type ScreenHarness } from './support/screens';
 
 const user = userEvent.setup();
 
+/**
+ * This one test renders four screens in turn, types every character the way
+ * a thumb would and waits on real SQLite between them. Alone on a fast
+ * machine it takes about 4 s; under a full parallel run, or on the CI runner,
+ * it crosses Jest's 5 s default and fails for being slow, not for being
+ * wrong. The budget below is sized for the slowest machine that runs it.
+ */
+const WHOLE_LOOP_TIMEOUT_MS = 30_000;
+
 let harness: ScreenHarness;
 
 beforeEach(async () => {
@@ -117,5 +126,5 @@ describe('the core loop', () => {
     expect(cook?.reviewOpenedAt).not.toBeNull();
     expect(cook?.reviewSavedAt).not.toBeNull();
     expect(Date.parse(cook!.reviewSavedAt!)).toBeGreaterThan(Date.parse(cook!.reviewOpenedAt!));
-  });
+  }, WHOLE_LOOP_TIMEOUT_MS);
 });
