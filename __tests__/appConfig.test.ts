@@ -1,3 +1,6 @@
+import { existsSync } from 'fs';
+import { join } from 'path';
+
 import appConfig from '../app.config';
 import { APP_VARIANTS, resolveAppVariant } from '../src/config/variants';
 
@@ -72,5 +75,29 @@ describe('app.config.ts', () => {
     const config = appConfig(emptyContext);
 
     expect(config.android?.permissions).toBeUndefined();
+  });
+
+  it.each(['production', 'test'])('gives the %s app its own icon, and the files exist', (variant) => {
+    process.env.APP_VARIANT = variant;
+    const config = appConfig(emptyContext);
+    const adaptive = config.android?.adaptiveIcon;
+
+    expect(config.icon).toBe(`./assets/icon/${variant}-icon.png`);
+    expect(adaptive).toEqual({
+      foregroundImage: `./assets/icon/${variant}-adaptive-foreground.png`,
+      backgroundColor: '#526A55',
+    });
+    for (const file of [config.icon as string, adaptive!.foregroundImage as string]) {
+      expect(existsSync(join(__dirname, '..', file))).toBe(true);
+    }
+  });
+
+  it('does not give the two apps the same icon', () => {
+    process.env.APP_VARIANT = 'test';
+    const test = appConfig(emptyContext);
+    delete process.env.APP_VARIANT;
+    const production = appConfig(emptyContext);
+
+    expect(test.icon).not.toBe(production.icon);
   });
 });

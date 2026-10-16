@@ -33,11 +33,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     );
   }
 
+  // One drawing, two icons: the TEST app carries a red TEST tag inside the
+  // launcher-safe zone so the two apps are told apart on the home screen.
+  // Sources and the rendered layers live in assets/icon/.
+  const icon = `./assets/icon/${requested}-icon.png`;
+  const adaptiveForeground = `./assets/icon/${requested}-adaptive-foreground.png`;
+
   return {
     ...config,
     name: identity.name,
     slug: 'cooking-lab',
     scheme: 'cookinglab',
+    icon,
     // The first version a real kitchen installs. Bump `versionCode` with every
     // production build that follows; Android will not update an installed app
     // to the same code.
@@ -46,7 +53,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 1,
+      versionCode: 2,
+      adaptiveIcon: {
+        foregroundImage: adaptiveForeground,
+        // The app's sage, from src/theme/tokens.ts.
+        backgroundColor: '#526A55',
+      },
       softwareKeyboardLayoutMode: 'resize',
       predictiveBackGestureEnabled: true,
       // Cooking Lab needs no device capabilities yet. These are pulled in by
