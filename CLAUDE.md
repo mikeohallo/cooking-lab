@@ -4,9 +4,14 @@ Instructions for any Claude or Claude Code session in this repository.
 
 ## Who does what
 
-- **Mike** — product owner. Makes product decisions, uses the app on the Fold,
-  says what feels wrong, approves spending, signs into his own accounts. Not a
+- **Mike** — product owner. Makes product decisions, uses the app, says what
+  feels wrong, approves spending, signs into his own accounts. Not a
   developer: never hand him technical or infrastructure choices.
+  His real notebook is the production app on **his own phone**, which is
+  never connected to the PC; it is updated by sideloading the APK
+  (Drive → tap → install). "The Fold" in this repo is the **test bench**
+  plugged into the PC: everything on it, TEST and production alike, is
+  disposable and may be wiped. Real cooking data is never on the Fold.
 - **Claude (chat)** — architect and engineer. Writes the code, tests and
   records; reviews everything that comes back; decides technical questions.
 - **Claude Code on Mike's PC** — everything that needs the PC or the connected
@@ -17,7 +22,7 @@ Instructions for any Claude or Claude Code session in this repository.
 Before asking Mike to do anything, find the way Claude or Claude Code can do it
 instead. Mike is often away from the PC and the Fold; assume he is.
 
-- **Seeing the phone:** `adb shell am start -n com.cookinglab.personal.test/.MainActivity`,
+- **Seeing the Fold:** `adb shell am start -n com.cookinglab.personal.test/.MainActivity`,
   wait, then `adb exec-out screencap -p > <file>.png`. Look at the image yourself.
 - **Device evidence travels through the repo:** write reports to
   `build-control/slices/reports/`, screenshots to

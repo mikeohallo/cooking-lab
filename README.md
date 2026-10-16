@@ -121,6 +121,12 @@ COOKING_LAB_KEY_ALIAS=cooking-lab
 COOKING_LAB_KEY_PASSWORD=<password>
 ```
 
+Installing on a phone that is not plugged in: copy the APK to the phone (Drive
+is enough), tap it, allow the installer once. An update over an installed copy
+keeps its data as long as the signature matches and `versionCode` has gone up —
+so bump `versionCode` in `app.config.ts` for every build that will update an
+installed app.
+
 Without them a production build **fails** with a message naming what is
 missing. It never falls back to the debug key: an app anyone could sign an
 update for is not the real app. Nothing in this repository can hold the key —
