@@ -59,15 +59,23 @@ versionName `0.0.0`, minSdk 24, targetSdk 36. The TEST package, as required.
 
 ## Install
 
-`adb install -r` onto the Fold, keeping the existing synthetic
-TEST data as asked — no uninstall, no `pm clear`.
+Installed onto the Fold with `-r`, keeping the existing synthetic TEST data as
+asked — no uninstall, no `pm clear`.
 
 The install hung for about ten minutes before completing. The cause was the
 **device lock screen**: Android held the install until the Fold was unlocked,
 and it finished within seconds of the screen being unlocked
-(`lastUpdateTime=2026-10-16 17:06:38`). The APK transfer itself was never the
-problem — it copies at 33 MB/s. Worth knowing for next time: **unlock the Fold
-before installing**, or the install will sit there looking stuck.
+(`lastUpdateTime=2026-10-16 17:06:38`). Worth knowing for next time: **unlock
+the Fold before installing**, or the install will sit there looking stuck.
+
+The route there was roundabout, because the lock screen gives no clue what it
+is waiting for. `adb install -r` was tried first and sat silent; it was stopped
+and the APK pushed to the device instead, then installed with
+`adb shell pm install -r -t /data/local/tmp/cl-test.apk`, which is the one that
+reported `Success`. That second attempt hung in exactly the same way until the
+unlock, so the method was never the problem — both were waiting on the same
+thing. The push ruled out the transfer as a cause: 47 MB at 33 MB/s, under two
+seconds.
 
 Data was preserved, and the package records prove it both ways:
 
