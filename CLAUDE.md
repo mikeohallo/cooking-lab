@@ -39,7 +39,9 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   list is in `build-control/slices/README.md` → "Before evidence is committed".
 - **Never sign the Fold in to anything.** Claude Code never signs the Fold in
   to any account (Google, Samsung, banking, messaging or any other), never
-  opens anything on it but Cooking Lab, and never captures anything else. If
+  opens anything on it but Cooking Lab (the one exception is the export check
+  in `build-control/slices/ACCEPTANCE.md`, and only on a Fold signed in to
+  nothing), and never captures anything else. If
   anything else is on screen when you capture, don't commit the image: recapture
   or crop, and say so in the report.
 - **Never write a device identifier into any file** — not the serial `adb`

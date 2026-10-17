@@ -30,7 +30,11 @@ identifiers in the text. Never screenshot the share sheet: it shows contacts.
 5. **Relaunch.** `adb shell am force-stop com.cookinglab.personal.test`,
    launch again, open History. The cook is there, reviewed, with its note,
    reading and verdict. Screenshot.
-6. **Export, and open it where it lands.** On that cook, *Export this cook*.
+6. **Export, and open it where it lands.** This step leaves Cooking Lab (the
+   share sheet and a files app), so do it only if Mike has said the Fold is
+   signed in to no personal account. Otherwise write "export: not checked, the
+   Fold still has personal accounts" and go on to step 7.
+   On that cook, *Export this cook*.
    In the share sheet, choose a target that saves the file to the phone's own
    storage (a files app's save option). Never a messaging, mail or cloud app,
    or anything signed in to an account; if no such target is offered, stop
