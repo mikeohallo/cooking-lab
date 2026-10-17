@@ -19,6 +19,11 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
+      # Fails on any critical advisory. High and moderate ones are triaged,
+      # with dates, in build-control/dependency-triage.md.
+      - name: No critical advisories
+        run: npm audit --audit-level=critical
+
       - name: Nothing key-shaped in the tree
         run: npm run check:secrets
 

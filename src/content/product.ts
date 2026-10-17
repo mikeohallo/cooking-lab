@@ -7,7 +7,7 @@
  */
 
 export const PRODUCT_TAGLINE =
-  'A private cooking notebook for one kitchen. Everything stays on this device.';
+  'A private cooking notebook for one kitchen. Stored on this device. You choose what to export or share.';
 
 export const CORE_LOOP_STEPS = ['Cook', 'Observe', 'Review', 'Learn', 'Cook Again'] as const;
 

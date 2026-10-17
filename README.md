@@ -20,24 +20,46 @@ It is also an experiment in how a product leader builds software with AI.
 The product owner sets direction, makes product decisions and tests on the
 phone; Claude acts as architect and engineer, writing the code, the tests and
 the records in `build-control/`; Claude Code on the owner's PC handles native
-builds and device installs. The repository history, including the earlier
-milestone process and the lighter "slices" process that replaced it, is left
-intact on purpose — it is part of the record. The working rules are in
-[`CLAUDE.md`](./CLAUDE.md); the current process and plan are in
-[`build-control/slices/README.md`](./build-control/slices/README.md).
+builds and device installs. The repository keeps its record, including the
+earlier milestone process and the lighter "slices" process that replaced it.
+Its history has been rewritten twice for privacy — before it went public, and
+to crop screenshots — and
+[`build-control/history-rewrites.md`](./build-control/history-rewrites.md)
+explains what changed and how old commit references map to new ones. The
+working rules are in [`CLAUDE.md`](./CLAUDE.md); the current process and plan
+are in [`build-control/slices/README.md`](./build-control/slices/README.md).
 
-Privacy is the architecture, not a setting: encrypted on-device storage, no
-account, no cloud backend, no analytics. The only remote call the app will
-ever make is to an AI model, and that arrives in a later slice.
+Privacy is the architecture, not a setting. Cooks are stored in an encrypted
+database on the phone. There is no account, no cloud backend, no cloud storage
+and no analytics, and none is planned. The only remote call the app is planned
+to make is to an AI model, in a later slice.
 
 **Current state (slices 1 and 2a):** a cook can be started in one tap,
 captured as notes and Celsius readings in a timeline, reviewed with a verdict
-in the cook's own words, and found again in History. All of it is stored in the
-encrypted local database, and all of it can leave the phone on demand — every
-cook as one portable backup file, or one cook as plain text — through the
-system share sheet. There is no AI, no photos, no restore, no network backend,
-no account and no cloud storage yet; those arrive in later slices (see
-`build-control/slices/`).
+in the cook's own words, and found again in History. Cooks are stored on the
+phone, and you choose what to export or share: every cook as one portable
+backup file, or one cook as plain text, through the system share sheet. An
+exported file is ordinary, readable text — it is not encrypted, so it is as
+private as wherever you put it. AI suggestions, photos and restoring from a
+backup are planned and not built yet (see
+[`build-control/slices/`](./build-control/slices/README.md)).
+
+## Quickstart
+
+Everything except building the APK runs on any machine with Node:
+
+```bash
+node --version      # Node 22 or 24; CI uses 24
+npm ci              # install exactly what package-lock.json says
+npm run check:secrets
+npm run typecheck
+npm run lint
+npm test
+```
+
+Those four checks are what CI runs on every push. Building an Android APK also
+needs JDK 17 and the Android SDK (Android Studio installs both; set
+`ANDROID_HOME`), and is described below.
 
 ## Baseline
 
@@ -101,7 +123,10 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 * Drop `-PreactNativeArchitectures` to build all ABIs instead of arm64-v8a only.
 
 `APP_VARIANT` must be set for both the prebuild and the Gradle invocation: the
-first stamps the native identity, the second embeds the resolved app config.
+first stamps the native identity, the second embeds the resolved app config
+that the screens read. If they differ, the build stops and says so
+([`plugins/withVariantGuard.js`](./plugins/withVariantGuard.js)); before that
+guard existed, a TEST build once shipped with production's screens.
 
 ## Building the production APK
 
@@ -111,8 +136,9 @@ cd android
 ./gradlew assembleRelease --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 ```
 
-Same output path. The difference is the signature: a production build is
-signed with Cooking Lab's own release key, which
+Same output path, and `APP_VARIANT` must be unset (or `production`) for both
+steps. The difference is the signature: a production build is signed with
+Cooking Lab's own release key, which
 [`plugins/withReleaseSigning.js`](./plugins/withReleaseSigning.js) wires into
 the generated project on every prebuild. The key and its password live on the
 building machine only, as four lines in that machine's
@@ -125,25 +151,39 @@ COOKING_LAB_KEY_ALIAS=cooking-lab
 COOKING_LAB_KEY_PASSWORD=<password>
 ```
 
+Without them a production build **fails** with a message naming what is
+missing. It never falls back to the debug key: an app anyone could sign an
+update for is not the real app.
+
+The key stays out of this repository because it lives outside it, on the
+building machine. As a second line, `.gitignore` excludes
+`*.jks` and `*.keystore`, and the secrets check (the pre-commit hook and CI)
+refuses private-key blocks and other key-shaped text. Those checks catch
+mistakes; they can't make a leak impossible. Losing the key is the one
+unrecoverable event in this project, so it is backed up off the machine that
+builds with it.
+
 Installing on a phone that is not plugged in: copy the APK to the phone (Drive
 is enough), tap it, allow the installer once. An update over an installed copy
 keeps its data as long as the signature matches and `versionCode` has gone up —
 so bump `versionCode` in `app.config.ts` for every build that will update an
 installed app.
 
-Without them a production build **fails** with a message naming what is
-missing. It never falls back to the debug key: an app anyone could sign an
-update for is not the real app. Nothing in this repository can hold the key —
-`.gitignore` refuses `*.jks`, the pre-commit hook and CI refuse anything
-key-shaped — and losing the key is the one unrecoverable event in this
-project, so it is backed up outside the machine that builds with it.
-
 ## Permissions
 
 The app requests no device capabilities. `INTERNET` is retained because the Metro
 development client cannot connect without it. Permissions pulled in transitively
 by Expo tooling (`READ_/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,
-`VIBRATE`) are stripped via `android.blockedPermissions` in `app.config.ts`.
+`VIBRATE`, and `expo-secure-store`'s `USE_BIOMETRIC`/`USE_FINGERPRINT`) are
+stripped via `android.blockedPermissions` in `app.config.ts`.
+
+## Dependencies
+
+`npm audit` findings are triaged in
+[`build-control/dependency-triage.md`](./build-control/dependency-triage.md):
+for each one, whether it ships in the app, whether hostile input can reach it,
+and the fix or a dated reason to accept it. CI fails on any critical advisory;
+lower ones are tracked there, so a green badge doesn't mean there are none.
 
 ## Responsive foundations
 
@@ -157,3 +197,8 @@ rather than ad-hoc width checks:
 * content column centred and capped at 560 dp so text never stretches across an
   unfolded screen;
 * no fixed heights, so Android font scaling grows the layout instead of clipping.
+
+## Licence
+
+MIT — see [`LICENSE`](./LICENSE). It covers the code and documentation. The
+Cooking Lab name and icon are not part of it.

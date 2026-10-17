@@ -71,7 +71,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 2,
+      versionCode: 3,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
         // The app's sage, from src/theme/tokens.ts.
@@ -121,6 +121,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // tree. A production build without it fails; it never uses the debug
       // key. TEST builds are left on the debug key. See the plugin's header.
       ['./plugins/withReleaseSigning', { variant: requested }],
+      // A native project prebuilt for one variant refuses to be built by
+      // Gradle as the other, so the APK can't mix TEST's package with
+      // production's screens. See the plugin's header.
+      ['./plugins/withVariantGuard', { variant: requested }],
       // Both variants: the APK's version name carries the commit it was
       // built from, e.g. `0.1.0 (e24bfd6)`. See CLAUDE.md, "Builds".
       ['./plugins/withBuildCommit', { commit: buildCommit() }],

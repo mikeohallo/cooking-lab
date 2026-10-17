@@ -20,6 +20,10 @@ was built, in what order, and what was verified.
    ("build test at `<commit>`"); it builds only that commit (see `CLAUDE.md` → "Builds").
 3. Mike uses it, and tells Claude what to change.
 
+When a build needs a full record — package, commit stamp, write, relaunch,
+export, both displays — Mike's line asks for the acceptance run as well:
+[`ACCEPTANCE.md`](./ACCEPTANCE.md).
+
 ## Before evidence is committed
 
 The repo is public, and nothing automatic looks at what an image shows. Before

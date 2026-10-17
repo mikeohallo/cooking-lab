@@ -91,11 +91,13 @@ yourself.
 - Your own report commits, pushed after the build, move `main` past the built
   commit. That's expected; the report names the commit that was built.
 
-## Portfolio rules: v1
+## Portfolio rules
 
 Mike's rules for every build in his AI Projects (`claude/portfolio-rules.md`
-in the claude.ai project, which Claude Code may not see). The ones that apply
-here:
+in the claude.ai project, which Claude Code may not see). Claude Code on his PC
+also follows his PC rules file, which outranks this one: where they differ
+(for example, how to switch to the named commit), follow the PC rules. The
+ones that apply here:
 
 - **P1 — the commit in Mike's line is the approval.** See "Builds" above.
 - **P4 — secrets only where Mike types them.** Never in a chat, the repo, a
@@ -138,5 +140,7 @@ P2 and P3 (Cloudflare deploys) don't apply: nothing here deploys anywhere.
   (`com.cookinglab.personal`, no `APP_VARIANT`) is signed with Mike's release
   key from `~/.gradle/gradle.properties` on his PC — the build fails without
   it and never uses the debug key. Real cooking data lives only in production.
+  Set the same `APP_VARIANT` for prebuild and Gradle; if they differ, the
+  build stops (`plugins/withVariantGuard.js`).
   The key, its password and its path never enter this tree or any report.
 - British English, Celsius, sentence case.
