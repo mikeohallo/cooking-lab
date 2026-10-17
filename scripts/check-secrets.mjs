@@ -5,8 +5,8 @@
  * Scans every tracked file (or the staged files, with --staged) for the
  * patterns real secrets take: Anthropic and OpenAI API keys, AWS access keys,
  * GitHub tokens, private-key blocks, and a few generic `secret = "..."`
- * shapes — plus the test phone's serial number, which is not a secret but is
- * personal and does not belong in a public tree. It is deliberately simple
+ * shapes — plus the test phone's serial number and personal email addresses,
+ * which are not secrets but are personal and do not belong in a public tree. It is deliberately simple
  * and deterministic: no network, no dependencies, a non-zero exit when
  * anything matches.
  *
@@ -32,6 +32,12 @@ const PATTERNS = [
   // Not a secret, but personal: the test phone's serial number as adb prints
   // it. It has reached a report once already. Say "the Fold" instead.
   { name: 'device serial number', re: /\bRF[A-Z0-9]{9}\b/ },
+  // Personal data (portfolio rule P5): a personal mailbox address. Commits
+  // use the GitHub no-reply address; files never name a person's inbox.
+  {
+    name: 'personal email address',
+    re: /[A-Za-z0-9._%+-]+@(?:gmail|googlemail|hotmail|outlook|live|icloud|me|yahoo|bigpond)\.[a-z.]{2,}/i,
+  },
 ];
 
 /** Files that legitimately mention these shapes without containing a secret. */

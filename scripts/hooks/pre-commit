@@ -7,3 +7,17 @@ node scripts/check-secrets.mjs --staged || {
   echo "pre-commit: commit refused by check-secrets (see above)." >&2
   exit 1
 }
+
+# Portfolio rule P5: commits are authored as the GitHub no-reply address or
+# as Claude, never as a personal mailbox. The repo is public.
+for ident in GIT_AUTHOR_IDENT GIT_COMMITTER_IDENT; do
+  email=$(git var "$ident" | sed -n 's/.*<\(.*\)>.*/\1/p')
+  case "$email" in
+    324334104+mikeohallo@users.noreply.github.com|noreply@anthropic.com) ;;
+    *)
+      echo "pre-commit: refused — $ident is not the GitHub no-reply address or Claude." >&2
+      echo "Set: git config user.email 324334104+mikeohallo@users.noreply.github.com" >&2
+      exit 1
+      ;;
+  esac
+done
