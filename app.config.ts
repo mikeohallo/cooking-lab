@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // The reserved Android identities. Also read at runtime by src/config/variants.ts.
@@ -21,6 +22,23 @@ import variantTable from './app.variants.json';
  * An unrecognised APP_VARIANT is a hard error, never a silent fall back to
  * production.
  */
+/**
+ * The commit this config is being read at, for stamping into the APK's
+ * version name (`plugins/withBuildCommit.js`). `-dirty` when the working tree
+ * has changes, so a build that is not exactly a commit says so on the
+ * artefact. `unknown` outside a git checkout, never a guess.
+ */
+function buildCommit(): string {
+  const run = (command: string) =>
+    execSync(command, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  try {
+    const commit = run('git rev-parse --short=7 HEAD');
+    return run('git status --porcelain') === '' ? commit : `${commit}-dirty`;
+  } catch {
+    return 'unknown';
+  }
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const requested = (process.env.APP_VARIANT ?? '').trim().toLowerCase() || 'production';
   const identity = (variantTable as Record<string, (typeof variantTable)['test'] | undefined>)[
@@ -103,6 +121,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // tree. A production build without it fails; it never uses the debug
       // key. TEST builds are left on the debug key. See the plugin's header.
       ['./plugins/withReleaseSigning', { variant: requested }],
+      // Both variants: the APK's version name carries the commit it was
+      // built from, e.g. `0.1.0 (ec4781d)`. See CLAUDE.md, "Builds".
+      ['./plugins/withBuildCommit', { commit: buildCommit() }],
     ],
     extra: {
       appVariant: requested,
