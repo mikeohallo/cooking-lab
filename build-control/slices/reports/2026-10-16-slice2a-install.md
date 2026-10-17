@@ -6,7 +6,7 @@ tapped**: Mike tests the share sheet himself.
 
 ## Commit built
 
-`92c846b` — *feat: slice 2a — export everything as a portable backup, or one
+`820ffd1` — *feat: slice 2a — export everything as a portable backup, or one
 cook as text*, the tip of `main` after a fast-forward pull. Nothing local was
 carried in; the working tree was clean before and after the pull.
 

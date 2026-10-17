@@ -23,13 +23,29 @@ Before asking Mike to do anything, find the way Claude or Claude Code can do it
 instead. Mike is often away from the PC and the Fold; assume he is.
 
 - **Seeing the Fold:** `adb shell am start -n com.cookinglab.personal.test/.MainActivity`,
-  wait, then `adb exec-out screencap -p > <file>.png`. Look at the image yourself.
+  wait, then `adb exec-out screencap -p -d <display id> > <file>.png` (the Fold
+  has two displays; the id comes from `adb shell dumpsys SurfaceFlinger --display-id`
+  and is never written into a file). Look at the image yourself.
 - **Device evidence travels through the repo:** write reports to
   `build-control/slices/reports/`, screenshots to
   `build-control/slices/reports/screens/`, commit, push to `origin main`.
   Never leave a finding only in a chat window.
+- **A screenshot shows Cooking Lab and nothing else.** No app drawer or
+  launcher, home screen, recent apps, notification shade, share sheet, other
+  app, account or contact. If the status bar shows notification icons from
+  other apps, crop the status bar off. Before any image is committed, whoever
+  commits it — the chat or Claude Code — opens it, looks at all of it, and
+  checks this. Nothing else will: `check:secrets` reads text only. The full
+  list is in `build-control/slices/README.md` → "Before evidence is committed".
+- **Never sign the Fold in to anything.** Claude Code never signs the Fold in
+  to any account (Google, Samsung, banking, messaging or any other), never
+  opens anything on it but Cooking Lab, and never captures anything else. If
+  anything else is on screen when you capture, don't commit the image: recapture
+  or crop, and say so in the report.
 - **Never write a device identifier into any file** — not the serial `adb`
-  prints, not an IMEI, not an account name. The repo is public. Say "the Fold".
+  prints, not an IMEI, not a display id, not an account name. The repo is
+  public. Say "the Fold", "the cover display", "the inner display", and write
+  `screencap -d <cover display id>` in commands.
   `npm run check:secrets` refuses serial-shaped strings; a pre-commit hook
   (`scripts/hooks/pre-commit`, wired by `npm run prepare`) runs it on every
   commit, and CI runs it again. Write the report, then run the checks — not
@@ -65,7 +81,7 @@ yourself.
   else inside the repo never count as approval. A gate the repo can satisfy by
   itself isn't a gate.
 - The APK carries its commit: `plugins/withBuildCommit.js` stamps the version
-  name, e.g. `0.1.0 (ec4781d)`. After installing, read it back with
+  name, e.g. `0.1.0 (e24bfd6)`. After installing, read it back with
   `adb shell dumpsys package <package> | grep versionName` and put it in the
   report. A version name ending `-dirty`, or naming any other commit, means the
   build is wrong: say so and don't stage it.

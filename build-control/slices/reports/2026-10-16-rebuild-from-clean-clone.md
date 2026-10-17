@@ -7,7 +7,7 @@ copy.
 
 ## Commit built
 
-`cbe48dc1948cfc17923b419c6e637accf4501de2` — *docs: README — secrets check in
+`4cf15e0d6941c50534e10185431028268e1cea27` — *docs: README — secrets check in
 Commands, link the working rules, drop retired wording*
 
 Working tree clean at build time. `node_modules` was already in place; no

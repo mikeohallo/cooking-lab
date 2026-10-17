@@ -16,8 +16,27 @@ was built, in what order, and what was verified.
 ## The loop
 
 1. Claude pushes a slice to `main` with its tests green and a record in this folder.
-2. Mike asks Claude Code on his PC to build and install from `main`.
+2. Mike gives Claude Code on his PC a build line naming that commit
+   ("build test at `<commit>`"); it builds only that commit (see `CLAUDE.md` → "Builds").
 3. Mike uses it, and tells Claude what to change.
+
+## Before evidence is committed
+
+The repo is public, and nothing automatic looks at what an image shows. Before
+a report or screenshot is committed, whoever commits it checks:
+
+1. **Every image has been opened and looked at, all of it.** It shows Cooking
+   Lab and nothing else: no app drawer or launcher, home screen, recent apps,
+   notification shade, share sheet, other app, account or contact.
+2. **The status bar shows no other app's notification icons.** If it does,
+   crop the status bar off (or recapture).
+3. **Synthetic data only**, and a TEST capture shows the TEST badge.
+4. **No device identifiers in the text:** no serial, IMEI, display id or
+   account name. Say "the Fold", "the cover display", "the inner display".
+5. **The report names the commit built** and the version name read back from
+   the installed app.
+6. **The checks pass:** `npm run check:secrets` (the pre-commit hook runs it
+   too). It reads text only, so steps 1–3 are the only check on pictures.
 
 ## Plan
 

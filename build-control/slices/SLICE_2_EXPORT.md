@@ -85,7 +85,7 @@ records what it was given:
   and failed notices; reviewed cook offers *Export this cook*, open cook does
   not; History empty states per filter; the composer gives the note back
 
-## Verified on the Fold (Mike, 16 October 2026, TEST build of `92c846b`)
+## Verified on the Fold (Mike, 16 October 2026, TEST build of `820ffd1`)
 
 All five steps of the on-device check below passed, with screenshots sent in
 chat (not committed — the share sheet shows personal contacts):

@@ -16,27 +16,27 @@ const GENERATED = `android {
 
 describe('applyBuildCommit', () => {
   it('stamps the commit into the version name and changes nothing else', () => {
-    const stamped = applyBuildCommit(GENERATED, 'ec4781d');
-    expect(stamped).toBe(GENERATED.replace('versionName "0.1.0"', 'versionName "0.1.0 (ec4781d)"'));
+    const stamped = applyBuildCommit(GENERATED, 'e24bfd6');
+    expect(stamped).toBe(GENERATED.replace('versionName "0.1.0"', 'versionName "0.1.0 (e24bfd6)"'));
   });
 
   it('marks a build from a changed tree as dirty, on the artefact', () => {
-    expect(applyBuildCommit(GENERATED, 'ec4781d-dirty')).toContain('versionName "0.1.0 (ec4781d-dirty)"');
+    expect(applyBuildCommit(GENERATED, 'e24bfd6-dirty')).toContain('versionName "0.1.0 (e24bfd6-dirty)"');
   });
 
   it('does not stamp twice when prebuild runs again', () => {
-    const once = applyBuildCommit(GENERATED, 'ec4781d');
-    expect(applyBuildCommit(once, 'ec4781d')).toBe(once);
+    const once = applyBuildCommit(GENERATED, 'e24bfd6');
+    expect(applyBuildCommit(once, 'e24bfd6')).toBe(once);
   });
 
   it('writes nothing into Gradle that is not a commit id', () => {
-    for (const bad of ['', 'main', 'ec4781d"; evil()', 'EC4781D', 'abc', '../x']) {
+    for (const bad of ['', 'main', 'e24bfd6"; evil()', 'EC4781D', 'abc', '../x']) {
       expect(() => applyBuildCommit(GENERATED, bad)).toThrow(/not a commit id/);
     }
   });
 
   it('refuses a build.gradle with no version name rather than guessing', () => {
-    expect(() => applyBuildCommit('android { }', 'ec4781d')).toThrow(/no versionName/);
+    expect(() => applyBuildCommit('android { }', 'e24bfd6')).toThrow(/no versionName/);
   });
 });
 

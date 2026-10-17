@@ -1,6 +1,6 @@
 /**
  * Stamps the commit a build came from into the APK's version name:
- * `0.1.0 (ec4781d)`, or `0.1.0 (ec4781d-dirty)` if the tree had changes.
+ * `0.1.0 (e24bfd6)`, or `0.1.0 (e24bfd6-dirty)` if the tree had changes.
  *
  * Why: the build gate in CLAUDE.md approves one commit by name, and this is
  * how anyone can read back which commit an installed app was built from —

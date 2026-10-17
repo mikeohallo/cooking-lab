@@ -122,7 +122,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // key. TEST builds are left on the debug key. See the plugin's header.
       ['./plugins/withReleaseSigning', { variant: requested }],
       // Both variants: the APK's version name carries the commit it was
-      // built from, e.g. `0.1.0 (ec4781d)`. See CLAUDE.md, "Builds".
+      // built from, e.g. `0.1.0 (e24bfd6)`. See CLAUDE.md, "Builds".
       ['./plugins/withBuildCommit', { commit: buildCommit() }],
     ],
     extra: {

@@ -6,7 +6,7 @@ Cooking Lab Test is untouched and still installed beside it.
 
 ## Commit built
 
-`cf5e934` — *feat: slice 2b — production builds are signed with Cooking Lab's
+`f576073` — *feat: slice 2b — production builds are signed with Cooking Lab's
 own key*, the tip of `main` after a fast-forward pull. The working tree was
 clean before and after.
 

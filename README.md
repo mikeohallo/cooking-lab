@@ -85,7 +85,7 @@ APP_VARIANT=test node node_modules/expo/bin/cli config --type public
 
 Builds on Mike's PC start from a named commit and a clean tree — see
 "Builds" in [`CLAUDE.md`](./CLAUDE.md). The APK's version name carries that
-commit, e.g. `0.1.0 (ec4781d)`.
+commit, e.g. `0.1.0 (e24bfd6)`.
 
 ```bash
 APP_VARIANT=test npx expo prebuild --platform android --clean
