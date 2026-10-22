@@ -14,8 +14,9 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import type { AiService } from '../data/adapters';
+import type { AiService, PrivateFileStore } from '../data/adapters';
 import type { ExportService } from '../data/export/service';
+import type { PhotoService } from '../data/photos/capture';
 import type { DataLayer } from '../data/repositories';
 import type { StorageStartupResult } from '../data/runtime';
 import type { DatabaseStartupFailureReason } from '../data/sqlite/lifecycle';
@@ -26,6 +27,13 @@ export type AppStorage = {
   readonly assistant: AiService;
   /** Hands history out of the phone. Reads only; see `src/data/export/`. */
   readonly exporter: ExportService;
+  /**
+   * The photo store, for resolving a stored photograph to something an
+   * `<Image>` can draw. A screen reads from it; adding and removing go through
+   * `photoWorkflow`, which is the only thing that writes a photograph.
+   */
+  readonly photos: PrivateFileStore;
+  readonly photoWorkflow: PhotoService;
   /** Supplies ids for the records screens create: cooks, events, lessons. */
   readonly newId: () => string;
   /** The current instant, in the ISO UTC form the data model requires. */
@@ -86,6 +94,8 @@ export function StorageProvider({
               data: result.storage.data,
               assistant: result.storage.assistant,
               exporter: result.storage.exporter,
+              photos: result.storage.photos,
+              photoWorkflow: result.storage.photoWorkflow,
               newId,
               now,
             },

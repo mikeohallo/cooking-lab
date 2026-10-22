@@ -197,6 +197,12 @@ export function memoryFileSystem(): MemoryFileSystem {
         byteLength: bytes.length,
       }));
     },
+
+    // Shaped like the real one: an absolute-looking location that is this
+    // port's business and nothing else's.
+    uri(relativePath: string): string {
+      return `file:///memory/${relativePath}`;
+    },
   };
 
   return system;

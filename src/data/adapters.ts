@@ -155,6 +155,93 @@ export type PrivateFileStore = {
   delete(logicalPath: PhotoLogicalPath): Promise<void>;
   /** Every file the store holds, for reconciling against a photo manifest. */
   list(): Promise<readonly StoredFileInfo[]>;
+  /**
+   * A URI an `<Image>` can be pointed at, or `null` if nothing is stored there.
+   *
+   * The one place a device path crosses this line, and it crosses it to be
+   * drawn and nothing else. A photograph has to be shown eventually, and the
+   * only way to show one is to hand the view layer something it can load.
+   *
+   * It is never stored. Not by convention: `photoPath` is the only column a
+   * photograph is referenced from, and `isSafePhotoLogicalPath` — which
+   * `validateCookEvent` and the backup validator both apply — refuses any
+   * string carrying a scheme, an absolute path or a backslash. So a URI from
+   * here cannot be written into a record even by a caller that tries.
+   *
+   * It is also not durable: the app's sandbox moves, and a URI that was true
+   * last week may not be this week. Resolve one when a photograph is about to
+   * be drawn, and throw it away afterwards.
+   */
+  displayUri(logicalPath: PhotoLogicalPath): Promise<string | null>;
+};
+
+/**
+ * Where a photograph comes from.
+ *
+ * `camera` needs the camera, which Android asks the person about the first
+ * time. `library` goes through Android's own photo picker, which hands this app
+ * the one picture the person chose and needs no storage permission at all — the
+ * app never gets to see the roll, so there is nothing to ask for.
+ */
+export type PhotoOrigin = 'camera' | 'library';
+
+/** A picture the device has handed over, in a place of the device's choosing. */
+export type CapturedImage = {
+  /** Wherever the device put it. Usually a cache directory; never kept. */
+  readonly uri: string;
+  readonly width: number;
+  readonly height: number;
+};
+
+export type PhotoSourceOutcome =
+  | { readonly status: 'captured'; readonly image: CapturedImage }
+  /** The person backed out. Not a failure, and nothing to say about it. */
+  | { readonly status: 'cancelled' }
+  /**
+   * Android said no to the camera.
+   *
+   * `canAskAgain` is false once the person has refused in a way Android treats
+   * as final; a screen then points at Settings instead of asking again, which
+   * is the only thing left that can change the answer.
+   */
+  | { readonly status: 'denied'; readonly canAskAgain: boolean }
+  | { readonly status: 'failed'; readonly message: string };
+
+/**
+ * The camera and the photo picker.
+ *
+ * Two methods, no options, and no permission calls for the caller to remember:
+ * asking for the camera is part of taking a photograph and belongs behind this
+ * line with it. Nothing here touches storage, a database or a cook — a source
+ * produces one picture, or a reason there isn't one.
+ */
+export type PhotoSource = {
+  takePhoto(): Promise<PhotoSourceOutcome>;
+  choosePhoto(): Promise<PhotoSourceOutcome>;
+};
+
+/** A JPEG as bytes, with the size it came out at. */
+export type EncodedPhoto = {
+  readonly bytes: Uint8Array;
+  readonly width: number;
+  readonly height: number;
+};
+
+/**
+ * Re-encodes a picture as a JPEG of a sensible size.
+ *
+ * Returns the bytes rather than a file, which is the whole point of the shape:
+ * the app checks and cleans those bytes itself (`./photos/jpeg.ts`) before
+ * anything is stored, so nothing is ever written to the photo store that has
+ * not been through the metadata check. An encoder that handed back a path would
+ * leave the only copy somewhere the app would have to trust.
+ *
+ * The implementation also tidies up after itself: whatever temporary file the
+ * platform made on the way is gone by the time this resolves.
+ */
+export type PhotoEncoder = {
+  /** Long edge at most `maxLongEdge`; a smaller picture is left its own size. */
+  encodeJpeg(image: CapturedImage, maxLongEdge: number): Promise<EncodedPhoto>;
 };
 
 // ---------------------------------------------------------------------------

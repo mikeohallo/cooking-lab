@@ -121,4 +121,15 @@ export const expoPrivateFileSystemPort: PrivateFileSystemPort = {
     walk(directory, '', found);
     return found;
   },
+
+  /**
+   * The `file://` URI of a stored file, for an `<Image>` to load.
+   *
+   * The one thing in this module that gives the absolute location out, and it
+   * is still this module computing it: everything above still works in relative
+   * paths and is handed a finished URI by the store.
+   */
+  uri(relativePath: string): string {
+    return fileAt(relativePath).uri;
+  },
 };

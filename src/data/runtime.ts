@@ -8,11 +8,11 @@
  *
  * WHAT A CALLER GETS, AND WHAT IT DOES NOT
  * ----------------------------------------
- * A `CookingLabStorage` holds a `DataLayer`, a `PrivateFileStore` and an
- * `AiService`. It does not hold the `DatabaseAdapter`: the connection is closed
- * over by the repositories and is not handed out, so there is no route from a
- * screen — or from the assistant — to raw SQL. The assistant is constructed
- * here alongside the data layer and is given none of it.
+ * A `CookingLabStorage` holds a `DataLayer`, a `PrivateFileStore`, the photo
+ * workflow and an `AiService`. It does not hold the `DatabaseAdapter`: the
+ * connection is closed over by the repositories and is not handed out, so there
+ * is no route from a screen — or from the assistant — to raw SQL. The assistant
+ * is constructed here alongside the data layer and is given none of it.
  *
  * Startup can fail, and the failures are values rather than exceptions because
  * each of them is a state a screen has to be able to explain. In particular
@@ -27,6 +27,7 @@ import type { AppVariant } from '../config/variants';
 import { selectAiService } from './ai/selection';
 import { createExportService, type ExportService } from './export/service';
 import { createPrivateFileStore } from './files/privateFileStore';
+import { createPhotoService, type PhotoService } from './photos/capture';
 import { createSqliteDataLayer } from './sqlite/dataLayer';
 import { createDatabaseAdapterFactory } from './sqlite/connection';
 import { createDatabaseKeyProvider } from './sqlite/keyProvider';
@@ -36,6 +37,8 @@ import {
 } from './sqlite/lifecycle';
 import { expoDigestPort, expoRandomBytesPort } from './native/expoCrypto';
 import { expoPrivateFileSystemPort } from './native/expoFileSystem';
+import { expoPhotoEncoder } from './native/expoImageEncoder';
+import { expoPhotoSource } from './native/expoImagePicker';
 import { expoSecureStorePort } from './native/expoSecureStore';
 import { expoSharingSink } from './native/expoSharing';
 import { expoDatabaseFilePresence, openExpoSqliteConnection } from './native/expoSqlite';
@@ -43,6 +46,8 @@ import { expoDatabaseFilePresence, openExpoSqliteConnection } from './native/exp
 export type CookingLabStorage = {
   readonly data: DataLayer;
   readonly photos: PrivateFileStore;
+  /** Adds a photograph to a cook, and takes one back. */
+  readonly photoWorkflow: PhotoService;
   readonly assistant: AiService;
   /** Gets history out of the phone: the portable backup, or one cook as text. */
   readonly exporter: ExportService;
@@ -89,12 +94,21 @@ export async function startCookingLabStorage(
   const database: DatabaseAdapter = started.database;
   const data = createSqliteDataLayer(database, options.newId);
   const photos = createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort);
+  const now = options.now ?? (() => new Date().toISOString());
 
   return {
     ok: true,
     storage: {
       data,
       photos,
+      photoWorkflow: createPhotoService({
+        data,
+        photos,
+        source: expoPhotoSource,
+        encoder: expoPhotoEncoder,
+        newId: options.newId,
+        now,
+      }),
       assistant: selectAiService({ variant: options.variant }),
       exporter: createExportService({
         data,
@@ -102,7 +116,7 @@ export async function startCookingLabStorage(
         schemaVersion: started.schema.schemaVersion,
         sink: expoSharingSink,
         variant: options.variant,
-        now: options.now ?? (() => new Date().toISOString()),
+        now,
       }),
       schemaVersion: started.schema.schemaVersion,
       freshInstall: started.keyCreated,

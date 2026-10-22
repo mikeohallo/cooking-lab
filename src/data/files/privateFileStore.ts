@@ -136,6 +136,15 @@ export type PrivateFileSystemPort = {
   delete(relativePath: string): Promise<void>;
   /** Every file under the root, at any depth. */
   list(): Promise<readonly FoundFile[]>;
+  /**
+   * The device URI of a file in the store, for drawing it on screen.
+   *
+   * The only method here that hands an absolute location back, and the store
+   * only passes it on for a photograph that exists. See `displayUri` on
+   * `PrivateFileStore` for why that is allowed and why it still cannot end up
+   * in a record.
+   */
+  uri(relativePath: string): string;
 };
 
 /** SHA-256, from the device's own implementation. */
@@ -357,6 +366,22 @@ export function createPrivateFileStore(
         });
       }
       return described;
+    },
+
+    /**
+     * Where a stored photograph is, so it can be drawn.
+     *
+     * Goes through the same `checked` gate as every other method, and returns
+     * `null` rather than a URI for a path with nothing at it — a view handed a
+     * URI to a file that is not there shows a broken image and says nothing
+     * about why, where `null` lets the screen say the photo is missing.
+     */
+    async displayUri(logicalPath: PhotoLogicalPath): Promise<string | null> {
+      const relative = checked(logicalPath);
+      if (!(await files.exists(relative))) {
+        return null;
+      }
+      return files.uri(relative);
     },
   };
 }

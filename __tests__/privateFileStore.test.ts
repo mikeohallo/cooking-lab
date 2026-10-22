@@ -237,6 +237,7 @@ describe('importing a photograph', () => {
     const members = Object.getOwnPropertyNames(store);
     expect(members.sort()).toEqual([
       'delete',
+      'displayUri',
       'exists',
       'importFile',
       'info',

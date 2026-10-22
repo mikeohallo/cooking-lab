@@ -11,6 +11,7 @@ import { renderRouter } from 'expo-router/testing-library';
 import path from 'node:path';
 
 import { NEW_COOK_TITLE } from '../src/content/product';
+import { LATEST_SCHEMA_VERSION } from '../src/data/schema/migrations';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { openTestDatabase, type TestDatabase } from './support/database';
 
@@ -27,9 +28,12 @@ function mockReadyResult(): StorageStartupResult {
     storage: {
       data: mockDb.current!.data,
       photos: {} as never,
+      // Never reached: no route takes a photograph while it is only being
+      // mounted, and nothing on screen asks for one until a button is pressed.
+      photoWorkflow: {} as never,
       assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
       exporter: {} as never,
-      schemaVersion: 1,
+      schemaVersion: LATEST_SCHEMA_VERSION,
       freshInstall: true,
       close: async () => undefined,
     },

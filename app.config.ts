@@ -63,10 +63,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'cooking-lab',
     scheme: 'cookinglab',
     icon,
-    // The first version a real kitchen installs. Bump `versionCode` with every
-    // production build that follows; Android will not update an installed app
-    // to the same code.
-    version: '0.1.0',
+    // Slice 3: photos, oven and internal readings, tags and tag search.
+    // Bump `versionCode` with every production build that follows; Android will
+    // not update an installed app to the same code.
+    version: '0.2.0',
     orientation: 'default',
     platforms: ['android'],
     android: {
@@ -79,24 +79,43 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       softwareKeyboardLayoutMode: 'resize',
       predictiveBackGestureEnabled: true,
-      // Cooking Lab needs no device capabilities yet. These are pulled in by
-      // transitive Expo/React Native tooling, not requested by Cooking Lab, so
-      // they are stripped from the merged manifest. INTERNET is deliberately
-      // retained: the Metro development client cannot connect without it.
+      // Cooking Lab asks for one device capability — the camera — and strips
+      // everything else its dependencies declare. A permission on the app's
+      // listing is a claim about what the app does, and a claim that is not
+      // true is the kind of thing this product exists not to make.
+      // `__tests__/androidPermissions.test.ts` works out what the merged
+      // manifest will hold and fails if anything else appears.
+      //
+      // CAMERA is not listed here or in `permissions`: it arrives from
+      // `expo-image-picker`'s own manifest, which is the honest place for it —
+      // it is there because the module needs it, and the module is there
+      // because the app takes photographs.
+      //
+      // INTERNET is deliberately retained: the Metro development client cannot
+      // connect without it.
       //
       // The two biometric entries arrived with `expo-secure-store`, which
       // declares them because it *can* gate a value behind a fingerprint. This
       // app does not: the database key is stored without `requireAuthentication`
       // (see `src/data/native/expoSecureStore.ts`), because the store is opened
-      // before the first frame is drawn. An unused permission on the app's
-      // listing is a claim about the app that is not true, so it is stripped by
-      // the same rule as the rest. Wanting a biometric gate later means removing
-      // these two lines deliberately, which is the point.
+      // before the first frame is drawn. Wanting a biometric gate later means
+      // removing these two lines deliberately, which is the point.
+      //
+      // The storage pair and RECORD_AUDIO arrived with `expo-image-picker`.
+      // None of the three is needed: a picture is chosen through Android's own
+      // photo picker, which runs outside this app and hands over the one file
+      // the person chose, so there is no roll to be given access to; and
+      // nothing in Cooking Lab records sound. RECORD_AUDIO is refused twice
+      // over — `microphonePermission: false` on the plugin below stops it being
+      // requested, and this list removes it if it ever is.
       blockedPermissions: [
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VIDEO',
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.VIBRATE',
+        'android.permission.RECORD_AUDIO',
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
       ],
@@ -116,6 +135,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // only on the device. This is not the recovery strategy — the portable
       // Cooking Lab backup is, and it is deliberately independent of this key.
       'expo-secure-store',
+      // The camera and Android's photo picker. `microphonePermission: false`
+      // is the whole of the configuration and it does two things: it stops the
+      // plugin adding RECORD_AUDIO, which it does by default because the module
+      // can also record video, and it has the plugin block that permission
+      // itself. Cooking Lab records no sound. `cameraPermission` is left alone
+      // on purpose — the camera is the one capability this app does want.
+      ['expo-image-picker', { microphonePermission: false }],
       // Production builds are signed with Cooking Lab's own key, read from
       // the building machine's ~/.gradle/gradle.properties — never from this
       // tree. A production build without it fails; it never uses the debug
