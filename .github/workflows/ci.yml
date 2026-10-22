@@ -19,6 +19,15 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
+      # Which Node and which SQLite actually ran, recorded on every run. The
+      # suite is tested against `node:sqlite`, which is still experimental and
+      # can change between minors, so "Node 24" is not a precise enough answer
+      # when a test passes on one machine and fails here.
+      - name: Say what is running
+        run: |
+          node --version
+          node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(':memory:');console.log('sqlite',d.prepare('select sqlite_version() as v').get().v);d.close()"
+
       # Fails on any critical advisory. High and moderate ones are triaged,
       # with dates, in build-control/dependency-triage.md.
       - name: No critical advisories
@@ -34,4 +43,30 @@ jobs:
         run: npm run lint
 
       - name: Jest (real SQLite, real services)
-        run: npm test -- --ci --silent
+        id: jest
+        run: |
+          set -o pipefail
+          npm test -- --ci --silent 2>&1 | tee jest.log
+
+      # A red CI that nobody can read is not a gate.
+      #
+      # Actions logs need a GitHub sign-in even on a public repository, so a
+      # failure here is invisible to anyone looking at the run from outside —
+      # which, for a project whose rule is that evidence travels through the
+      # repo rather than a chat window, is the wrong way round. The failing
+      # lines are repeated as annotations, which anybody can read, and the tail
+      # of the log goes in the job summary.
+      - name: Say what failed
+        if: failure() && steps.jest.outcome == 'failure'
+        run: |
+          [ -f jest.log ] || exit 0
+          grep -nE '✕|●|Expected|Received|Tests:|Test Suites:|Cannot find|TypeError|ReferenceError' jest.log \
+            | head -n 40 \
+            | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          {
+            echo '## Jest failed'
+            echo
+            echo '```'
+            tail -n 150 jest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
