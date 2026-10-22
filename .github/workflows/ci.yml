@@ -60,8 +60,13 @@ jobs:
         if: failure() && steps.jest.outcome == 'failure'
         run: |
           [ -f jest.log ] || exit 0
-          grep -nE '✕|●|Expected|Received|Tests:|Test Suites:|Cannot find|TypeError|ReferenceError' jest.log \
+          # Each failure with the lines that follow it, because the title alone
+          # does not say whether a test failed or merely ran out of time.
+          grep -nE -A 8 '●' jest.log \
+            | grep -vE '^[0-9]+[-:][[:space:]]*$' \
             | head -n 40 \
+            | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          grep -nE 'Tests:|Test Suites:' jest.log \
             | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
           {
             echo '## Jest failed'
