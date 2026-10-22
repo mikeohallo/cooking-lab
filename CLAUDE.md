@@ -87,9 +87,10 @@ yourself.
   `adb shell dumpsys package <package> | grep versionName` and put it in the
   report. A version name ending `-dirty`, or naming any other commit, means the
   build is wrong: say so and don't stage it.
-- A production build also goes into `C:\Projects\cooking-lab-builds\` as
-  `cooking-lab-<version>-v<versionCode>-<commit>.apk`, for Mike to sideload on
-  his phone. Only the commit in his line is ever staged there.
+- A production build also goes into the builds folder next to the repo
+  (`..\builds\`) as `cooking-lab-<version>-v<versionCode>-<commit>.apk`, for
+  Mike to sideload on his phone. Only the commit in his line is ever staged
+  there.
 - Your own report commits, pushed after the build, move `main` past the built
   commit. That's expected; the report names the commit that was built.
 

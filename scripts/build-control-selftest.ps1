@@ -264,7 +264,7 @@ New-ScratchEnvironment
 Set-Section '1. Permission gate - npm script bypass attempts'
 # ---------------------------------------------------------------------
 $env:COOKING_LAB_REPO_ROOT  = $RealRepo
-$env:COOKING_LAB_DENY_PATHS = 'C:\Projects\ProjectA;C:\Projects\cooking-lab-cloud-prototype-archive'
+$env:COOKING_LAB_DENY_PATHS = 'C:\Projects\ProjectA;C:\Projects\Cooking-Lab\archive\cooking-lab-cloud-prototype-archive'
 
 Check-Allowed 'npm run lint is allowed (pinned script)'        'npm run lint'
 Check-Allowed 'npm run typecheck is allowed (pinned script)'   'npm run typecheck'
@@ -471,7 +471,7 @@ Set-Section '3c. Repository confinement - escape attempts by every route'
 # ---------------------------------------------------------------------
 $escapePaths = @(
     @{ n = 'Project A';                       p = 'C:/Projects/ProjectA/notes.md' },
-    @{ n = 'another directory under C:/Projects'; p = 'C:/Projects/cooking-lab-cloud-prototype-archive/x.md' },
+    @{ n = 'another directory under C:/Projects'; p = 'C:/Projects/Cooking-Lab/archive/cooking-lab-cloud-prototype-archive/x.md' },
     @{ n = 'a user-profile file';               p = 'C:/Users/mikeo/Documents/private.txt' },
     @{ n = 'a Windows system folder';           p = 'C:/Windows/System32/drivers/etc/hosts' },
     @{ n = 'a temp folder outside the repo';    p = 'C:/temp/pwned.txt' },

@@ -107,7 +107,7 @@ $PromptDirRel  = 'build-control/prompts'
 # any tool call that resolves inside these, and the runner never inspects them.
 $ProtectedPaths = @(
     'C:\Projects\ProjectA',
-    'C:\Projects\cooking-lab-cloud-prototype-archive'
+    'C:\Projects\Cooking-Lab\archive\cooking-lab-cloud-prototype-archive'
 )
 
 # A lease is stale only when the owning process is gone AND the heartbeat is old.
