@@ -1,7 +1,7 @@
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 
 import {
-  ADD_TEMPERATURE,
+  READING_SOMEWHERE_ELSE,
   COOK_NOT_FOUND_TITLE,
   EMPTY_TIMELINE_TITLE,
   FINISH_AND_REVIEW,
@@ -87,12 +87,12 @@ describe('CookScreen — an open cook', () => {
     expect(await harness.db.data.cookEvents.listForCook({ cookId: 'cook-1' })).toHaveLength(0);
   });
 
-  it('records a Celsius reading with an optional where', async () => {
+  it('records a Celsius reading with an optional where, and no kind', async () => {
     await startCook();
     await renderCook('cook-1');
     await screen.findByTestId('cook-screen');
 
-    await user.press(screen.getByRole('button', { name: ADD_TEMPERATURE }));
+    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
     await user.type(screen.getByTestId('temperature-celsius'), '62,5');
     await user.type(screen.getByTestId('temperature-where'), 'centre');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
@@ -103,6 +103,10 @@ describe('CookScreen — an open cook', () => {
 
     const events = await harness.db.data.cookEvents.listForCook({ cookId: 'cook-1' });
     expect(events[0]).toMatchObject({ kind: 'temp', meta: { celsius: 62.5, where: 'centre' } });
+    // A reading taken somewhere else says nothing about what it was taken of,
+    // and writes nothing down about it: this meta is byte for byte what slice 1
+    // wrote, which is what keeps every reading already in the notebook intact.
+    expect(events[0]?.meta).toEqual({ celsius: 62.5, where: 'centre' });
   });
 
   it('rejects a non-numeric temperature and keeps the panel open', async () => {
@@ -110,7 +114,7 @@ describe('CookScreen — an open cook', () => {
     await renderCook('cook-1');
     await screen.findByTestId('cook-screen');
 
-    await user.press(screen.getByRole('button', { name: ADD_TEMPERATURE }));
+    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
     await user.type(screen.getByTestId('temperature-celsius'), 'hot');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
 

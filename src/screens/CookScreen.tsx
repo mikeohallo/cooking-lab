@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
 import { useExport } from '../state/useExport';
+import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite, type WriteState } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
@@ -25,18 +26,26 @@ import {
   EXPORT_COOK,
   EXPORT_COOK_HINT,
   FINISH_AND_REVIEW,
+  PHOTO_CAMERA_BLOCKED_BODY,
+  PHOTO_CAMERA_DENIED_BODY,
+  PHOTO_CAMERA_DENIED_TITLE,
+  PHOTO_FAILED_BODY,
+  PHOTO_FAILED_TITLE,
   RETRY,
   SAVE_TITLE,
   STATUS_REVIEWED,
   UNTITLED_COOK,
 } from '../content/product';
+import type { PhotoOrigin } from '../data/adapters';
 import type { Cook, CookId, JsonObject } from '../domain/entities';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, space } from '../theme/tokens';
 import { Composer } from './cook/Composer';
+import { PhotoViewer, type ViewedPhoto } from './cook/PhotoViewer';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { ExportNotice } from './ExportNotice';
+import { TagEditor } from './tags/TagEditor';
 
 type CookScreenProps = {
   cookId: CookId;
@@ -55,11 +64,15 @@ type CookScreenProps = {
  * timeline shows an entry only once the store has returned it.
  */
 export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookScreenProps) {
-  const { data, exporter, newId, now } = useStorage();
+  const { data, exporter, photoWorkflow, newId, now } = useStorage();
   const { load, reload, acceptCook, acceptEvent } = useCook(cookId, refreshToken);
   const eventWrite = useWrite();
   const titleWrite = useWrite();
   const exportOne = useExport();
+  const [photoPending, setPhotoPending] = useState(false);
+  const [photoProblem, setPhotoProblem] = useState<PhotoProblem | null>(null);
+  const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
+  const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
 
   if (load.status === 'loading') {
     return (
@@ -131,6 +144,45 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
     return result.ok;
   };
 
+  /**
+   * Take or choose a photograph, and put it in the timeline.
+   *
+   * The whole of the work is `photoWorkflow.add`; this only has to decide what,
+   * if anything, to say about the outcome. A cancelled capture says nothing at
+   * all — backing out of the camera is not an error, and a notice about it
+   * would be the app arguing with the person.
+   */
+  const addPhoto = async (origin: PhotoOrigin): Promise<void> => {
+    setPhotoProblem(null);
+    setPhotoPending(true);
+    const outcome = await photoWorkflow.add(cook.id, origin);
+    setPhotoPending(false);
+
+    switch (outcome.status) {
+      case 'added':
+        acceptEvent(outcome.event);
+        return;
+      case 'cancelled':
+        return;
+      case 'denied':
+        setPhotoProblem({ kind: 'denied', canAskAgain: outcome.canAskAgain });
+        return;
+      case 'failed':
+        setPhotoProblem({ kind: 'failed', message: outcome.message });
+        return;
+    }
+  };
+
+  /** Removes a photograph. Resolves with a message when it could not be. */
+  const removePhoto = async (eventId: string): Promise<string | null> => {
+    const outcome = await photoWorkflow.remove(eventId);
+    if (outcome.status === 'removed') {
+      await reload();
+      return null;
+    }
+    return outcome.message;
+  };
+
   return (
     <ScreenContainer
       testID={readOnly ? 'cook-detail-screen' : 'cook-screen'}
@@ -139,7 +191,9 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
           <Composer
             onSendNote={sendNote}
             onAddTemperature={addTemperature}
+            onAddPhoto={addPhoto}
             writeState={eventWrite.state}
+            photoPending={photoPending}
           />
         )
       }
@@ -166,6 +220,12 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
           )
         }
       />
+
+      <View style={styles.tags}>
+        <TagEditor cookId={cook.id} refreshToken={refreshToken} />
+      </View>
+
+      {photoProblem ? <PhotoProblemNotice problem={photoProblem} /> : null}
 
       {readOnly ? (
         <Card variant="hero" testID="verdict-card">
@@ -204,9 +264,34 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
             <StateNotice title={EMPTY_TIMELINE_TITLE} body={EMPTY_TIMELINE_BODY} />
           )
         ) : (
-          events.map((event) => <TimelineEvent key={event.id} event={event} />)
+          events.map((event) => (
+            <TimelineEvent
+              key={event.id}
+              event={event}
+              photo={
+                event.kind === 'photo'
+                  ? {
+                      uri: photoUris[event.id] ?? null,
+                      onOpen: () => {
+                        const uri = photoUris[event.id];
+                        if (uri != null) {
+                          setViewing({ eventId: event.id, uri, ts: event.ts });
+                        }
+                      },
+                    }
+                  : undefined
+              }
+            />
+          ))
         )}
       </View>
+
+      <PhotoViewer
+        photo={viewing}
+        onClose={() => setViewing(null)}
+        onRemove={removePhoto}
+        canRemove={!readOnly}
+      />
 
       {readOnly ? (
         <View style={styles.exportSection} testID="export-section">
@@ -226,6 +311,47 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
     </ScreenContainer>
   );
 }
+
+/**
+ * Why a photograph was not added.
+ *
+ * `denied` and `failed` are kept apart because what the person can do about
+ * them is different: a refusal is answered in Android's settings, or by
+ * choosing a picture already taken, while a failure is answered by trying
+ * again.
+ */
+type PhotoProblem =
+  | { readonly kind: 'denied'; readonly canAskAgain: boolean }
+  | { readonly kind: 'failed'; readonly message: string };
+
+function PhotoProblemNotice({ problem }: { problem: PhotoProblem }) {
+  if (problem.kind === 'denied') {
+    return (
+      <StateNotice
+        title={PHOTO_CAMERA_DENIED_TITLE}
+        body={problem.canAskAgain ? PHOTO_CAMERA_DENIED_BODY : PHOTO_CAMERA_BLOCKED_BODY}
+        tone="problem"
+        testID="photo-denied"
+      />
+    );
+  }
+  return (
+    <StateNotice
+      title={PHOTO_FAILED_TITLE}
+      body={`${PHOTO_FAILED_BODY} ${problem.message}`}
+      tone="problem"
+      testID="photo-failed"
+    />
+  );
+}
+
+/**
+ * A stable empty array for the photo hook while the cook is still loading.
+ *
+ * Module-level rather than inline: a fresh `[]` on every render is a new
+ * dependency every render, and the hook would walk the file system in a loop.
+ */
+const EMPTY_EVENTS: readonly never[] = [];
 
 type EditableTitleProps = {
   cook: Cook;
@@ -301,6 +427,9 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
 }
 
 const styles = StyleSheet.create({
+  tags: {
+    marginBottom: space.md,
+  },
   timeline: {
     gap: space.xs,
     paddingBottom: space.lg,

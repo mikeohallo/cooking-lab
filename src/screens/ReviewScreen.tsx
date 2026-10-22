@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
+import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
@@ -15,6 +16,7 @@ import {
   AI_NOT_CONNECTED_BODY,
   AI_NOT_CONNECTED_TITLE,
   BACK_TO_HOME,
+  TAGS_LABEL,
   COOK_NOT_FOUND_BODY,
   COOK_NOT_FOUND_TITLE,
   FINISH_REVIEW,
@@ -35,6 +37,7 @@ import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
 import { TimelineEvent } from './cook/TimelineEvent';
+import { TagEditor } from './tags/TagEditor';
 
 type ReviewScreenProps = {
   cookId: CookId;
@@ -63,6 +66,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const [takeaway, setTakeaway] = useState('');
   const [lessonProblem, setLessonProblem] = useState<string | null>(null);
   const opened = useRef(false);
+  const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
 
   // Record that the review was opened, once per cook, the first time the
   // loaded cook is seen without a `reviewOpenedAt`.
@@ -226,6 +230,17 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         />
       </View>
 
+      {/*
+        Filing the cook is part of sitting down with it, so the same tag
+        control is here as on the cook's own page — the chips, the field, the
+        tags he reaches for most and the whole alphabet. This is the moment he
+        has the words for it: he has just eaten the thing.
+      */}
+      <View style={styles.section}>
+        <AppText variant="sectionTitle">{TAGS_LABEL}</AppText>
+        <TagEditor cookId={cook.id} />
+      </View>
+
       <View style={styles.section}>
         <AppText variant="sectionTitle">{SUGGESTIONS}</AppText>
         <StateNotice title={AI_NOT_CONNECTED_TITLE} body={AI_NOT_CONNECTED_BODY} testID="ai-unavailable" />
@@ -242,7 +257,16 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         ) : (
           <View style={styles.evidence} testID="review-evidence">
             {events.map((event) => (
-              <TimelineEvent key={event.id} event={event} />
+              <TimelineEvent
+                key={event.id}
+                event={event}
+                // Shown, but with no way to open one full screen and therefore
+                // no way to remove one: Review is for looking at the evidence
+                // and saying how it went, not for editing it.
+                photo={
+                  event.kind === 'photo' ? { uri: photoUris[event.id] ?? null } : undefined
+                }
+              />
             ))}
           </View>
         )}
@@ -250,6 +274,9 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     </ScreenContainer>
   );
 }
+
+/** A stable empty array while the cook is still loading. See `CookScreen`. */
+const EMPTY_EVENTS: readonly never[] = [];
 
 const styles = StyleSheet.create({
   section: {

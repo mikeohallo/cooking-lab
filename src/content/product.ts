@@ -32,7 +32,13 @@ export const UNTITLED_COOK = 'Untitled cook';
 export const COOK_TITLE_PLACEHOLDER = 'Name this cook (optional)';
 export const NOTE_PLACEHOLDER = 'What’s happening?';
 export const SEND_NOTE = 'Send';
-export const ADD_TEMPERATURE = 'Temperature';
+export const ADD_OVEN_READING = 'Oven °C';
+export const ADD_INTERNAL_READING = 'Internal °C';
+/** The way out to the free-text form, for a reading taken neither place. */
+export const READING_SOMEWHERE_ELSE = 'Somewhere else?';
+export const OVEN_READING_LABEL = 'Oven';
+/** "Internal", never "Inside": one is the food's temperature, the other a room. */
+export const INTERNAL_READING_LABEL = 'Internal';
 export const TEMPERATURE_PLACEHOLDER = '°C';
 export const TEMPERATURE_WHERE_PLACEHOLDER = 'Where? (optional)';
 export const SAVE_TEMPERATURE = 'Add reading';
@@ -40,9 +46,65 @@ export const CANCEL = 'Cancel';
 export const FINISH_AND_REVIEW = 'Finish & review';
 export const EMPTY_TIMELINE_TITLE = 'Nothing noted yet';
 export const EMPTY_TIMELINE_BODY =
-  'Say what is happening below. One line is plenty. Temperatures get their own card.';
+  'Say what is happening below. One line is plenty. Readings and photos get their own cards.';
 export const EDIT_TITLE = 'Edit title';
 export const SAVE_TITLE = 'Save title';
+
+// --- Photos ---------------------------------------------------------------
+
+export const ADD_PHOTO = 'Add photo';
+export const TAKE_PHOTO = 'Take photo';
+export const CHOOSE_PHOTO = 'Choose from photos';
+export const PHOTO_LABEL = 'Photo';
+export const PHOTO_ALT = 'Photo from this cook';
+export const VIEW_PHOTO = 'View photo';
+export const CLOSE_PHOTO = 'Close';
+export const PHOTO_MISSING = 'This photo is no longer on the phone.';
+export const REMOVE_PHOTO = 'Remove photo';
+export const REMOVE_PHOTO_CONFIRM_TITLE = 'Remove this photo?';
+export const REMOVE_PHOTO_CONFIRM_BODY =
+  'The picture and its file are deleted from this phone. Everything else about this cook stays exactly as it is.';
+export const REMOVE_PHOTO_CONFIRM = 'Remove it';
+export const REMOVE_PHOTO_KEEP = 'Keep it';
+export const PHOTO_CAMERA_DENIED_TITLE = 'Cooking Lab has no camera access';
+export const PHOTO_CAMERA_DENIED_BODY =
+  'Android has not given the camera to this app. You can still choose a picture you have already taken.';
+export const PHOTO_CAMERA_BLOCKED_BODY =
+  'Camera access was turned off for this app. Android Settings → Apps → Cooking Lab → Permissions can turn it back on. You can still choose a picture you have already taken.';
+export const PHOTO_FAILED_TITLE = 'The photo was not added';
+export const PHOTO_FAILED_BODY = 'Nothing was changed in this cook. Try again in a moment.';
+
+// --- Tags -----------------------------------------------------------------
+
+export const TAGS_LABEL = 'Tags';
+export const ADD_TAG_PLACEHOLDER = 'Add a tag…';
+export const ADD_TAG = 'Add tag';
+export const USED_BEFORE = 'Used before:';
+export const SHOW_MY_TAGS = 'Show me my tags';
+export const HIDE_MY_TAGS = 'Hide my tags';
+export const NO_TAGS_YET =
+  'No tags yet. A tag is your own word for a cook — “pork chops”, “brown butter” — and you can add as many as you like.';
+export const REMOVE_TAG = 'Remove';
+export const TAG_FAILED_TITLE = 'That tag was not saved';
+
+// --- Search ---------------------------------------------------------------
+
+export const SEARCH_PLACEHOLDER = 'Search tags or titles';
+/**
+ * The two result groups: everything that matched every word he typed, then
+ * everything that matched part of it.
+ *
+ * "All" and "Some" on their own would be the obvious names, and "All" is
+ * already on this screen — it is the first of the All / Open / Reviewed
+ * filters, sitting a few millimetres above. One word meaning two things in one
+ * eyeful is how a person ends up thinking the search changed their filter.
+ */
+export const SEARCH_GROUP_ALL = 'All your words';
+export const SEARCH_GROUP_SOME = 'Some of your words';
+export const SEARCH_NO_RESULTS_TITLE = 'Nothing matched';
+export const SEARCH_NO_RESULTS_BODY =
+  'No cook has those words in its title or its tags. Try one word, or tap a tag below.';
+export const CLEAR_SEARCH = 'Clear search';
 
 // --- Review ---------------------------------------------------------------
 
@@ -55,6 +117,7 @@ export const SUGGESTIONS = 'Suggestions';
 export const AI_NOT_CONNECTED_TITLE = 'AI suggestions aren’t connected yet';
 export const AI_NOT_CONNECTED_BODY =
   'Your verdict is the record. Suggestions arrive in a later version; nothing is missing from this cook.';
+
 export const TAKEAWAY_LABEL = 'One thing to change next time (optional)';
 export const TAKEAWAY_PLACEHOLDER = 'Pull it earlier. More acid. Keep the tray.';
 export const REVIEW_SAVED_TITLE = 'Reviewed';
@@ -76,7 +139,8 @@ export const FILTER_ALL = 'All';
 export const FILTER_OPEN = 'Open';
 export const FILTER_REVIEWED = 'Reviewed';
 export const EMPTY_HISTORY_TITLE = 'No cooks yet';
-export const EMPTY_HISTORY_BODY = 'Every cook you record will be listed here, newest first.';
+export const EMPTY_HISTORY_BODY =
+  'Every cook you record will be listed here, newest first, and you can search them by title or tag.';
 export const EMPTY_OPEN_TITLE = 'No open cooks';
 export const EMPTY_OPEN_BODY = 'Every cook here has been reviewed. Start a new one from Home.';
 export const EMPTY_REVIEWED_TITLE = 'Nothing reviewed yet';

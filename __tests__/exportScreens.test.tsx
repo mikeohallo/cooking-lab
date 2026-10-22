@@ -9,7 +9,7 @@ import {
   EMPTY_HISTORY_TITLE,
   EMPTY_OPEN_TITLE,
   EMPTY_REVIEWED_TITLE,
-  ADD_TEMPERATURE,
+  READING_SOMEWHERE_ELSE,
   CANCEL,
   EXPORT_COOK,
   EXPORT_COOK_HINT,
@@ -153,7 +153,7 @@ describe('The composer keeps room for the timeline', () => {
     await screen.findByTestId('cook-screen');
     await user.type(screen.getByTestId('note-input'), 'Half-written note');
 
-    await user.press(screen.getByRole('button', { name: ADD_TEMPERATURE }));
+    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
 
     expect(screen.getByTestId('temperature-panel')).toBeOnTheScreen();
     expect(screen.queryByTestId('note-input')).toBeNull();

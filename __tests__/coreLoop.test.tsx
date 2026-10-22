@@ -11,7 +11,7 @@
 import { cleanup, screen, userEvent, waitFor } from '@testing-library/react-native';
 
 import {
-  ADD_TEMPERATURE,
+  ADD_INTERNAL_READING,
   FINISH_AND_REVIEW,
   FINISH_REVIEW,
   NEW_COOK_TITLE,
@@ -66,11 +66,13 @@ describe('the core loop', () => {
     await user.press(screen.getByRole('button', { name: SEND_NOTE }));
     await screen.findByText('Pork chops, dry brined overnight.');
     harness.tick();
-    await user.press(screen.getByRole('button', { name: ADD_TEMPERATURE }));
+    // Two taps for the reading a cook actually takes: the button names what it
+    // is, and the panel asks for the number and nothing else.
+    await user.press(screen.getByRole('button', { name: ADD_INTERNAL_READING }));
     await user.type(screen.getByTestId('temperature-celsius'), '58');
-    await user.type(screen.getByTestId('temperature-where'), 'thickest part');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
     await screen.findByText('58°C');
+    expect(screen.getByText('Internal')).toBeOnTheScreen();
     harness.tick();
     await user.type(screen.getByTestId('note-input'), 'Rested 8 minutes.');
     await user.press(screen.getByRole('button', { name: SEND_NOTE }));
@@ -107,7 +109,8 @@ describe('the core loop', () => {
     expect(screen.getByText('More acid in the cabbage.')).toBeOnTheScreen();
     expect(screen.getByText('Pork chops, dry brined overnight.')).toBeOnTheScreen();
     expect(screen.getByText('58°C')).toBeOnTheScreen();
-    expect(screen.getByText('thickest part')).toBeOnTheScreen();
+    // The kind is named in words on the read-only card too, never by colour.
+    expect(screen.getByText('Internal')).toBeOnTheScreen();
     expect(screen.getByText('Rested 8 minutes.')).toBeOnTheScreen();
     expect(screen.queryByTestId('composer')).toBeNull();
     await cleanup();
@@ -118,7 +121,7 @@ describe('the core loop', () => {
     const events = await reopened.cookEvents.listForCook({ cookId, sort: 'oldest_first' });
     expect(events.map((event) => [event.kind, event.body ?? event.meta])).toEqual([
       ['user_note', 'Pork chops, dry brined overnight.'],
-      ['temp', { celsius: 58, where: 'thickest part' }],
+      ['temp', { celsius: 58, readingKind: 'internal' }],
       ['user_note', 'Rested 8 minutes.'],
     ]);
     const cook = await reopened.cooks.findById(cookId);

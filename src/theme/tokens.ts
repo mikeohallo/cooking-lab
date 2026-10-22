@@ -37,6 +37,20 @@ export const colors = {
   onTestBadge: '#FFFFFF',
   testSurface: '#FDECEA',
   testBorder: '#E8A9A3',
+  /**
+   * The oven card's muted grey, and the ink on it.
+   *
+   * Added for the reading kinds, inside the baseline palette rather than beside
+   * it: a warm grey drawn from the existing stone and sage neighbours, not a
+   * new hue. The oven is the quiet reading of the two — it is the setting, not
+   * the thing being cooked — so it is grey, and amber stays for the reading
+   * that matters most, the internal one.
+   */
+  readingOvenSurface: '#ECEDE9',
+  readingOvenBorder: '#DBDFD5',
+  readingOvenText: '#4A5247',
+  /** The border for the internal card, whose surface is the palette's amber. */
+  readingInternalBorder: '#EBD5B2',
 } as const;
 
 /**
@@ -58,6 +72,37 @@ export const statusTreatments = {
 } as const;
 
 export type StatusTreatment = keyof typeof statusTreatments;
+
+/**
+ * How a temperature reading is painted, by what it was taken of.
+ *
+ * Both treatments come with a word — "Oven", "Internal" — printed on the card
+ * by `TimelineEvent`, because the baseline forbids colour as the only signal
+ * and two readings that differ only in hue would be exactly that. A reading
+ * that does not say what it was taken of is not in here: it keeps the card it
+ * has always had.
+ *
+ * The text colour is `ink` and not `value`, which is the name it wants. A
+ * member called `value` read inside a JSX inline style is what a Reanimated
+ * shared value looks like, so Reanimated's Babel plugin rewrites every such
+ * style to `console.warn(require('react-native-reanimated')…)` — which pulls a
+ * whole animation library into a screen that does not animate, and warns about
+ * a mistake nobody made. Avoiding the name is cheaper than explaining it twice.
+ */
+export const readingTreatments = {
+  oven: {
+    surface: colors.readingOvenSurface,
+    border: colors.readingOvenBorder,
+    ink: colors.readingOvenText,
+  },
+  internal: {
+    surface: colors.accentSoft,
+    border: colors.readingInternalBorder,
+    ink: colors.accentPressed,
+  },
+} as const;
+
+export type ReadingTreatment = keyof typeof readingTreatments;
 
 /** The baseline spacing scale, by name rather than by number. */
 export const space = {
