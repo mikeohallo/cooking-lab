@@ -39,6 +39,39 @@ that isn't worth its risk for code that never sees outside input.
 that depend on the ones above (Expo, Jest, Metro, React Native's tooling), not
 separate advisories.
 
+## Added in slice 3, 22 October 2026
+
+Two packages for photographs, both first-party Expo modules at their SDK 57
+versions. Neither adds an advisory: `npm audit` reports the same five packages
+as before (`braces`, `decode-uri-component`, `node-forge`, `sprintf-js`,
+`uuid`), with nothing critical.
+
+| Package | Version | Why | In the APK | What it brought with it |
+|---|---|---|---|---|
+| `expo-image-picker` | `~57.0.20` | The camera, and Android's system photo picker | **Yes** | One dependency, `expo-image-loader ~57.0.1`. Four Android permissions, three of them unwanted — see below. |
+| `expo-image-manipulator` | `~57.0.21` | Re-encoding a photograph as a capped JPEG | **Yes** | The same `expo-image-loader`. Declares no permissions. |
+
+**The permissions were the thing to check.** `expo-image-picker`'s own manifest
+declares `CAMERA` (wanted) plus `READ_EXTERNAL_STORAGE` and
+`WRITE_EXTERNAL_STORAGE` under `maxSdkVersion="32"`, and its config plugin adds
+`RECORD_AUDIO` by default because the module can also record video. None of
+those three is needed: a picture is chosen through Android's own photo picker,
+which runs outside the app, and Cooking Lab records no sound. All three are
+refused in `app.config.ts` — `RECORD_AUDIO` twice over, by
+`microphonePermission: false` on the plugin and by `blockedPermissions` — and
+`READ_MEDIA_IMAGES`/`READ_MEDIA_VIDEO` are blocked ahead of a future version
+asking for them. The merged manifest is `INTERNET` and `CAMERA` and nothing
+else, which `__tests__/androidPermissions.test.ts` now works out from the
+installed modules and holds in place.
+
+**Metadata is not left to the module.** `expo-image-manipulator` re-encodes
+from a decoded bitmap, which normally drops EXIF as a side effect — but that is
+incidental behaviour, not a contract, and nothing in the app would notice the
+day it changed. The bytes are therefore checked and cleaned by the app's own
+code before anything is stored (`src/data/photos/jpeg.ts`), and
+`__tests__/photoMetadata.test.ts` proves it against a JPEG carrying a GPS
+block.
+
 ## In CI
 
 CI runs `npm audit --audit-level=critical` after installing. A new critical

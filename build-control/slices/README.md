@@ -49,7 +49,7 @@ a report or screenshot is committed, whoever commits it checks:
 | 1 | Core loop, text only: Home, one-tap New Cook, timeline (notes, temperatures, title), Review with verdict and optional takeaway, History | **Built** — `SLICE_1_CORE_LOOP.md` |
 | 2a | Portable export: *Export everything* (the validated backup file) and *Export this cook* (plain text), via the share sheet | **Built** — `SLICE_2_EXPORT.md` |
 | 2b | Production signing: Cooking Lab's own release key, the production build signed with it and installed on the Fold beside the TEST app | **Done** 16 Oct — `reports/2026-10-16-slice2b-production-signing.md`; first live cooks are next |
-| 3 | Photos in the timeline | Planned |
+| 3 | Photos in the timeline — and, with them, oven/internal readings, tags and tag search, which turned out to be the same question: what else is worth writing down while the pan is on, and how is it found again | **Built** — `SLICE_3_PHOTOS_READINGS_TAGS.md` |
 | 4 | Real AI: extraction and proposals via the Anthropic API from the device, API key in the secure store | Planned |
 | 5 | Cook Again briefings | Planned |
 

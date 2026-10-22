@@ -10,7 +10,7 @@ A private, local-first cooking notebook for a single Android device.
 
 Cooking Lab is a personal product built to answer one question: does a kitchen
 get better at a dish when it keeps an honest record of what actually happened?
-The app records a cook as it happens — notes, temperatures, later photos —
+The app records a cook as it happens — notes, temperatures, photographs —
 asks one question afterwards, and stores the answer in the cook's own words.
 Evidence is kept strictly separate from interpretation: an assistant may
 *propose* findings and lessons, but nothing enters history until the cook
@@ -34,14 +34,25 @@ database on the phone. There is no account, no cloud backend, no cloud storage
 and no analytics, and none is planned. The only remote call the app is planned
 to make is to an AI model, in a later slice.
 
-**Current state (slices 1 and 2a):** a cook can be started in one tap,
-captured as notes and Celsius readings in a timeline, reviewed with a verdict
-in the cook's own words, and found again in History. Cooks are stored on the
-phone, and you choose what to export or share: every cook as one portable
-backup file, or one cook as plain text, through the system share sheet. An
-exported file is ordinary, readable text — it is not encrypted, so it is as
-private as wherever you put it. AI suggestions, photos and restoring from a
-backup are planned and not built yet (see
+**Current state (slices 1 to 3):** a cook can be started in one tap and
+captured as it happens — notes, photographs, and Celsius readings that say
+whether they were taken of the oven or of the food — then reviewed with a
+verdict in the cook's own words and found again in History. Cooks can be given
+tags in the kitchen's own words and found by them: History searches titles and
+tags together, and says which cooks matched everything you typed and which
+matched part of it.
+
+A photograph is re-encoded into the app's own private storage with its
+metadata removed, so a picture of dinner does not carry the location of the
+kitchen it was cooked in. It is a copy: deleting the original from the phone's
+Gallery leaves the cook intact, and nothing is ever written back to the
+Gallery.
+
+Cooks are stored on the phone, and you choose what to export or share: every
+cook as one portable backup file, or one cook as plain text, through the system
+share sheet. An exported file is ordinary, readable text — it is not
+encrypted, so it is as private as wherever you put it. AI suggestions, Cook
+Again briefings and restoring from a backup are planned and not built yet (see
 [`build-control/slices/`](./build-control/slices/README.md)).
 
 ## Quickstart
@@ -88,6 +99,28 @@ side. An unrecognised `APP_VARIANT` is a hard error, never a silent fall back to
 production. Only the TEST variant renders the TEST badge and notice; production
 cannot reach that behaviour.
 
+## Android permissions
+
+The installed app asks for two, and the list is held in place by a test
+(`__tests__/androidPermissions.test.ts`) that works out the merged manifest
+from every installed native module and fails if anything else appears.
+
+| Permission | Why |
+|---|---|
+| `CAMERA` | Taking a photograph of a cook. Android asks once, the first time. |
+| `INTERNET` | Required by the Metro development client; the app itself makes no network calls. |
+
+Everything else any dependency declares is stripped in `app.config.ts`.
+Notably there is **no storage or media permission**: a picture from the phone
+is chosen through Android's own photo picker, which runs outside the app and
+hands over the one file the person chose, so the app never has access to the
+photo library at all.
+
+A photograph is re-encoded into app-private storage as a JPEG with its long
+edge capped and every metadata segment removed — EXIF, GPS, XMP and comments —
+by the app's own code rather than by trusting the platform to do it
+(`src/data/photos/jpeg.ts`). Nothing is written back to the Gallery.
+
 ## Commands
 
 ```bash
@@ -107,7 +140,7 @@ APP_VARIANT=test node node_modules/expo/bin/cli config --type public
 
 Builds on Mike's PC start from a named commit and a clean tree — see
 "Builds" in [`CLAUDE.md`](./CLAUDE.md). The APK's version name carries that
-commit, e.g. `0.1.0 (e24bfd6)`.
+commit, e.g. `0.2.0 (e24bfd6)`.
 
 ```bash
 APP_VARIANT=test npx expo prebuild --platform android --clean
