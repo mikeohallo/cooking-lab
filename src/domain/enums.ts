@@ -65,6 +65,31 @@ export type TemperatureUnit = typeof TEMPERATURE_UNIT;
 export const TEMPERATURE_META_KEY = 'celsius' as const;
 
 /**
+ * What a temperature reading was taken of.
+ *
+ * `oven` is the air in the oven, `internal` is the food itself, and `none` is
+ * a reading that says neither — which includes every reading taken before this
+ * vocabulary existed, and every reading taken somewhere else and described in
+ * the cook's own words.
+ *
+ * Only `oven` and `internal` are ever written down. `none` is the *absence* of
+ * `meta.readingKind`, not a value stored in it: a reading already in the
+ * notebook must stay byte for byte what it was, and a reading taken somewhere
+ * else is the same reading as one of those, so the two cannot be allowed to
+ * differ in the file. `readingKindFromEvent` in `src/domain/invariants.ts` is
+ * what turns an absence into `none`.
+ */
+export const READING_KINDS = ['oven', 'internal', 'none'] as const;
+export type ReadingKind = (typeof READING_KINDS)[number];
+
+/** The reading kinds that are written to `meta`. `none` is never one of them. */
+export const STORED_READING_KINDS = ['oven', 'internal'] as const;
+export type StoredReadingKind = (typeof STORED_READING_KINDS)[number];
+
+/** The key a `temp` event carries its kind under, in `meta`, when it has one. */
+export const READING_KIND_META_KEY = 'readingKind' as const;
+
+/**
  * What kind of claim a finding is.
  *
  * The distinction is the point of the product: `observed` is something the cook
@@ -93,8 +118,19 @@ export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 export const CREATED_BY_VALUES = ['ai', 'user'] as const;
 export type CreatedBy = (typeof CREATED_BY_VALUES)[number];
 
-/** Tag namespaces. `(name, kind)` is unique, so "butter" the ingredient and
- *  "butter" the technique are two different tags. */
+/**
+ * Tag namespaces, for a tag that has one.
+ *
+ * A tag does not have to have one, and from schema version 2 most do not: the
+ * kitchen's own word for something is the tag, and asking which of four boxes
+ * "brown butter" belongs in is a question the cook never asked. A kind is
+ * therefore optional (`Tag.kind` is nullable), these four remain valid for
+ * every tag that already carries one, and nothing new is given one.
+ *
+ * `(name, kind)` is unique for a tag with a kind, so "butter" the ingredient
+ * and "butter" the technique stay two different tags; a tag with no kind is
+ * unique by name alone, ignoring case.
+ */
 export const TAG_KINDS = ['dish', 'ingredient', 'technique', 'equipment'] as const;
 export type TagKind = (typeof TAG_KINDS)[number];
 
@@ -125,5 +161,11 @@ export const isProposalStatus = (v: unknown): v is ProposalStatus =>
   isOneOf(PROPOSAL_STATUSES, v);
 export const isCreatedBy = (v: unknown): v is CreatedBy => isOneOf(CREATED_BY_VALUES, v);
 export const isTagKind = (v: unknown): v is TagKind => isOneOf(TAG_KINDS, v);
+/** A kind, or no kind at all. The second is the ordinary case from version 2 on. */
+export const isTagKindOrNone = (v: unknown): v is TagKind | null =>
+  v === null || isTagKind(v);
+export const isReadingKind = (v: unknown): v is ReadingKind => isOneOf(READING_KINDS, v);
+export const isStoredReadingKind = (v: unknown): v is StoredReadingKind =>
+  isOneOf(STORED_READING_KINDS, v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>
   isOneOf(IMPORT_BATCH_STATUSES, v);

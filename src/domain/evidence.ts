@@ -28,6 +28,12 @@
  *   8. When the cook edits a finding, the words become theirs: `createdBy`
  *      becomes `user` and `updatedAt` is stamped.
  *   9. A lesson has no author column, and editing one does not invent it.
+ *  10. The cook may take back a photograph, and nothing else. A photograph is
+ *      the one timeline entry that can be added by accident — a thumb on the
+ *      shutter, the wrong picture out of the roll — and it is the one whose
+ *      removal costs the record nothing, because it carries no words. Every
+ *      other entry stays: a note the cook wishes they had not written is still
+ *      what they observed. The assistant may remove nothing at all, ever.
  *
  * `provenance` never appears in any of this. It records whether a row came from
  * live cooking or an import, and it is not a way of saying who wrote something.
@@ -84,7 +90,11 @@ export type EvidenceDenialCode =
   /** Rule 6: the assistant tried to change a rejected record. */
   | 'ai_cannot_update_rejected_record'
   /** Rule 6: the assistant tried to change something the cook wrote. */
-  | 'ai_cannot_update_user_authored_record';
+  | 'ai_cannot_update_user_authored_record'
+  /** Rule 10: the assistant tried to remove a timeline entry. */
+  | 'ai_cannot_remove_raw_evidence'
+  /** Rule 10: something other than a photograph was offered for removal. */
+  | 'only_a_photo_may_be_removed';
 
 export type EvidenceDenial = {
   readonly allowed: false;
@@ -287,6 +297,44 @@ export function updateCookEvent(
     body: patch.body === undefined ? event.body : patch.body,
     meta: patch.meta === undefined ? event.meta : patch.meta,
   });
+}
+
+/**
+ * Rule 10 — take back a photograph the cook did not mean to add.
+ *
+ * Narrow on purpose, in both directions. The assistant is refused outright: it
+ * cannot remove a timeline entry under any circumstances, and the code says so
+ * rather than relying on no caller ever passing `'ai'`. And the cook may only
+ * remove a `photo`: a note, a reading, a plan or the assistant's own message is
+ * a record of something that was observed or said, and the fact that the cook
+ * would rather it were not there does not make it untrue. A photograph is
+ * different only because it carries no words of anybody's — it is a picture
+ * taken by mistake, and the file behind it is the person's to withdraw.
+ *
+ * The event is handed back rather than a bare `true`, because the caller has a
+ * file to delete afterwards and the path to it is on the record it removed.
+ *
+ * Nothing about this weakens the protections above: removal is a new, gated
+ * operation with two refusals of its own, where before there was an ungated
+ * `delete` on the repository and no rule in front of it at all.
+ */
+export function removeCookEvent(
+  event: CookEvent,
+  actor: Actor,
+): EvidenceDecision<CookEvent> {
+  if (actor !== 'user') {
+    return deny(
+      'ai_cannot_remove_raw_evidence',
+      'the assistant cannot remove anything from the timeline',
+    );
+  }
+  if (event.kind !== 'photo') {
+    return deny(
+      'only_a_photo_may_be_removed',
+      'only a photograph can be removed from a cook; everything else written down stays',
+    );
+  }
+  return allow(event);
 }
 
 // ---------------------------------------------------------------------------

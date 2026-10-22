@@ -62,6 +62,7 @@ import {
   decideLesson as decideLessonRule,
   openCookReview,
   recordBriefingUsefulness,
+  removeCookEvent,
   saveCookReview,
   updateCook as updateCookRule,
   updateCookEvent,
@@ -309,6 +310,25 @@ export function createCookCaptureService(
         return decision;
       }
       return { allowed: true, record: await events.save(decision.record) };
+    },
+
+    /**
+     * Take back a photograph.
+     *
+     * The rule decides first, as everywhere else here, and it refuses the
+     * assistant outright and refuses every kind but `photo`. The row is deleted
+     * only once it has said yes, and the event is handed back so the caller can
+     * then delete the file — which this service deliberately cannot do, because
+     * it has no file store and should not have one.
+     */
+    async removeEvent(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>> {
+      const current = await loadOrThrow(() => events.findById(id), 'cook event', id);
+      const decision = removeCookEvent(current, actor);
+      if (!decision.allowed) {
+        return decision;
+      }
+      await events.delete(decision.record.id);
+      return decision;
     },
   };
 }

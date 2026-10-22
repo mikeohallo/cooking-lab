@@ -158,9 +158,21 @@ export type Lesson = {
 
 export type Tag = {
   readonly id: TagId;
-  /** Stored normalised (see `normaliseTagName`); `(name, kind)` is unique. */
+  /** Stored normalised (see `normaliseTagName`). */
   readonly name: string;
-  readonly kind: TagKind;
+  /**
+   * The namespace this tag belongs to, if it belongs to one.
+   *
+   * Nullable from schema version 2, and null for every tag the kitchen names
+   * from then on. A tag is the cook's own word for something; which of four
+   * boxes it belongs in is a question nobody asked, and a required answer to
+   * it is a question the app would have to put in the way of writing one down.
+   * The four kinds remain valid so that a tag that already has one keeps it.
+   *
+   * Uniqueness follows the same split: `(name, kind)` for a tag with a kind,
+   * and `name` alone — ignoring case — for a tag without one.
+   */
+  readonly kind: TagKind | null;
 };
 
 export type CookTag = {

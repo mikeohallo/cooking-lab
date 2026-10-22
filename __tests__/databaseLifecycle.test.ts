@@ -1,4 +1,4 @@
-import { LATEST_SCHEMA_VERSION, SCHEMA_TABLES } from '../src/data/schema/migrations';
+import { LATEST_SCHEMA_VERSION, MIGRATIONS, SCHEMA_TABLES } from '../src/data/schema/migrations';
 import type { DatabaseFilePresence } from '../src/data/sqlite/lifecycle';
 import { DATABASE_KEY_ALIAS, createDatabaseKeyProvider } from '../src/data/sqlite/keyProvider';
 import { createDatabaseAdapterFactory } from '../src/data/sqlite/connection';
@@ -260,7 +260,9 @@ describe('migrations run in order, once, and stop at a schema they do not know',
 
     expect(result.versionBefore).toBe(0);
     expect(result.versionAfter).toBe(LATEST_SCHEMA_VERSION);
-    expect(result.applied).toEqual([1]);
+    // Every version, in order: a fresh database runs the whole history, not
+    // just the newest one.
+    expect(result.applied).toEqual(MIGRATIONS.map((migration) => migration.version));
     const tables = (
       await adapter.select({
         sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",

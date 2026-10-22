@@ -150,9 +150,18 @@ describe('the backup carries the corrected model', () => {
 
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
-      const temp = parsed.envelope.entities.cookEvents.find((event) => event.kind === 'temp');
+      // Named rather than found by kind: there are several readings now, and
+      // "the first temp event" is whatever canonical ordering puts first.
+      const byId = (id: string) =>
+        parsed.envelope.entities.cookEvents.find((event) => event.id === id);
 
-      expect(temp?.meta).toEqual({ celsius: 245 });
+      expect(byId('synthetic-event-oven-temp')?.meta).toEqual({ celsius: 245 });
+      // A reading that says what it was taken of survives as structure too,
+      // including the word, which is a string inside a JSON object.
+      expect(byId('synthetic-event-internal-reading')?.meta).toEqual({
+        celsius: 96,
+        readingKind: 'internal',
+      });
       expect(parsed.envelope.entities.briefings[0]?.content).toEqual(
         envelope.entities.briefings[0]?.content,
       );

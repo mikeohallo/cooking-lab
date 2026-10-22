@@ -10,6 +10,7 @@ import {
   IMPORT_BATCH_STATUSES,
   PROPOSAL_STATUSES,
   PROVENANCES,
+  STORED_READING_KINDS,
   TAG_KINDS,
 } from '../src/domain/enums';
 import { SYNTHETIC_ID_PREFIX, syntheticIds, syntheticSnapshot } from './fixtures/syntheticData';
@@ -148,6 +149,27 @@ describe('the fixture uses the production vocabularies and no others', () => {
     }
   });
 
+  it('uses only real reading kinds, and never writes "none" down', () => {
+    for (const event of snapshot.cookEvents) {
+      if (event.kind !== 'temp' || event.meta === null || typeof event.meta !== 'object') {
+        continue;
+      }
+      const kind = (event.meta as Record<string, unknown>).readingKind;
+      if (kind !== undefined) {
+        expect(STORED_READING_KINDS).toContain(kind);
+      }
+    }
+  });
+
+  it('holds a tag with no kind, and one with each of the four', () => {
+    // The fixture has to cover what the schema now allows, or the backup round
+    // trip proves nothing about the thing version 2 changed.
+    expect(snapshot.tags.filter((tag) => tag.kind === null).length).toBeGreaterThan(0);
+    for (const kind of TAG_KINDS) {
+      expect(snapshot.tags.some((tag) => tag.kind === kind)).toBe(true);
+    }
+  });
+
   it('uses only real finding classes, confidences, statuses and authors', () => {
     for (const finding of snapshot.findings) {
       expect(FINDING_CLASSES).toContain(finding.class);
@@ -162,7 +184,11 @@ describe('the fixture uses the production vocabularies and no others', () => {
 
   it('uses only real tag kinds and import statuses', () => {
     for (const tag of snapshot.tags) {
-      expect(TAG_KINDS).toContain(tag.kind);
+      // A tag may have no kind at all from schema version 2 on, and most do
+      // not. One that has a kind must still have one of the four.
+      if (tag.kind !== null) {
+        expect(TAG_KINDS).toContain(tag.kind);
+      }
     }
     for (const batch of snapshot.importBatches) {
       expect(IMPORT_BATCH_STATUSES).toContain(batch.status);

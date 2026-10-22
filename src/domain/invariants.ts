@@ -33,7 +33,9 @@ import type {
   SchemaMeta,
   Tag,
 } from './entities';
+import type { ReadingKind } from './enums';
 import {
+  READING_KIND_META_KEY,
   TEMPERATURE_META_KEY,
   isConfidenceLevel,
   isCookEventKind,
@@ -43,6 +45,7 @@ import {
   isImportBatchStatus,
   isProposalStatus,
   isProvenance,
+  isStoredReadingKind,
   isTagKind,
 } from './enums';
 
@@ -50,8 +53,18 @@ import {
 export const MAX_TITLE_LENGTH = 200;
 /** Longest permitted free-text field. */
 export const MAX_TEXT_LENGTH = 8000;
-/** Longest permitted tag name. */
+/**
+ * Longest permitted tag name on a stored record.
+ *
+ * Deliberately longer than `MAX_TAG_ENTRY_LENGTH`. This is what the store will
+ * accept, including a name written by an earlier build or restored from a
+ * backup; the shorter limit is what this build lets the cook type. Lowering
+ * this one instead would make a name that is already in the notebook invalid,
+ * which is not a validation rule, it is data loss.
+ */
 export const MAX_TAG_NAME_LENGTH = 60;
+/** Longest tag name this build lets the cook type. */
+export const MAX_TAG_ENTRY_LENGTH = 40;
 /** Longest permitted file name on an import batch. */
 export const MAX_FILENAME_LENGTH = 255;
 
@@ -130,11 +143,41 @@ export function isJsonValue(value: unknown, seen: ReadonlySet<object> = new Set(
 }
 
 /**
- * Tag names are stored normalised so `(name, kind)` uniqueness means what a
- * cook would expect: " Brown  Butter " and "brown butter" are one tag.
+ * Tag names are stored normalised so uniqueness means what a cook would
+ * expect: " Brown  Butter " and "brown butter" are one tag.
+ *
+ * Trimmed, inner runs of whitespace collapsed to one space, lower-cased. Inner
+ * spaces are kept rather than removed or replaced: "brown butter" is two words
+ * in the kitchen and stays two words here.
  */
 export function normaliseTagName(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export type TagNameResult =
+  | { readonly ok: true; readonly name: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * What the cook typed, as a tag name — or why it is not one.
+ *
+ * The one place the entry rule lives, so the field, the suggestions and the
+ * writes cannot disagree about what "brown butter" normalises to. The length
+ * is measured *after* normalising, because a name with trailing spaces is not
+ * a longer name.
+ */
+export function parseTagName(raw: string): TagNameResult {
+  const name = normaliseTagName(raw);
+  if (name === '') {
+    return { ok: false, message: 'Type a word or two first.' };
+  }
+  if (name.length > MAX_TAG_ENTRY_LENGTH) {
+    return {
+      ok: false,
+      message: `Keep a tag under ${MAX_TAG_ENTRY_LENGTH} characters.`,
+    };
+  }
+  return { ok: true, name };
 }
 
 /**
@@ -151,6 +194,24 @@ export function celsiusFromEvent(event: CookEvent): number | null {
   }
   const reading = (meta as Record<string, unknown>)[TEMPERATURE_META_KEY];
   return typeof reading === 'number' && Number.isFinite(reading) ? reading : null;
+}
+
+/**
+ * What a `temp` event says the reading was taken of.
+ *
+ * `none` when `meta.readingKind` is absent, and `none` when it holds anything
+ * this build does not recognise. Both are the same fact from the kitchen's
+ * point of view — the reading does not say — and neither is a reason to hide
+ * the number or to guess on the cook's behalf. Every reading taken before the
+ * kinds existed therefore reads as `none` without anything being rewritten.
+ */
+export function readingKindFromEvent(event: CookEvent): ReadingKind {
+  const meta = event.meta;
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return 'none';
+  }
+  const kind = (meta as Record<string, unknown>)[READING_KIND_META_KEY];
+  return isStoredReadingKind(kind) ? kind : 'none';
 }
 
 // ---------------------------------------------------------------------------
@@ -347,6 +408,25 @@ export function validateCookEvent(event: CookEvent): readonly ValidationIssue[] 
     );
   }
 
+  // A reading either says what it was taken of, in one of the words this build
+  // knows, or says nothing. A third thing in that key is a corrupted row, and
+  // it is reported rather than quietly read as "it doesn't say".
+  if (event.kind === 'temp') {
+    const meta = event.meta;
+    if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+      const kind = (meta as Record<string, unknown>)[READING_KIND_META_KEY];
+      if (kind !== undefined && !isStoredReadingKind(kind)) {
+        issues.push(
+          issue(
+            'meta',
+            'invalid_enum',
+            `meta.${READING_KIND_META_KEY} must be oven or internal, or be absent`,
+          ),
+        );
+      }
+    }
+  }
+
   // Photo references live on photo events and nowhere else, so a photo can
   // never be orphaned from the moment it was taken.
   if (event.kind === 'photo' && event.photoPath === null) {
@@ -417,7 +497,9 @@ export function validateTag(tag: Tag): readonly ValidationIssue[] {
 
   checkId('id', tag.id, issues);
   checkRequiredText('name', tag.name, MAX_TAG_NAME_LENGTH, issues);
-  checkEnum('kind', tag.kind, isTagKind, issues);
+  // A tag may have no kind at all. One that has a kind must have one of the
+  // four, so a tag written by an earlier build is still valid here.
+  checkOptionalEnum('kind', tag.kind, isTagKind, issues);
 
   if (typeof tag.name === 'string' && tag.name !== normaliseTagName(tag.name)) {
     issues.push(

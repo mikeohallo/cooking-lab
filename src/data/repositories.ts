@@ -176,23 +176,59 @@ export type TagRepository = {
   /**
    * Find the tag with this normalised name and kind, or create it.
    *
-   * One method rather than `find` then `create` because `(name, kind)` is
-   * unique in the database and the check-then-insert version is a race that
-   * would surface to a cook as a failed save.
+   * One method rather than `find` then `create` because the name is unique in
+   * the database and the check-then-insert version is a race that would
+   * surface to a cook as a failed save. `null` is the ordinary kind from
+   * schema version 2 on: a tag is the kitchen's own word for something.
    */
-  findOrCreate(name: string, kind: TagKind): Promise<Tag>;
+  findOrCreate(name: string, kind: TagKind | null): Promise<Tag>;
   findById(id: TagId): Promise<Tag | null>;
-  findByNameAndKind(name: string, kind: TagKind): Promise<Tag | null>;
+  findByNameAndKind(name: string, kind: TagKind | null): Promise<Tag | null>;
   list(kind?: TagKind): Promise<readonly Tag[]>;
+  /**
+   * Every tag, alphabetically, whatever kind it has or has not.
+   *
+   * Separate from `list` because `list()` orders by kind first, which puts the
+   * tags with no kind in a block of their own — correct for a namespaced
+   * listing and wrong for "show me my tags", which is one alphabet.
+   */
+  listByName(): Promise<readonly Tag[]>;
+  /** Tags whose name begins with, or contains, what has been typed so far. */
+  suggest(fragment: string, limit: number): Promise<readonly Tag[]>;
   rename(id: TagId, name: string): Promise<Tag>;
   delete(id: TagId): Promise<void>;
+};
+
+/** One cook and the tags on it, for a screen that needs several cooks' tags. */
+export type CookTagging = {
+  readonly cookId: CookId;
+  readonly tags: readonly Tag[];
 };
 
 export type CookTagRepository = {
   link(link: CookTag): Promise<CookTag>;
   unlink(cookId: CookId, tagId: TagId): Promise<void>;
   listForCook(cookId: CookId): Promise<readonly Tag[]>;
+  /**
+   * The tags on each of these cooks, in one read.
+   *
+   * For History's search, which needs every listed cook's tags at once. Cooks
+   * with no tags are simply absent rather than present and empty: the caller
+   * is matching against tags, and a cook with none has nothing to match.
+   */
+  listForCooks(cookIds: readonly CookId[]): Promise<readonly CookTagging[]>;
   listCookIdsForTag(tagId: TagId): Promise<readonly CookId[]>;
+  /**
+   * Every tag that is on at least one cook, alphabetically.
+   *
+   * What the tag lists on screen are built from. A tag that is on no cook is
+   * not shown anywhere: it is either one the cook has just taken off its last
+   * cook, or one restored from a backup of a cook that is gone, and offering
+   * it back would be the app suggesting its own leftovers.
+   */
+  listUsedTags(): Promise<readonly Tag[]>;
+  /** The tags on the most cooks, most-used first, then alphabetically. */
+  listMostUsedTags(limit: number): Promise<readonly Tag[]>;
 };
 
 export type BriefingQuery = {
@@ -314,6 +350,14 @@ export type CookCaptureService = {
     patch: CookEventPatch,
     actor: Actor,
   ): Promise<EvidenceDecision<CookEvent>>;
+  /**
+   * Take back a photograph. Refused for every other kind, and for the
+   * assistant; see `removeCookEvent` in `src/domain/evidence.ts`.
+   *
+   * Returns the event that was removed, so the caller still has the logical
+   * path of the file it now has to delete.
+   */
+  removeEvent(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>>;
 };
 
 /** Preparing a briefing for a new cook, and hearing whether it helped. */

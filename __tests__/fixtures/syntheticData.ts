@@ -51,6 +51,8 @@ const COOK_NEXT = 'synthetic-cook-next-02';
 const EVENT_PLAN = 'synthetic-event-plan';
 const EVENT_NOTE = 'synthetic-event-note';
 const EVENT_OVEN_TEMP = 'synthetic-event-oven-temp';
+const EVENT_OVEN_READING = 'synthetic-event-oven-reading';
+const EVENT_INTERNAL_READING = 'synthetic-event-internal-reading';
 const EVENT_ASSISTANT = 'synthetic-event-assistant-msg';
 const EVENT_CRUMB_PHOTO = 'synthetic-event-crumb-photo';
 
@@ -68,6 +70,10 @@ const TAG_SOURDOUGH = 'synthetic-tag-sourdough';
 const TAG_FLOUR = 'synthetic-tag-flour';
 const TAG_HIGH_HYDRATION = 'synthetic-tag-high-hydration';
 const TAG_DUTCH_OVEN = 'synthetic-tag-dutch-oven';
+// From schema version 2 on, a tag does not have to have a kind, and the ones
+// the kitchen names from now on do not.
+const TAG_UNTYPED_CRUST = 'synthetic-tag-dark-crust';
+const TAG_UNTYPED_PHRASE = 'synthetic-tag-brown-butter';
 
 const BRIEFING_FOR_BAKE = 'synthetic-briefing-for-bake';
 const BRIEFING_FOR_NEXT = 'synthetic-briefing-for-next';
@@ -153,6 +159,10 @@ const SYNTHETIC_COOK_EVENTS: readonly CookEvent[] = [
     photoPath: null,
   },
   // Degrees Celsius, in `meta`. There is no other unit and no unit column.
+  //
+  // This one says nothing about what it was taken of, which is what every
+  // reading written before schema version 2 looks like — and what a reading
+  // taken somewhere else still looks like. It is here unchanged on purpose.
   {
     id: EVENT_OVEN_TEMP,
     cookId: COOK_BAKE,
@@ -160,6 +170,25 @@ const SYNTHETIC_COOK_EVENTS: readonly CookEvent[] = [
     kind: 'temp',
     body: 'Oven at load',
     meta: { celsius: 245 },
+    photoPath: null,
+  },
+  // The two readings a cook actually takes, each saying which it is.
+  {
+    id: EVENT_OVEN_READING,
+    cookId: COOK_BAKE,
+    ts: '2026-08-14T17:10:00.000Z',
+    kind: 'temp',
+    body: null,
+    meta: { celsius: 230, readingKind: 'oven' },
+    photoPath: null,
+  },
+  {
+    id: EVENT_INTERNAL_READING,
+    cookId: COOK_BAKE,
+    ts: '2026-08-14T18:05:00.000Z',
+    kind: 'temp',
+    body: null,
+    meta: { celsius: 96, readingKind: 'internal' },
     photoPath: null,
   },
   {
@@ -295,10 +324,16 @@ const SYNTHETIC_LESSONS: readonly Lesson[] = [
 ];
 
 const SYNTHETIC_TAGS: readonly Tag[] = [
+  // The four kinds, as a version 1 notebook holds them. They stay valid.
   { id: TAG_SOURDOUGH, name: 'sourdough', kind: 'dish' },
   { id: TAG_FLOUR, name: 'strong white flour', kind: 'ingredient' },
   { id: TAG_HIGH_HYDRATION, name: 'high hydration', kind: 'technique' },
   { id: TAG_DUTCH_OVEN, name: 'dutch oven', kind: 'equipment' },
+  // And two with no kind at all, which is what a tag is from version 2 on. The
+  // second is two words, because a tag is a phrase the kitchen uses and not a
+  // single keyword.
+  { id: TAG_UNTYPED_CRUST, name: 'dark crust', kind: null },
+  { id: TAG_UNTYPED_PHRASE, name: 'brown butter', kind: null },
 ];
 
 const SYNTHETIC_COOK_TAGS: readonly CookTag[] = [
@@ -306,7 +341,10 @@ const SYNTHETIC_COOK_TAGS: readonly CookTag[] = [
   { cookId: COOK_BAKE, tagId: TAG_FLOUR },
   { cookId: COOK_BAKE, tagId: TAG_HIGH_HYDRATION },
   { cookId: COOK_BAKE, tagId: TAG_DUTCH_OVEN },
+  { cookId: COOK_BAKE, tagId: TAG_UNTYPED_CRUST },
+  { cookId: COOK_BAKE, tagId: TAG_UNTYPED_PHRASE },
   { cookId: COOK_IMPORTED, tagId: TAG_SOURDOUGH },
+  { cookId: COOK_IMPORTED, tagId: TAG_UNTYPED_CRUST },
 ];
 
 const SYNTHETIC_BRIEFINGS: readonly Briefing[] = [

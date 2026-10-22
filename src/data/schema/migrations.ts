@@ -17,11 +17,9 @@
  * `__tests__/migrations.test.ts` cross-checks the literal `CHECK` lists against
  * those enums, so drift is caught rather than assumed away.
  *
- * Version 1 has not run on any device. It has been corrected in place to the
- * controlled product model rather than followed by a compatibility migration,
- * because there is no database anywhere for a compatibility migration to be
- * compatible with — and shipping a v2 that repairs a v1 nobody ever had would
- * be inventing history.
+ * Version 1 ran on a device on 16 October 2026 and holds a real kitchen's
+ * history. Its text is frozen from here on; version 2 below is a new entry, as
+ * the rule requires, and the first one.
  *
  * WHAT THE SCHEMA DOES NOT CONTAIN
  * --------------------------------
@@ -206,6 +204,106 @@ const V1_INDEXES: readonly string[] = [
   'CREATE INDEX ix_import_batches_status ON import_batches (status)',
 ];
 
+// ---------------------------------------------------------------------------
+// Version 2 — a tag no longer has to have a kind
+// ---------------------------------------------------------------------------
+//
+// `tags.kind` was `NOT NULL`, and SQLite cannot drop a NOT NULL: the table has
+// to be rebuilt. Rebuilding it is the whole of this migration, and the order of
+// the statements below is the safety property, so it is worth reading once.
+//
+// The obstacle is `cook_tags`, which references `tags(id)` with ON DELETE
+// CASCADE. With foreign keys on — and they are on, every connection, see
+// CONNECTION_PRAGMAS — `DROP TABLE tags` performs an implicit `DELETE FROM
+// tags` first, and that cascade would take every cook's tags with it. The usual
+// answer is `PRAGMA foreign_keys = OFF` around the rebuild, and it is not
+// available here: a migration runs inside one transaction (see
+// `src/data/sqlite/migrationRunner.ts`) and SQLite ignores that pragma inside a
+// transaction. A migration that quietly did nothing is worse than one that
+// cannot run.
+//
+// So the rows are carried across by hand, in a holding table with no foreign
+// keys of its own, and `cook_tags` is emptied deliberately rather than by a
+// cascade nobody asked for. Note also what is *not* used: no `ALTER TABLE
+// ... RENAME`, which rewrites other tables' REFERENCES clauses when foreign
+// keys are on and would point `cook_tags` at a table that is about to not
+// exist. The new `tags` is created under its final name instead.
+//
+// All of it is one transaction. If any statement fails, the whole rebuild rolls
+// back — holding tables, dropped table and all — the database is still at
+// version 1, and the app says the notebook could not be updated rather than
+// opening an empty one.
+
+const V2_HOLD_COOK_TAGS = `
+CREATE TABLE cook_tags_rebuild (
+  cook_id TEXT NOT NULL,
+  tag_id  TEXT NOT NULL
+)`.trim();
+
+const V2_COPY_COOK_TAGS_OUT = `
+INSERT INTO cook_tags_rebuild (cook_id, tag_id)
+SELECT cook_id, tag_id FROM cook_tags`.trim();
+
+const V2_HOLD_TAGS = `
+CREATE TABLE tags_rebuild (
+  id   TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT
+)`.trim();
+
+const V2_COPY_TAGS_OUT = `
+INSERT INTO tags_rebuild (id, name, kind)
+SELECT id, name, kind FROM tags`.trim();
+
+// Emptied on purpose, with the rows already safe next door, so that the drop
+// below has no cascade to perform. Every row comes back at the end.
+const V2_EMPTY_COOK_TAGS = 'DELETE FROM cook_tags';
+
+const V2_DROP_OLD_TAGS = 'DROP TABLE tags';
+
+// The same three columns, and `kind` is now nullable. The four kinds stay in
+// the CHECK list so that every tag written by version 1 is still valid.
+const V2_CREATE_TAGS = `
+CREATE TABLE tags (
+  id   TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT CHECK (kind IS NULL OR kind IN ('dish','ingredient','technique','equipment'))
+)`.trim();
+
+// A tag with a kind keeps version 1's rule, so "butter" the ingredient and
+// "butter" the technique are still two tags.
+const V2_INDEX_TAGS_NAME_KIND = `
+CREATE UNIQUE INDEX ux_tags_name_kind ON tags (name COLLATE NOCASE, kind)`.trim();
+
+// A tag with no kind needs its own index, because NULLs compare distinct in a
+// SQLite unique index: without this, "brown butter" could be stored twice over.
+const V2_INDEX_TAGS_NAME_UNTYPED = `
+CREATE UNIQUE INDEX ux_tags_name_untyped ON tags (name COLLATE NOCASE)
+WHERE kind IS NULL`.trim();
+
+const V2_COPY_TAGS_BACK = `
+INSERT INTO tags (id, name, kind)
+SELECT id, name, kind FROM tags_rebuild`.trim();
+
+// After the tags, so every `tag_id` has a row to point at by the time the
+// foreign key is checked.
+const V2_COPY_COOK_TAGS_BACK = `
+INSERT INTO cook_tags (cook_id, tag_id)
+SELECT cook_id, tag_id FROM cook_tags_rebuild`.trim();
+
+const V2_DROP_HOLD_TAGS = 'DROP TABLE tags_rebuild';
+const V2_DROP_HOLD_COOK_TAGS = 'DROP TABLE cook_tags_rebuild';
+
+const V2_STAMP_SCHEMA_VERSION = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '2')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
+const V2_STAMP_APPLIED_AT = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
 /**
  * The stamp written at the end of every migration.
  *
@@ -229,6 +327,9 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
  * `cook_events`), proposals (`findings`, `lessons`) with the finding-to-event
  * junction, tagging, briefings with their cook junction, import bookkeeping and
  * the schema metadata table.
+ *
+ * Version 2 makes `tags.kind` nullable, keeping every existing kind valid, and
+ * gives a tag with no kind a uniqueness rule of its own.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -250,6 +351,27 @@ export const MIGRATIONS: readonly Migration[] = [
       ...V1_INDEXES,
       V1_STAMP_SCHEMA_VERSION,
       V1_STAMP_APPLIED_AT,
+    ],
+  },
+  {
+    version: 2,
+    name: 'tags_without_a_kind',
+    statements: [
+      V2_HOLD_COOK_TAGS,
+      V2_COPY_COOK_TAGS_OUT,
+      V2_HOLD_TAGS,
+      V2_COPY_TAGS_OUT,
+      V2_EMPTY_COOK_TAGS,
+      V2_DROP_OLD_TAGS,
+      V2_CREATE_TAGS,
+      V2_INDEX_TAGS_NAME_KIND,
+      V2_INDEX_TAGS_NAME_UNTYPED,
+      V2_COPY_TAGS_BACK,
+      V2_COPY_COOK_TAGS_BACK,
+      V2_DROP_HOLD_TAGS,
+      V2_DROP_HOLD_COOK_TAGS,
+      V2_STAMP_SCHEMA_VERSION,
+      V2_STAMP_APPLIED_AT,
     ],
   },
 ];

@@ -242,7 +242,9 @@ export function toTag(row: SqlRow): Tag {
   return {
     id: requiredText(table, row, 'id'),
     name: requiredText(table, row, 'name'),
-    kind: requiredEnum(table, row, 'kind', isTagKind),
+    // Nullable from schema version 2. A kind that is present must still be one
+    // of the four, so a corrupted value is refused rather than read as "none".
+    kind: optionalEnum(table, row, 'kind', isTagKind),
   };
 }
 

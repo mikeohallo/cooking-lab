@@ -1,3 +1,4 @@
+import { LATEST_SCHEMA_VERSION } from '../src/data/schema/migrations';
 import type { Briefing, Cook, CookEvent, ImportBatch } from '../src/domain/entities';
 import type { EvidenceDecision } from '../src/domain/evidence';
 import { isAllowed } from '../src/domain/evidence';
@@ -577,7 +578,7 @@ describe('import batches and schema state', () => {
   it('reports the schema version and the tables that are actually there', async () => {
     const state = await db.data.schemaState.read();
 
-    expect(state.schemaVersion).toBe(1);
+    expect(state.schemaVersion).toBe(LATEST_SCHEMA_VERSION);
     expect(state.appliedAt).not.toBeNull();
     expect(await db.data.schemaState.listTables()).toContain('finding_sources');
   });

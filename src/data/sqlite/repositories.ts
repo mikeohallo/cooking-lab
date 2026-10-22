@@ -57,6 +57,7 @@ import type {
   CookQuery,
   CookRepository,
   CookTagRepository,
+  CookTagging,
   FindingQuery,
   FindingRepository,
   ImportBatchRepository,
@@ -580,10 +581,18 @@ export function createLessonRepository(adapter: DatabaseAdapter): LessonReposito
 export type IdSource = () => string;
 
 export function createTagRepository(adapter: DatabaseAdapter, newId: IdSource): TagRepository {
-  const findByNameAndKind = async (name: string, kind: TagKind): Promise<Tag | null> =>
+  /**
+   * `kind IS ?` rather than `kind = ?`.
+   *
+   * SQLite's `=` never matches NULL, so with `= ?` a tag with no kind could
+   * never be found — and `findOrCreate` would attempt a second insert of it
+   * every time, failing against the unique index. `IS` compares NULLs equal,
+   * which is what "the tag with no kind called brown butter" means.
+   */
+  const findByNameAndKind = async (name: string, kind: TagKind | null): Promise<Tag | null> =>
     selectOne(
       adapter,
-      `SELECT ${TAG_COLUMNS} FROM tags WHERE name = ? COLLATE NOCASE AND kind = ?`,
+      `SELECT ${TAG_COLUMNS} FROM tags WHERE name = ? COLLATE NOCASE AND kind IS ?`,
       [normaliseTagName(name), kind],
       toTag,
     );
@@ -592,13 +601,13 @@ export function createTagRepository(adapter: DatabaseAdapter, newId: IdSource): 
     /**
      * The tag with this name and kind, creating it if there is not one.
      *
-     * One method rather than find-then-create because `(name, kind)` is unique
-     * in the database: the two-step version is a race, and the way it surfaces
+     * One method rather than find-then-create because the name is unique in
+     * the database: the two-step version is a race, and the way it surfaces
      * is a cook's save failing for no reason they can see. The insert is
      * attempted and a collision is resolved by reading the row that won, so
      * whichever call arrives second still gets the tag it asked for.
      */
-    async findOrCreate(name: string, kind: TagKind): Promise<Tag> {
+    async findOrCreate(name: string, kind: TagKind | null): Promise<Tag> {
       const normalised = normaliseTagName(name);
       const existing = await findByNameAndKind(normalised, kind);
       if (existing !== null) {
@@ -632,6 +641,57 @@ export function createTagRepository(adapter: DatabaseAdapter, newId: IdSource): 
       }
       sql += ' ORDER BY kind ASC, name ASC';
       return (await selectRows(adapter, sql, params)).map(toTag);
+    },
+
+    /** One alphabet, whatever kinds are in it. */
+    async listByName(): Promise<readonly Tag[]> {
+      return (
+        await selectRows(
+          adapter,
+          `SELECT ${TAG_COLUMNS} FROM tags ORDER BY name COLLATE NOCASE ASC`,
+          [],
+        )
+      ).map(toTag);
+    },
+
+    /**
+     * Tags matching what has been typed, the ones that begin with it first.
+     *
+     * Two decisions are in this one statement.
+     *
+     * `instr` rather than `LIKE`, so what the cook typed is matched as the
+     * literal text it is: a `%` or an `_` in a half-typed word is a character
+     * and not a wildcard.
+     *
+     * And the match has to start a word, which is why both sides are prefixed
+     * with a space. Typing "b" should offer "brown butter", not "aubergine";
+     * matching anywhere inside a word turns one letter into a list of
+     * everything. It is the same rule History's search uses (see
+     * `wordStartMatches`), so the same letters mean the same thing in both
+     * places. A match inside a multi-word tag still counts — "butter" finds
+     * "brown butter" — because the space before it is a word boundary too.
+     *
+     * The needle is already trimmed and lower-cased by `normaliseTagName`, and
+     * stored names are too, but `lower(name)` is applied anyway so a name
+     * written by an earlier build still matches.
+     */
+    async suggest(fragment: string, limit: number): Promise<readonly Tag[]> {
+      const needle = normaliseTagName(fragment);
+      if (needle === '') {
+        return [];
+      }
+      return (
+        await selectRows(
+          adapter,
+          `SELECT ${TAG_COLUMNS} FROM tags
+           WHERE instr(' ' || lower(name), ' ' || ?) > 0
+           ORDER BY instr(' ' || lower(name), ' ' || ?) ASC,
+                    length(name) ASC,
+                    name COLLATE NOCASE ASC
+           LIMIT ?`,
+          [needle, needle, limit],
+        )
+      ).map(toTag);
     },
 
     /** Renaming normalises, so a rename can never create a second "brown butter". */
@@ -694,6 +754,40 @@ export function createCookTagRepository(adapter: DatabaseAdapter): CookTagReposi
       return rows.map(toTag);
     },
 
+    /**
+     * Several cooks' tags in one read.
+     *
+     * One statement rather than one per cook: History's search needs the tags
+     * of every cook it is about to list, and a query per row is how a list of
+     * thirty cooks becomes thirty-one round trips to SQLite.
+     */
+    async listForCooks(cookIds: readonly CookId[]): Promise<readonly CookTagging[]> {
+      if (cookIds.length === 0) {
+        return [];
+      }
+      const rows = await selectRows(
+        adapter,
+        `SELECT ct.cook_id AS cook_id, t.id AS id, t.name AS name, t.kind AS kind
+         FROM cook_tags ct
+         JOIN tags t ON t.id = ct.tag_id
+         WHERE ct.cook_id IN (${placeholders(cookIds.length)})
+         ORDER BY ct.cook_id ASC, t.name COLLATE NOCASE ASC`,
+        [...cookIds],
+      );
+
+      const byCook = new Map<CookId, Tag[]>();
+      for (const row of rows) {
+        const cookId = toCookTag({ ...row, tag_id: String(row.id) }).cookId;
+        const tags = byCook.get(cookId);
+        if (tags === undefined) {
+          byCook.set(cookId, [toTag(row)]);
+        } else {
+          tags.push(toTag(row));
+        }
+      }
+      return [...byCook.entries()].map(([cookId, tags]) => ({ cookId, tags }));
+    },
+
     async listCookIdsForTag(tagId: TagId): Promise<readonly CookId[]> {
       const rows = await selectRows(
         adapter,
@@ -701,6 +795,39 @@ export function createCookTagRepository(adapter: DatabaseAdapter): CookTagReposi
         [tagId],
       );
       return rows.map((row) => toCookTag({ ...row, tag_id: tagId }).cookId);
+    },
+
+    /** Only the tags that are actually on a cook, and each of them once. */
+    async listUsedTags(): Promise<readonly Tag[]> {
+      const rows = await selectRows(
+        adapter,
+        `SELECT DISTINCT t.id AS id, t.name AS name, t.kind AS kind
+         FROM tags t JOIN cook_tags ct ON ct.tag_id = t.id
+         ORDER BY t.name COLLATE NOCASE ASC`,
+        [],
+      );
+      return rows.map(toTag);
+    },
+
+    /**
+     * The tags the kitchen reaches for most.
+     *
+     * Counted over cooks, so a tag on six cooks comes before one on two. The
+     * tie-break is alphabetical rather than most recent: an order that moved
+     * every time a cook was saved would put the pick he wanted somewhere else
+     * each time he looked.
+     */
+    async listMostUsedTags(limit: number): Promise<readonly Tag[]> {
+      const rows = await selectRows(
+        adapter,
+        `SELECT t.id AS id, t.name AS name, t.kind AS kind, count(ct.cook_id) AS uses
+         FROM tags t JOIN cook_tags ct ON ct.tag_id = t.id
+         GROUP BY t.id, t.name, t.kind
+         ORDER BY uses DESC, t.name COLLATE NOCASE ASC
+         LIMIT ?`,
+        [limit],
+      );
+      return rows.map(toTag);
     },
   };
 }
