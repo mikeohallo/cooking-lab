@@ -8,7 +8,8 @@ import {
   renderEventLine,
   TEST_EXPORT_NOTICE,
 } from '../src/data/export/cookText';
-import type { Cook, CookEvent, Lesson } from '../src/domain/entities';
+import type { Cook, CookEvent, Lesson, Tag } from '../src/domain/entities';
+import { formatTime } from '../src/format/dateTime';
 
 const cook: Cook = {
   id: 'cook-01',
@@ -77,7 +78,7 @@ const lessons: Lesson[] = [
 const EXPORTED_AT = '2026-10-16T06:00:00.000Z';
 
 describe('renderCookAsText', () => {
-  const text = renderCookAsText({ cook, events, lessons, variant: 'production', exportedAt: EXPORTED_AT });
+  const text = renderCookAsText({ tags: [], cook, events, lessons, variant: 'production', exportedAt: EXPORTED_AT });
 
   it('leads with the title and the dates, year included', () => {
     expect(text.startsWith('Cooking Lab — Pork chops, Tuesday\n')).toBe(true);
@@ -112,12 +113,13 @@ describe('renderCookAsText', () => {
   });
 
   it('labels a TEST-build export so it can never pass for real history', () => {
-    const test = renderCookAsText({ cook, events, lessons, variant: 'test', exportedAt: EXPORTED_AT });
+    const test = renderCookAsText({ tags: [], cook, events, lessons, variant: 'test', exportedAt: EXPORTED_AT });
     expect(test.split('\n')[3]).toBe(TEST_EXPORT_NOTICE);
   });
 
   it('says plainly when there is no verdict and nothing in the timeline', () => {
     const bare = renderCookAsText({
+      tags: [],
       cook: { ...cook, title: null, verdict: null, reviewSavedAt: null },
       events: [],
       lessons: [],
@@ -132,6 +134,7 @@ describe('renderCookAsText', () => {
 
   it('marks an open cook as not yet reviewed', () => {
     const open = renderCookAsText({
+      tags: [],
       cook: { ...cook, status: 'open', verdict: null, reviewOpenedAt: null, reviewSavedAt: null },
       events,
       lessons: [],
@@ -175,5 +178,108 @@ describe('cookExportFileName', () => {
     expect(cookExportFileName(cook, '2026-10-16', 'test')).toBe(
       'cooking-lab-TEST-cook-2026-10-16-pork-chops-tuesday.txt',
     );
+  });
+});
+
+/**
+ * Slice 3: the text file carries the cook's tags, says what each reading was
+ * taken of, and lists the photographs it cannot show.
+ */
+describe('one cook as text, with tags, reading kinds and photos', () => {
+  const tags: Tag[] = [
+    { id: 'tag-01', name: 'pork chops', kind: null },
+    { id: 'tag-02', name: 'brown butter', kind: null },
+    { id: 'tag-03', name: 'cast iron', kind: 'equipment' },
+  ];
+
+  const readings: CookEvent[] = [
+    {
+      id: 'ev-oven',
+      cookId: 'cook-01',
+      ts: '2026-10-15T08:40:00.000Z',
+      kind: 'temp',
+      body: null,
+      meta: { celsius: 230, readingKind: 'oven' },
+      photoPath: null,
+    },
+    {
+      id: 'ev-internal',
+      cookId: 'cook-01',
+      ts: '2026-10-15T08:50:00.000Z',
+      kind: 'temp',
+      body: null,
+      meta: { celsius: 62.5, readingKind: 'internal' },
+      photoPath: null,
+    },
+  ];
+
+  // Oldest first, as the repository hands the timeline over.
+  const timeline = [...events, ...readings].sort(
+    (left, right) => Date.parse(left.ts) - Date.parse(right.ts),
+  );
+
+  const text = renderCookAsText({
+    tags,
+    cook,
+    events: timeline,
+    lessons,
+    variant: 'production',
+    exportedAt: EXPORTED_AT,
+  });
+
+  it('lists the tags, in the order the screen shows them', () => {
+    expect(text).toContain('Tags: pork chops, brown butter, cast iron');
+  });
+
+  it('labels an oven reading and an internal one', () => {
+    expect(renderEventLine(readings[0]!)).toContain('230°C — Oven');
+    expect(renderEventLine(readings[1]!)).toContain('62.5°C — Internal');
+  });
+
+  it('says "Internal", never "Inside"', () => {
+    expect(text).toContain('Internal');
+    expect(text).not.toContain('Inside');
+  });
+
+  it('still shows the cook’s own words for a reading taken somewhere else', () => {
+    // No kind to print, so the line reads exactly as it did in slice 2.
+    expect(renderEventLine(events[1]!)).toContain('58°C — thickest part');
+    expect(renderEventLine(events[1]!)).not.toContain('Oven');
+    expect(renderEventLine(events[1]!)).not.toContain('Internal');
+  });
+
+  it('prints both the kind and the where when a reading has both', () => {
+    const both: CookEvent = {
+      ...readings[1]!,
+      meta: { celsius: 62.5, where: 'thickest part', readingKind: 'internal' },
+    };
+
+    expect(renderEventLine(both)).toContain('62.5°C — Internal, thickest part');
+  });
+
+  it('lists the photographs by time, since it cannot show them', () => {
+    // The time is the device's local time, as every other line in the file is,
+    // so it is derived rather than written out.
+    const photo = events.find((event) => event.kind === 'photo')!;
+
+    expect(text).toContain(`Photos\nPhoto, ${formatTime(photo.ts)}\n`);
+  });
+
+  it('leaves out the tags and the photos when there are none', () => {
+    const bare = renderCookAsText({
+      tags: [],
+      cook,
+      events: [events[0]!],
+      lessons: [],
+      variant: 'production',
+      exportedAt: EXPORTED_AT,
+    });
+
+    expect(bare).not.toContain('Tags:');
+    expect(bare).not.toContain('Photos');
+  });
+
+  it('still keeps the verdict exactly as it was typed', () => {
+    expect(text).toContain('  Great crust.\n\nApple and cabbage needed acid.  ');
   });
 });

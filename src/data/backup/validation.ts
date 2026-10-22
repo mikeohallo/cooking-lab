@@ -53,6 +53,7 @@ import type { BackupEnvelope, BackupPhotoManifestEntry } from './contract';
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
+  FIRST_UNTYPED_TAG_FORMAT_VERSION,
   SHA256_HEX_PATTERN,
   SUPPORTED_BACKUP_FORMAT_VERSIONS,
 } from './contract';
@@ -69,6 +70,7 @@ export type BackupIssueCode =
   | 'dangling_reference'
   | 'unsafe_photo_path'
   | 'photo_manifest_mismatch'
+  | 'record_needs_a_later_format'
   | 'malformed_json';
 
 export type BackupIssue = {
@@ -284,8 +286,16 @@ export function validateBackup(candidate: unknown): BackupValidation {
   const tagIds = collectIds(collections.get('tags') ?? []);
   const briefingIds = collectIds(collections.get('briefings') ?? []);
 
-  // --- tag (name, kind) uniqueness, as the schema enforces it -------------
+  // --- tag uniqueness, as the schema enforces it --------------------------
+  //
+  // Two rules, matching the two unique indexes in schema version 2: a tag with
+  // a kind is unique by `(name, kind)`, and a tag with no kind is unique by name
+  // alone. `${tag.kind}` renders null as the string "null", which is a key no
+  // kind can collide with, so one map does both.
   const tagKeys = new Set<string>();
+  const formatVersion =
+    typeof candidate.formatVersion === 'number' ? candidate.formatVersion : 0;
+
   (collections.get('tags') ?? []).forEach((row, index) => {
     const tag = row as Tag;
     const key = `${String(tag.name).toLowerCase()}|${tag.kind}`;
@@ -294,11 +304,26 @@ export function validateBackup(candidate: unknown): BackupValidation {
         problem(
           `entities.tags[${index}]`,
           'duplicate_key',
-          `a tag named ${tag.name} of kind ${tag.kind} already exists`,
+          tag.kind === null
+            ? `a tag named ${tag.name} with no kind already exists`
+            : `a tag named ${tag.name} of kind ${tag.kind} already exists`,
         ),
       );
     }
     tagKeys.add(key);
+
+    // A tag with no kind is a version 2 record. A file that says it is version
+    // 1 and contains one is wrong about itself, and that is reported rather
+    // than read anyway: see `FIRST_UNTYPED_TAG_FORMAT_VERSION`.
+    if (tag.kind === null && formatVersion < FIRST_UNTYPED_TAG_FORMAT_VERSION) {
+      issues.push(
+        problem(
+          `entities.tags[${index}].kind`,
+          'record_needs_a_later_format',
+          `a tag with no kind needs backup format ${FIRST_UNTYPED_TAG_FORMAT_VERSION} or later`,
+        ),
+      );
+    }
   });
 
   // --- relationships -------------------------------------------------------

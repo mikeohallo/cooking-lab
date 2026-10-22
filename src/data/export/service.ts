@@ -133,13 +133,14 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
         if (cook === null) {
           return { ok: false, message: COOK_NOT_FOUND };
         }
-        const [events, lessons] = await Promise.all([
+        const [events, lessons, tags] = await Promise.all([
           data.cookEvents.listForCook({ cookId, sort: 'oldest_first' }),
           data.lessons.list({ cookId, status: 'approved', sort: 'oldest_first' }),
+          data.cookTags.listForCook(cookId),
         ]);
         const at = now();
         const fileName = cookExportFileName(cook, formatFileDate(at), variant);
-        const text = renderCookAsText({ cook, events, lessons, variant, exportedAt: at });
+        const text = renderCookAsText({ cook, events, lessons, tags, variant, exportedAt: at });
         await handOver({ fileName, mimeType: COOK_TEXT_MIME_TYPE, text });
         return {
           ok: true,

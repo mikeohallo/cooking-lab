@@ -16,9 +16,9 @@
  * times and the line saying where the file came from.
  */
 
-import type { Cook, CookEvent, Lesson } from '../../domain/entities';
+import type { Cook, CookEvent, Lesson, Tag } from '../../domain/entities';
 import type { AppVariant } from '../../config/variants';
-import { celsiusFromEvent } from '../../domain/invariants';
+import { celsiusFromEvent, readingKindFromEvent } from '../../domain/invariants';
 import { formatDateTimeWithYear, formatTime } from '../../format/dateTime';
 
 export type CookTextInput = {
@@ -27,6 +27,8 @@ export type CookTextInput = {
   readonly events: readonly CookEvent[];
   /** Approved lessons only. A proposal is not part of a cook's record. */
   readonly lessons: readonly Lesson[];
+  /** The cook's tags, as they are on screen. */
+  readonly tags: readonly Tag[];
   readonly variant: AppVariant;
   /** When the file was made. */
   readonly exportedAt: string;
@@ -56,6 +58,25 @@ function whereOf(event: CookEvent): string | null {
   return typeof where === 'string' && where.trim() !== '' ? where : null;
 }
 
+/**
+ * What a reading was taken of, in words, for a file with no colours in it.
+ *
+ * The screen tells an oven reading from an internal one by its card as well as
+ * its label. A text file has only the label, which is the reason the label
+ * exists on the screen too: the word is the information and the colour was only
+ * ever helping.
+ */
+function readingLabelOf(event: CookEvent): string | null {
+  switch (readingKindFromEvent(event)) {
+    case 'oven':
+      return 'Oven';
+    case 'internal':
+      return 'Internal';
+    case 'none':
+      return null;
+  }
+}
+
 /** One timeline entry as a line: the time, then what happened. */
 export function renderEventLine(event: CookEvent): string {
   const time = formatTime(event.ts).padEnd(8, ' ');
@@ -63,8 +84,13 @@ export function renderEventLine(event: CookEvent): string {
     case 'user_note':
       return `${time} ${event.body ?? ''}`;
     case 'temp': {
-      const where = whereOf(event);
-      return `${time} ${formatCelsiusPlain(event)}${where ? ` — ${where}` : ''}`;
+      // Both, when there is both: the kind says what it was taken of and the
+      // cook's own words say where. Neither is a substitute for the other.
+      const detail = [readingLabelOf(event), whereOf(event)].filter(
+        (part) => part !== null && part !== '',
+      );
+      const suffix = detail.length === 0 ? '' : ` — ${detail.join(', ')}`;
+      return `${time} ${formatCelsiusPlain(event)}${suffix}`;
     }
     case 'photo':
       return `${time} [Photo]`;
@@ -83,7 +109,7 @@ export function renderEventLine(event: CookEvent): string {
  * leaving a reader to wonder whether a line went missing.
  */
 export function renderCookAsText(input: CookTextInput): string {
-  const { cook, events, lessons, variant, exportedAt } = input;
+  const { cook, events, lessons, tags, variant, exportedAt } = input;
   const title = cook.title ?? UNTITLED_COOK_EXPORT;
   const lines: string[] = [];
 
@@ -102,6 +128,11 @@ export function renderCookAsText(input: CookTextInput): string {
     lines.push(TEST_EXPORT_NOTICE);
   }
   lines.push('');
+
+  if (tags.length > 0) {
+    lines.push(`Tags: ${tags.map((tag) => tag.name).join(', ')}`);
+    lines.push('');
+  }
 
   lines.push('Verdict');
   if (cook.verdict !== null && cook.verdict.trim() !== '') {
@@ -128,6 +159,19 @@ export function renderCookAsText(input: CookTextInput): string {
     }
   }
   lines.push('');
+
+  // A plain-text file cannot show a photograph, so it says which ones there
+  // were and when. The timeline already marks where each one sits; this is the
+  // list a reader scans to know there are three pictures of this dinner
+  // somewhere, and at what point in the cooking each was taken.
+  const photos = events.filter((event) => event.kind === 'photo');
+  if (photos.length > 0) {
+    lines.push('Photos');
+    for (const photo of photos) {
+      lines.push(`Photo, ${formatTime(photo.ts)}`);
+    }
+    lines.push('');
+  }
 
   lines.push(
     `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record, unchanged.`,
