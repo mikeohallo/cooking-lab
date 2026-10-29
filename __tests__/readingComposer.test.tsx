@@ -8,6 +8,7 @@
  */
 
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import {
   ADD_INTERNAL_READING,
@@ -20,6 +21,7 @@ import {
   SEND_NOTE,
 } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
+import { colors, readingTreatments } from '../src/theme/tokens';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
 
 const user = userEvent.setup();
@@ -190,7 +192,7 @@ describe('a reading taken somewhere else', () => {
     expect((await events())[0]?.meta).toEqual({ celsius: 4, where: 'the fridge' });
   });
 
-  it('keeps today’s card, unchanged', async () => {
+  it('gets no kind mark and no kind word', async () => {
     await openCook();
 
     await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
@@ -211,7 +213,48 @@ describe('a reading taken somewhere else', () => {
     expect(screen.queryByText(OVEN_READING_LABEL)).toBeNull();
     expect(screen.queryByText(INTERNAL_READING_LABEL)).toBeNull();
   });
+
+  // Fix round 0.2.1 (F3).
+  it('gets a neutral card: plain surface, a border, ordinary text', async () => {
+    await openCook();
+
+    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await user.type(screen.getByTestId('temperature-celsius'), '4');
+    await user.type(screen.getByTestId('temperature-where'), 'the fridge');
+    await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
+
+    await screen.findByText('4°C');
+    const [event] = await events();
+    expectNeutralCard(event!.id);
+  });
 });
+
+/** Fails unless the reading's card is neutral, and not amber or grey. */
+function expectNeutralCard(eventId: string): void {
+  const card = flatStyle(screen.getByTestId(`event-${eventId}`).props.style);
+  expect(card.backgroundColor).toBe(colors.surface);
+  expect(card.borderColor).toBe(colors.border);
+  expect(card.borderWidth).toBeGreaterThan(0);
+  const value = flatStyle(screen.getByTestId(`reading-value-${eventId}`).props.style);
+  expect(value.color).toBe(colors.text);
+
+  const kindColours: string[] = [
+    readingTreatments.internal.surface,
+    readingTreatments.internal.ink,
+    readingTreatments.oven.surface,
+    readingTreatments.oven.ink,
+    colors.accent,
+    colors.accentSoft,
+    colors.accentPressed,
+  ];
+  expect(kindColours).not.toContain(card.backgroundColor);
+  expect(kindColours).not.toContain(value.color);
+}
+
+function flatStyle(style: unknown): Record<string, unknown> {
+  const flat = StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown> | undefined;
+  return flat ?? {};
+}
 
 describe('a reading already in the notebook', () => {
   it('shows exactly as it did before this version', async () => {
@@ -236,5 +279,28 @@ describe('a reading already in the notebook', () => {
     expect(screen.getByText('centre')).toBeOnTheScreen();
     expect(screen.queryByText(OVEN_READING_LABEL)).toBeNull();
     expect(screen.queryByText(INTERNAL_READING_LABEL)).toBeNull();
+  });
+
+  // Fix round 0.2.1 (F3): drawn neutral, and the stored reading unchanged.
+  it('gets the neutral card, and its stored data is not touched', async () => {
+    const { data, now } = harness.storage;
+    await data.capture.startCook({ id: 'cook-1', startedAt: now() }, 'user', now());
+    await data.capture.addEvent(
+      {
+        id: 'old-reading',
+        cookId: 'cook-1',
+        ts: now(),
+        kind: 'temp',
+        meta: { celsius: 62.5, where: 'centre' },
+      },
+      'user',
+    );
+
+    await harness.render(<CookScreen cookId="cook-1" onBack={jest.fn()} onReview={jest.fn()} />);
+    await screen.findByText('62.5°C');
+
+    expectNeutralCard('old-reading');
+    const stored = await data.cookEvents.listForCook({ cookId: 'cook-1' });
+    expect(stored[0]?.meta).toEqual({ celsius: 62.5, where: 'centre' });
   });
 });

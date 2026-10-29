@@ -79,8 +79,9 @@ export type StatusTreatment = keyof typeof statusTreatments;
  * Both treatments come with a word — "Oven", "Internal" — printed on the card
  * by `TimelineEvent`, because the baseline forbids colour as the only signal
  * and two readings that differ only in hue would be exactly that. A reading
- * that does not say what it was taken of is not in here: it keeps the card it
- * has always had.
+ * that does not say what it was taken of is not in here: it is drawn neutral,
+ * on the plain surface with the border token and ordinary text, so amber means
+ * Internal and grey means Oven and nothing else.
  *
  * The text colour is `ink` and not `value`, which is the name it wants. A
  * member called `value` read inside a JSX inline style is what a Reanimated

@@ -28,9 +28,12 @@ type TimelineEventProps = {
  * A note is a warm surface card with its time. A temperature reading is a
  * compact card with the number large, and the card says what the reading was
  * taken of — an oven reading is grey and says "Oven", an internal reading is
- * amber and says "Internal", and a reading that does not say keeps the card
- * this app has always drawn. The word is always there: the colour distinguishes
- * the two at a glance and carries none of the meaning on its own.
+ * amber and says "Internal", and a reading that does not say — one taken
+ * "somewhere else", or any reading from before slice 3 — gets a neutral card:
+ * the plain surface with a border, the number in the ordinary text colour.
+ * Only Internal is amber and only Oven is grey, so a colour always means the
+ * same thing. The word is always there: the colour distinguishes the two at a
+ * glance and carries none of the meaning on its own.
  *
  * A photograph is the picture itself, full width. Everything else that can
  * legitimately be in a timeline is labelled with its kind so it can never pass
@@ -55,12 +58,17 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
       const where = whereFromEvent(event);
 
       if (kind === 'none') {
-        // Unchanged from slice 1, deliberately: a reading already in the
-        // notebook must look today exactly as it looked yesterday.
+        // Neutral (fix round 0.2.1): slice 1's amber card made a reading of
+        // nothing in particular look like an internal one. The stored reading
+        // is untouched; only the paint changed.
         return (
           <View style={styles.temperature} testID={`event-${event.id}`}>
             <View style={styles.temperatureRow}>
-              <AppText variant="temperature" style={styles.temperatureValue}>
+              <AppText
+                variant="temperature"
+                style={styles.temperatureValue}
+                testID={`reading-value-${event.id}`}
+              >
                 {formatCelsius(event)}
               </AppText>
               <View style={styles.temperatureDetail}>
@@ -191,8 +199,8 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
 
 const styles = StyleSheet.create({
   temperature: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accentSoft,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.card,
     paddingHorizontal: space.md,
@@ -205,7 +213,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   temperatureValue: {
-    color: colors.accentPressed,
+    color: colors.text,
   },
   temperatureDetail: {
     flexShrink: 1,
