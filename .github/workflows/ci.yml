@@ -52,8 +52,8 @@ jobs:
       #
       # Actions logs need a GitHub sign-in even on a public repository, so a
       # failure here is invisible to anyone looking at the run from outside —
-      # which, for a project whose rule is that evidence travels through the
-      # repo rather than a chat window, is the wrong way round. The failing
+      # which, for a public project whose rule is that a finding never lives
+      # only in a chat window, is the wrong way round. The failing
       # lines are repeated as annotations, which anybody can read, and the tail
       # of the log goes in the job summary.
       - name: Say what failed

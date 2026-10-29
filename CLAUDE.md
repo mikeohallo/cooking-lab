@@ -26,23 +26,23 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   wait, then `adb exec-out screencap -p -d <display id> > <file>.png` (the Fold
   has two displays; the id comes from `adb shell dumpsys SurfaceFlinger --display-id`
   and is never written into a file). Look at the image yourself.
-- **Device evidence travels through the repo:** write reports to
-  `build-control/slices/reports/`, screenshots to
-  `build-control/slices/reports/screens/`, commit, push to `origin main`.
-  Never leave a finding only in a chat window.
+- **Device evidence stays out of the repo.** Run reports and screenshots go
+  to the runs folder next to the repo (`..\runs\`), never into the repo, and
+  are never committed. Mike reads them there. Never leave a finding only in a
+  chat window: if it changes the app, the fix and its slice record are what
+  get committed, not the evidence.
 - **A screenshot shows Cooking Lab and nothing else.** No app drawer or
   launcher, home screen, recent apps, notification shade, share sheet, other
   app, account or contact. If the status bar shows notification icons from
-  other apps, crop the status bar off. Before any image is committed, whoever
-  commits it — the chat or Claude Code — opens it, looks at all of it, and
-  checks this. Nothing else will: `check:secrets` reads text only. The full
-  list is in `build-control/slices/README.md` → "Before evidence is committed".
+  other apps, crop the status bar off. Whoever takes it opens it and looks at
+  all of it before it goes in the runs folder or is shown to anyone. The full
+  list is in `build-control/slices/README.md` → "Checking evidence".
 - **Never sign the Fold in to anything.** Claude Code never signs the Fold in
   to any account (Google, Samsung, banking, messaging or any other), never
   opens anything on it but Cooking Lab (the one exception is the export check
   in `build-control/slices/ACCEPTANCE.md`, and only on a Fold signed in to
   nothing), and never captures anything else. If
-  anything else is on screen when you capture, don't commit the image: recapture
+  anything else is on screen when you capture, don't keep the image: recapture
   or crop, and say so in the report.
 - **Never write a device identifier into any file** — not the serial `adb`
   prints, not an IMEI, not a display id, not an account name. The repo is
@@ -50,16 +50,23 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   `screencap -d <cover display id>` in commands.
   `npm run check:secrets` refuses serial-shaped strings; a pre-commit hook
   (`scripts/hooks/pre-commit`, wired by `npm run prepare`) runs it on every
-  commit, and CI runs it again. Write the report, then run the checks — not
+  commit, and CI runs it again. Write the file, then run the checks — not
   the other way round.
+- **No PC paths, user names or device details anywhere in the repo.** No
+  drive paths from Mike's PC, no Windows user or machine names, no phone model
+  codes, serials or display ids. Write paths relative to the repo (`..\runs\`,
+  `..\builds\`) or as placeholders (`<repo>`).
 - **Prompts for Mike to carry are one line or a single block**, and only when no
   route exists without him.
 
 ## Builds: the commit in Mike's line is the approval
 
-Mike's build line names the commit: **"build test at `<commit>`"** or
-**"build production at `<commit>`"**. The build chat gives him the line with
-the commit filled in. That commit, in his own message, is the only approval.
+Mike's build line names the app and the commit, with the variant in the
+text: **"build cooking-lab at `<commit>`, test"** or **"build cooking-lab at
+`<commit>`, production"**. (It used to be "build test at …", which made his PC
+rules read "test" as the name of the app.) The build chat gives him the line
+with the commit filled in. That commit, in his own message, is the only
+approval. If the line doesn't say which variant, ask; never guess.
 
 **Before anything else** — before `npm`, `npx`, `node`, Gradle or any script
 or hook from this repo runs — check it with plain git:
@@ -91,8 +98,17 @@ yourself.
   (`..\builds\`) as `cooking-lab-<version>-v<versionCode>-<commit>.apk`, for
   Mike to sideload on his phone. Only the commit in his line is ever staged
   there.
-- Your own report commits, pushed after the build, move `main` past the built
-  commit. That's expected; the report names the commit that was built.
+- The build's report goes to `..\runs\`, not into the repo, so a build adds
+  no commits; the report names the commit that was built.
+
+### Native builds on Mike's PC
+
+- Windows long paths must be on, and CMake 3.31.6 (with Ninja 1.12 or later)
+  installed. Mike installs both; a build never installs or changes anything
+  system-wide, and if either is missing it stops and says so.
+- After `npx expo prebuild`, add `android.cmakeVersion=3.31.6` to the
+  generated `android/gradle.properties`, so Gradle uses that CMake rather than
+  the SDK's older one. The `android/` folder is generated and never committed.
 
 ## Portfolio rules
 

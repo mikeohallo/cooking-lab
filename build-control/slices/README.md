@@ -16,18 +16,22 @@ was built, in what order, and what was verified.
 ## The loop
 
 1. Claude pushes a slice to `main` with its tests green and a record in this folder.
-2. Mike gives Claude Code on his PC a build line naming that commit
-   ("build test at `<commit>`"); it builds only that commit (see `CLAUDE.md` → "Builds").
+2. Mike gives Claude Code on his PC a build line naming the app, the commit and
+   the variant ("build cooking-lab at `<commit>`, test"); it builds only that
+   commit (see `CLAUDE.md` → "Builds").
 3. Mike uses it, and tells Claude what to change.
 
 When a build needs a full record — package, commit stamp, write, relaunch,
 export, both displays — Mike's line asks for the acceptance run as well:
 [`ACCEPTANCE.md`](./ACCEPTANCE.md).
 
-## Before evidence is committed
+## Checking evidence
 
-The repo is public, and nothing automatic looks at what an image shows. Before
-a report or screenshot is committed, whoever commits it checks:
+Device evidence — run reports and screenshots — goes to the runs folder next to
+the repo (`..\runs\`) and is never committed. The reports already in
+`reports/` are history from before that rule and stay as they are. Nothing
+automatic looks at what an image shows, so whoever takes a screenshot or writes
+a report checks, before anyone else sees it:
 
 1. **Every image has been opened and looked at, all of it.** It shows Cooking
    Lab and nothing else: no app drawer or launcher, home screen, recent apps,
@@ -39,8 +43,9 @@ a report or screenshot is committed, whoever commits it checks:
    account name. Say "the Fold", "the cover display", "the inner display".
 5. **The report names the commit built** and the version name read back from
    the installed app.
-6. **The checks pass:** `npm run check:secrets` (the pre-commit hook runs it
-   too). It reads text only, so steps 1–3 are the only check on pictures.
+6. **Nothing from the runs folder is copied into the repo.** If a finding
+   changes the app, the fix and its slice record are committed; the evidence
+   is not.
 
 ## Plan
 

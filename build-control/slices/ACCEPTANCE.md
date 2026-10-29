@@ -2,12 +2,12 @@
 
 One record that the app, as built from one named commit, does what this
 repository says it does. Run it when Mike's line asks for it, e.g.
-"build test at `<commit>` and do the acceptance run". The line is the approval
+"build cooking-lab at `<commit>`, test, and do the acceptance run". The line is the approval
 (`CLAUDE.md` → "Builds"); this file only says what to check. Older reports stay
 as they are, dated, as history.
 
 Synthetic data only. Screenshots follow `CLAUDE.md` and
-`build-control/slices/README.md` → "Before evidence is committed": Cooking Lab and nothing else,
+`build-control/slices/README.md` → "Checking evidence": Cooking Lab and nothing else,
 status bar cropped if it shows other apps' notifications, no device
 identifiers in the text. Never screenshot the share sheet: it shows contacts.
 
@@ -48,8 +48,7 @@ identifiers in the text. Never screenshot the share sheet: it shows contacts.
 
 ## The report
 
-`build-control/slices/reports/<date>-acceptance-<commit>.md`, with: the
-commit and the read-back from step 2; one line per step, *passed* or what
-happened instead; the screenshots; the exported text. Then add one line to the
-"Corrected" section of `reports/2026-10-16-icons.md` pointing at this report
-as the TEST capture with the badge. Run the checks, commit, push to `main`.
+`..\runs\<date>-acceptance-<commit>.md`, in the runs folder next to the
+repo, with the screenshots beside it: the commit and the read-back from step 2;
+one line per step, *passed* or what happened instead; the screenshots; the
+exported text. None of it is committed.

@@ -369,9 +369,8 @@ failed: the first test of `photoScreens`, and the first two of `tagScreens`.
 
 **Finding out why took a CI change.** Actions logs need a GitHub sign-in even
 on a public repository, so the run said only "Process completed with exit code
-1" to anyone looking from outside. For a project whose rule is that evidence
-travels through the repo rather than a chat window, that is the wrong way
-round, so CI now repeats each Jest failure, with the lines that follow it, as
+1" to anyone looking from outside. For a project whose rule is that a finding
+never lives only in a chat window, that is the wrong way round, so CI now repeats each Jest failure, with the lines that follow it, as
 annotations — which anybody can read — and records which Node and which SQLite
 actually ran. The failures then read: `Exceeded timeout of 5000 ms for a test`,
 and `Unable to find an element with text: brown butter`.
