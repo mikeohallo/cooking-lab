@@ -14,7 +14,7 @@ changing anything here. Adopting it requires no change to Cooking Lab.
 ## 1. The shared directory
 
 ```
-C:\Projects\.app-build-control\
+<coordination folder>\
 ```
 
 This directory sits outside every application repository. It is **local only**
@@ -54,8 +54,8 @@ by the presence of `app.lock.json`:
   "instruction_id": "runner-self-test-001",
   "acquired_utc": "2026-09-03T10:55:41Z",
   "heartbeat_utc": "2026-09-03T10:58:11Z",
-  "host": "MIKE-LAPTOP",
-  "repo": "C:\\Projects\\cooking-lab"
+  "host": "<pc name>",
+  "repo": "<repo>"
 }
 ```
 
@@ -148,7 +148,7 @@ retry**.
 ## 4. The pause switch
 
 ```
-C:\Projects\.app-build-control\PAUSE_UNATTENDED
+<coordination folder>\PAUSE_UNATTENDED
 ```
 
 If this file exists, no application may begin unattended work. Runners keep

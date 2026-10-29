@@ -472,7 +472,7 @@ Set-Section '3c. Repository confinement - escape attempts by every route'
 $escapePaths = @(
     @{ n = 'Project A';                       p = 'C:/Projects/ProjectA/notes.md' },
     @{ n = 'another directory under C:/Projects'; p = 'C:/Projects/Cooking-Lab/archive/cooking-lab-cloud-prototype-archive/x.md' },
-    @{ n = 'a user-profile file';               p = 'C:/Users/mikeo/Documents/private.txt' },
+    @{ n = 'a user-profile file';               p = 'C:/Users/someone/Documents/private.txt' },
     @{ n = 'a Windows system folder';           p = 'C:/Windows/System32/drivers/etc/hosts' },
     @{ n = 'a temp folder outside the repo';    p = 'C:/temp/pwned.txt' },
     @{ n = 'a UNC network path';                p = '//server/share/secret.txt' },
@@ -493,7 +493,7 @@ Check -Name 'Glob is refused outside the repository' `
       -Condition ($null -ne (Invoke-Gate (@{ tool_name = 'Glob'; tool_input = @{ path = 'C:/Projects' } } | ConvertTo-Json -Compress))) `
       -Detail 'expected a denial'
 Check -Name 'Grep is refused outside the repository' `
-      -Condition ($null -ne (Invoke-Gate (@{ tool_name = 'Grep'; tool_input = @{ path = 'C:/Users/mikeo' } } | ConvertTo-Json -Compress))) `
+      -Condition ($null -ne (Invoke-Gate (@{ tool_name = 'Grep'; tool_input = @{ path = 'C:/Users/someone' } } | ConvertTo-Json -Compress))) `
       -Detail 'expected a denial'
 Check -Name 'Glob inside the repository is still allowed' `
       -Condition ($null -eq (Invoke-Gate (@{ tool_name = 'Glob'; tool_input = @{ path = 'src' } } | ConvertTo-Json -Compress))) `
@@ -531,7 +531,7 @@ Set-Section '3d. Bash surface - only bounded git and approved quality commands'
 # ---------------------------------------------------------------------
 Check-Denied 'read Project A via Bash'          'cat C:/Projects/ProjectA/notes.md'
 Check-Denied 'list another C:/Projects directory' 'ls C:/Projects'
-Check-Denied 'read a user profile file'           'cat C:/Users/mikeo/.gitconfig'
+Check-Denied 'read a user profile file'           'cat C:/Users/someone/.gitconfig'
 Check-Denied 'create a file outside the repo'     'mkdir C:/temp/evil'
 Check-Denied 'write outside the repo'             'echo pwned > C:/temp/pwned.txt'
 Check-Denied 'traversal via Bash'                 'cat ../../etc/passwd'

@@ -103,7 +103,7 @@ execution lease, a global pause switch, and manual-Claude-session detection.
   **[`runner/CROSS_APP_PROTOCOL.md`](runner/CROSS_APP_PROTOCOL.md)**
 
 Pause all unattended application builds at any time by creating
-`C:\Projects\.app-build-control\PAUSE_UNATTENDED`; resume by deleting it.
+`<coordination folder>\PAUSE_UNATTENDED`; resume by deleting it.
 
 ## Rules
 

@@ -571,7 +571,7 @@ neither. Reported SQLite base version 3.49.1.
 
 | | |
 |---|---|
-| Model | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Model | the Fold, serial `[serial redacted]` |
 | Android | 16 (API 36) |
 
 **Install and launch.**
@@ -716,7 +716,7 @@ functionality.
   package was built. The TEST release APK is signed with the template debug
   keystore, exactly as at M0.
 - **No Project B work.** No Project B repository was opened, read or modified.
-- **No other repository touched.** Only `C:\Projects\cooking-lab`. The cloud
+- **No other repository touched.** Only `<repo>`. The cloud
   prototype archive was not accessed.
 - **The unattended queue remained inactive.** `NEXT_RUN.json` was neither
   modified nor activated; the runner, dispatcher and cross-app lease protocol
@@ -800,8 +800,8 @@ weakened — and the suite is 113 assertions larger than the accepted foundation
 Two real defects were found by those tests and fixed, one of them a genuine hole
 in an existing protection, which is the suite doing its job.
 
-A TEST-variant release APK was built from this tree, installed on a Samsung
-SM-F956B running Android 16, launched from a cleared state and relaunched. It
+A TEST-variant release APK was built from this tree, installed on the Fold,
+running Android 16, launched from a cleared state and relaunched. It
 created its encrypted database and key on the first launch and re-opened them on
 the second, without a crash, under the correct TEST identity, and the shipped
 binary demonstrably contains SQLCipher. The merged permission set is what it was

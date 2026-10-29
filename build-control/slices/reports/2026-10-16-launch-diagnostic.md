@@ -31,7 +31,7 @@ importantly cannot record one at this commit.** Section 7 sets out why.
 | `versionName` / `versionCode` | `0.0.0` / `1` |
 | `minSdk` / `targetSdk` | 24 / 36 |
 | Signing | template debug keystore (`CN=Android Debug`). No production signing identity exists or was used. |
-| Device | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Device | the Fold, serial `[serial redacted]` |
 | Launcher activity | `com.cookinglab.personal.test/.MainActivity` |
 
 **Install conditions.** The APK was installed with `adb install -r` as an

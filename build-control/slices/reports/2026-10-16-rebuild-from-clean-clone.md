@@ -1,7 +1,7 @@
 # Rebuild from a clean clone — 16 October 2026
 
 Full rebuild and install of the TEST APK from `main`, done in a fresh clone at
-`C:\Projects\cooking-lab`. The point was to prove the public repo builds and
+`<repo>`. The point was to prove the public repo builds and
 runs on the Fold on its own, with nothing carried over from the old working
 copy.
 

@@ -40,7 +40,7 @@ M1 establishes the controlled local-first data and storage foundation for Cookin
 - `npm run typecheck`: pass
 - `npm run lint`: pass
 - `npm test`: **19 suites / 487 tests / 487 passed / 0 failed / 0 skipped**
-- TEST native SQLCipher build previously verified on Samsung SM-F956B / Android 16:
+- TEST native SQLCipher build previously verified on the Fold / Android 16:
   - package `com.cookinglab.personal.test`;
   - encrypted store created at schema v1 from cleared state;
   - force-stop/relaunch reopened the same store at schema v1;

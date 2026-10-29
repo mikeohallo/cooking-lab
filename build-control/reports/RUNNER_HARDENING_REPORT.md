@@ -352,7 +352,7 @@ is verified separately and live.
 | 13 | missing/unpushed report cannot be marked COMPLETED | **PASS** — missing report → `FAILED`; uncommitted report → `RECOVERY_REQUIRED`; unpushed, unsynchronised or unconfirmable push → `RECOVERY_REQUIRED`; end-to-end: a declared-but-never-written report records `FAILED` despite exit 0 |
 | 14 | interrupted STARTED instruction does not blindly rerun | **PASS** — no launch; moved to `RECOVERY_REQUIRED`; `head_before` and `runner_pid` preserved; still does not run on the following cycle |
 | 15 | no Cooking Lab runtime/product source changed | **PASS** — `git diff 90b717e..HEAD` over all product paths is empty, and the working tree is clean |
-| 16 | no Project A files were touched | **PASS** — recursive modification-time scan of `C:\Projects\ProjectA` shows nothing modified during the run |
+| 16 | no Project A files were touched | **PASS** — recursive modification-time scan of `<other app repo>` shows nothing modified during the run |
 
 Additional checks passed beyond the required list: protected-file mutation
 (21 paths), reused `instruction_id` refused and recorded `BLOCKED`, lease
@@ -372,7 +372,7 @@ The real runner was also exercised against the real repository with `-Once
   REQUIRED`, no launch;
 - clean tree, queue stood down → `no pending instruction (allow_unattended is
   false; nothing is authorised); waiting`, no launch;
-- `C:\Projects\.app-build-control\` left empty throughout.
+- `<coordination folder>\` left empty throughout.
 
 ## GitHub evidence
 

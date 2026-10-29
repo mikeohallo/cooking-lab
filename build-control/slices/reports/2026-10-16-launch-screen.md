@@ -11,7 +11,7 @@
 |---|---|
 | APK under test | built from `bebf86e`, SHA-256 `fea70fae9b53c3baa4420328a7c4174abfb9800bc72a627e241f55ecea8737e7` |
 | Package | `com.cookinglab.personal.test` |
-| Device | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Device | the Fold, serial `[serial redacted]` |
 | Display captured | cover display, 968 × 2376 |
 | Image | PNG, 132,971 bytes, 968 × 2376 |
 

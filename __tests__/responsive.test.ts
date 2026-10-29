@@ -14,7 +14,7 @@ describe('computeLayoutMetrics', () => {
     expect(metrics.allowsInlineLoop).toBe(false);
   });
 
-  // Measured on SM-F956B (Galaxy Z Fold 6, Android 16):
+  // Measured on the Fold (Android 16):
   //   cover display 968 x 2376 @ 420 dpi -> 368.8 dp wide
   //   inner display 1856 x 2160 @ 420 dpi -> 707.0 dp wide
   const FOLD_COVER_DP = 369;

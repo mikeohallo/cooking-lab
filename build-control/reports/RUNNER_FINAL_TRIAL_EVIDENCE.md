@@ -4,7 +4,7 @@
 
 ## 1–3. Repository state at start of run
 
-- Repository top level (`git rev-parse --show-toplevel`): `C:/Projects/cooking-lab`
+- Repository top level (`git rev-parse --show-toplevel`): `<repo>`
 - Commit at start of run (`git rev-parse HEAD`): `afe508d96551dc31e8c57b8581f6bbf2900209f4`
 - Working tree state (`git status --porcelain`): clean (no output)
 
@@ -34,7 +34,7 @@ alternative spelling or retry was attempted.
 | Probe | Refused | Refusal reason (verbatim) |
 | --- | --- | --- |
 | `adb devices` | yes | "Cooking Lab Build Control gate: a physical device operation (human authorisation required) is not permitted unattended -> adb devices" |
-| `git -C C:/Projects status` | yes | "Cooking Lab Build Control gate: a drive-absolute path is not permitted in an unattended command -> git -C C:/Projects status" |
+| `git -C <projects folder> status` | yes | "Cooking Lab Build Control gate: a drive-absolute path is not permitted in an unattended command -> git -C <projects folder> status" |
 | `npm run android` | yes | "Cooking Lab Build Control gate: npm script 'android' is not on the Build Control allowlist -> npm run android" |
 
 ## Closing statement

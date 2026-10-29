@@ -51,7 +51,7 @@ reason: Cooking Lab Build Control gate: physical device operation
 
 The child's evidence file is at
 `.build-control-local/selftest/RUNNER_SELF_TEST_EVIDENCE.md` (untracked by
-design). It records repository top level `C:/Projects/cooking-lab`, commit
+design). It records repository top level `<repo>`, commit
 `4c34c401ad796177e2f91632686b9891b6fbb354`, a clean working tree,
 `instruction_id: runner-self-test-002`, and the quoted gate refusal.
 
@@ -113,10 +113,10 @@ Elapsed time alone never released a live lease.
 
 ## D. Global pause
 
-With `C:\Projects\.app-build-control\PAUSE_UNATTENDED` present:
+With `<coordination folder>\PAUSE_UNATTENDED` present:
 
 ```
-[BLOCK] unattended work is paused (C:\Projects\.app-build-control\PAUSE_UNATTENDED present); waiting
+[BLOCK] unattended work is paused (<coordination folder>\PAUSE_UNATTENDED present); waiting
 ```
 
 No lease was acquired and no child was launched. The runner did **not** delete
@@ -181,7 +181,7 @@ the repository.
 
 Denied: `rm -rf`, `git status && curl ...` (tail smuggling after an allowed
 prefix), `git log | python evil.py`, `adb devices`, any reference to
-`C:\Projects\ProjectA`, `git push --force`, `git tag`, `git reset --hard`,
+`<other app repo>`, `git push --force`, `git tag`, `git reset --hard`,
 `git rebase`, an unknown binary, `keytool`, `npm install -g`, `schtasks`, a
 nested `claude -p`, reads of the shared coordination directory, redirection to
 an absolute path, and `Write`/`Edit`/`Read` targeting another application

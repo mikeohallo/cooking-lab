@@ -87,7 +87,7 @@ uses-permission: name='com.cookinglab.personal.test.DYNAMIC_RECEIVER_NOT_EXPORTE
 
 ## 4. Device procedure
 
-Device: Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]`.
+Device: the Fold, serial `[serial redacted]`.
 
 ```
 adb shell pm clear com.cookinglab.personal.test

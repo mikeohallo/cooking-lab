@@ -9,7 +9,7 @@ change Cooking Lab application behaviour.
 ## Authorised scope
 
 You are running non-interactively under the Cooking Lab Build Control runner, in
-the repository `C:\Projects\cooking-lab`. A deny-by-default permission gate is
+the repository `<repo>`. A deny-by-default permission gate is
 active; anything outside the allowlist will be refused, which is expected.
 
 Carry out **only** the numbered steps below, then stop.

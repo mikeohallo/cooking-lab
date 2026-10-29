@@ -29,7 +29,7 @@ visible.**
 | Size | 123,117,391 bytes |
 | Build | `BUILD SUCCESSFUL in 15m 29s` (`prebuild --clean`, then `assembleRelease`) |
 | Package | `com.cookinglab.personal.test` |
-| Device | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Device | the Fold, serial `[serial redacted]` |
 | Display | cover display, 968 × 2376 (Fold closed; inner display off) |
 
 ## Procedure

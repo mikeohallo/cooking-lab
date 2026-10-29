@@ -15,7 +15,7 @@ hides the composer, which is covered in section 6.
 |---|---|
 | APK | built from `29591ab`, SHA-256 `301f3678eb2eb317a64236006a4cc3946fa7931bda1fba3246a0419f1f0c7cb5` |
 | Package | `com.cookinglab.personal.test` |
-| Device | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Device | the Fold, serial `[serial redacted]` |
 | Display | cover display, 968 × 2376 (Fold closed) |
 | Starting point | the open "Untitled cook" created at 01:54 and recorded in [`2026-10-16-fix-verification.md`](2026-10-16-fix-verification.md) |
 

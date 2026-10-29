@@ -189,7 +189,7 @@ and `FileFailureReason` gained one member.
   `"allow_unattended": false`, `"instruction_id": "none"`, `"milestone": "NONE"`.
   It was not modified or activated.
 - **No Project B or other repository work occurred.** Only
-  `C:\Projects\cooking-lab` was opened or modified. No Project B repository, no
+  `<repo>` was opened or modified. No Project B repository, no
   Project A, no cloud prototype archive, no unattended runner, dispatcher or
   cross-app automation infrastructure. `scripts/` and `build-control/runner/`
   show no diff.

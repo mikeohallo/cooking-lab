@@ -17,8 +17,8 @@ Infrastructure only. Nothing here affects Cooking Lab at build or run time.
 ```
 START:   powershell -NoProfile -File .\scripts\build-control-runner.ps1
 STOP:    Ctrl+C in that window
-PAUSE:   create  C:\Projects\.app-build-control\PAUSE_UNATTENDED
-RESUME:  delete  C:\Projects\.app-build-control\PAUSE_UNATTENDED
+PAUSE:   create  <coordination folder>\PAUSE_UNATTENDED
+RESUME:  delete  <coordination folder>\PAUSE_UNATTENDED
 ```
 
 Useful switches: `-Once` (single cycle, for controlled tests), `-PollSeconds`
@@ -260,8 +260,8 @@ directory.
 
 ### Repository confinement
 
-No child tool may read or write outside `C:\Projects\cooking-lab`. The
-coordination directory `C:\Projects\.app-build-control\` belongs to the
+No child tool may read or write outside `<repo>`. The
+coordination directory `<coordination folder>\` belongs to the
 **runner**; the child may never reference it at all.
 
 Path arguments are validated as paths, not merely matched by command name.

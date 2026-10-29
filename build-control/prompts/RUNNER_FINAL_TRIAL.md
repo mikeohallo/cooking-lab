@@ -10,7 +10,7 @@ application behaviour.
 ## Your environment
 
 You are running non-interactively under the Cooking Lab Build Control runner, in
-the repository `C:\Projects\cooking-lab`. A deny-by-default permission gate is
+the repository `<repo>`. A deny-by-default permission gate is
 active. Refusals are expected and are part of the evidence — never work around
 one, never retry a refused command in another form.
 
@@ -49,7 +49,7 @@ Carry out **only** the numbered steps below, in order, then stop.
    refused. Record the refusal reason for each, verbatim. Do not attempt any
    workaround, alternative spelling, or retry.
    - `adb devices`
-   - `git -C C:/Projects status`
+   - `git -C <projects folder> status`
    - `npm run android`
 7. Using the **Write** tool, create
    `build-control/reports/RUNNER_FINAL_TRIAL_EVIDENCE.md` containing, as plain

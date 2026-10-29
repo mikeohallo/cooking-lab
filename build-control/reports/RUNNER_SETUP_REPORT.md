@@ -21,7 +21,7 @@ Date: 3 September 2026. Machine: `MSI` (Windows 11, PowerShell 5.1).
 
 **Cross-application mechanism**
 
-`C:\Projects\.app-build-control\` — outside every repository, never committed —
+`<coordination folder>\` — outside every repository, never committed —
 holding the machine-wide execution lease `app.lock.json` and the pause switch
 `PAUSE_UNATTENDED`. Cooking Lab's identifier is `cooking-lab`; `project-a` is
 reserved for future adoption.
@@ -34,7 +34,7 @@ signing material. No cloud, CI or external infrastructure. No dependency or
 toolchain change. No tags. No Windows power configuration change. No service,
 scheduled task, registry autorun or any other reboot persistence.
 
-**Project A and `C:\Projects\cooking-lab-cloud-prototype-archive` were not
+**Project A and `<archived prototype>` were not
 read, written, started, inspected or modified.** The only artefact naming
 `project-a` is a simulated lease file that the self-test wrote into the shared
 coordination directory and then removed.
@@ -55,7 +55,7 @@ claude -p --output-format json --permission-mode acceptEdits
 
 The prompt is delivered on **stdin** from the validated prompt file, so no
 prompt content ever passes through a command line. The working directory is
-locked to `C:\Projects\cooking-lab`. `--output-format json` gives the exit
+locked to `<repo>`. `--output-format json` gives the exit
 status, the child's own result, and its `permission_denials` list for the audit
 trail.
 
@@ -148,7 +148,7 @@ for a human decision.
 
 ## 4. Cross-app safety
 
-**Shared coordination path.** `C:\Projects\.app-build-control\` — outside all
+**Shared coordination path.** `<coordination folder>\` — outside all
 repositories, never committed, and never holding GitHub credentials, Claude
 credentials, API keys or tokens.
 
@@ -179,7 +179,7 @@ process, never steals a live lease, never modifies another application and never
 redirects another Claude session.
 
 **Confirmation: Project A was not modified.** Nothing was written to, read
-from or executed in `C:\Projects\ProjectA`. Its participation in this protocol
+from or executed in `<other app repo>`. Its participation in this protocol
 is documented only, for future adoption.
 
 ## 5. Runner safety
@@ -263,7 +263,7 @@ of it. No tag, no release, no PR, no GitHub Actions, no CI/CD, no cloud service.
 
 ## 8. Overnight operating instructions
 
-**START** — in `C:\Projects\cooking-lab`:
+**START** — in `<repo>`:
 
 ```
 powershell -NoProfile -File .\scripts\build-control-runner.ps1
@@ -274,7 +274,7 @@ powershell -NoProfile -File .\scripts\build-control-runner.ps1
 **PAUSE ALL UNATTENDED APP BUILDS:** create the file
 
 ```
-C:\Projects\.app-build-control\PAUSE_UNATTENDED
+<coordination folder>\PAUSE_UNATTENDED
 ```
 
 **RESUME:** delete that file.
@@ -290,7 +290,7 @@ execution; the runner resumes polling safely afterwards.
 
 - **No credentials added.** No GitHub token, Claude credential, API key or secret
   was created, stored or committed — not in the repository, not in
-  `.build-control-local/`, not in `C:\Projects\.app-build-control\`.
+  `.build-control-local/`, not in `<coordination folder>\`.
 - **No dangerous Claude bypass.** `--dangerously-skip-permissions` and
   `bypassPermissions` are not used; the gate denies any attempt to use them. The
   child's shell is allowlisted command-by-command and fails closed.

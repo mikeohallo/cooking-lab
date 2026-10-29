@@ -8,7 +8,7 @@
 Paste this prompt into a normal interactive Claude Code session opened in:
 
 ```text
-C:\Projects\cooking-lab
+<repo>
 ```
 
 ---
@@ -32,7 +32,7 @@ Do not begin M2B or M3.
 Repository:
 
 ```text
-C:\Projects\cooking-lab
+<repo>
 ```
 
 Before changing anything:

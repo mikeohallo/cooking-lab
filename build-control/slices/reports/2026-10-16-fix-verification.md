@@ -19,7 +19,7 @@ app now opens on Home, and New Cook works.
 | Size | 123,116,371 bytes |
 | Build | `BUILD SUCCESSFUL in 16m 17s` (`prebuild --clean`, then `assembleRelease`) |
 | Variant | `APP_VARIANT=test`, `com.cookinglab.personal.test` |
-| Device | Samsung SM-F956B (Galaxy Z Fold 6), serial `[serial redacted]` |
+| Device | the Fold, serial `[serial redacted]` |
 | Display | cover display, 968 × 2376 (Fold closed; inner display off) |
 
 The pin shipped: the APK's bundled `app.config` contains
