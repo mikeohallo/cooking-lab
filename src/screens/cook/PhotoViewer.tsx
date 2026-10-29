@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Image, Modal, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
 import { AppText } from '../../components/AppText';
@@ -51,6 +52,15 @@ type PhotoViewerProps = {
  * are untouched, and the notice says so, because "remove" next to a photograph
  * in a notebook could reasonably be read as removing more than the photograph.
  *
+ * SYSTEM BARS
+ * -----------
+ * The modal is drawn edge to edge on purpose (`statusBarTranslucent` and
+ * `navigationBarTranslucent`), so it behaves the same on every Android version
+ * and with three-button or gesture navigation, and the safe-area insets then
+ * keep the picture below the status bar and every button above the navigation
+ * area. Before 0.2.1 the bar had no inset at all, and on a Samsung with
+ * three-button navigation *Remove photo* and *Close* sat partly under it.
+ *
  * Nothing else can be removed anywhere in the app. See `removeCookEvent` in
  * `src/domain/evidence.ts`: a photograph is the one timeline entry that carries
  * no words of anybody's, and the only one the rules let go.
@@ -59,6 +69,7 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const close = () => {
     setConfirming(false);
@@ -88,10 +99,18 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
       animationType="fade"
       onRequestClose={close}
       transparent={false}
+      statusBarTranslucent
+      navigationBarTranslucent
       testID="photo-viewer"
     >
       {photo === null ? null : (
-        <View style={styles.screen}>
+        <View
+          style={[
+            styles.screen,
+            { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
+          ]}
+          testID="photo-viewer-screen"
+        >
           <Image
             source={{ uri: photo.uri }}
             style={styles.photo}
@@ -100,7 +119,10 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
             testID="photo-viewer-image"
           />
 
-          <View style={styles.bar}>
+          <View
+            style={[styles.bar, { paddingBottom: BAR_BOTTOM_PADDING + insets.bottom }]}
+            testID="photo-viewer-bar"
+          >
             <AppText variant="caption" tone="muted">
               {`${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
             </AppText>
@@ -166,6 +188,9 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
   );
 }
 
+/** Space under the last button, above the navigation area's own inset. */
+export const BAR_BOTTOM_PADDING = space.lg;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -180,7 +205,6 @@ const styles = StyleSheet.create({
     gap: space.xs,
     paddingHorizontal: space.ml,
     paddingTop: space.sm,
-    paddingBottom: space.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.background,

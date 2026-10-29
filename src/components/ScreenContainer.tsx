@@ -27,7 +27,12 @@ type ScreenContainerProps = {
  *  - a centred content column capped at `contentMaxWidth` so text does not
  *    stretch edge to edge on an unfolded Fold or a tablet;
  *  - width-derived gutters instead of hard-coded phone padding;
- *  - an optional footer that stays above the keyboard while it is open.
+ *  - an optional footer that stays above the keyboard while it is open, and
+ *    above the system navigation area (three-button or gesture) always.
+ *
+ * The footer is a sibling of the scrolling area, never inside it: the
+ * scrolling content ends at the footer's top edge, so nothing can scroll
+ * underneath a pinned bar such as Review's *Finish review*.
  *
  * The bottom edge is handled here rather than by SafeAreaView, because with
  * the keyboard open it must clear the navigation bar *and* the keyboard; see
@@ -46,6 +51,7 @@ export function ScreenContainer({ children, footer, testID }: ScreenContainerPro
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={[styles.flex, { paddingBottom: clearance }]} testID="screen-body">
         <ScrollView
+          testID="screen-scroll"
           style={styles.flex}
           contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
           keyboardShouldPersistTaps="handled"
@@ -58,7 +64,7 @@ export function ScreenContainer({ children, footer, testID }: ScreenContainerPro
           </View>
         </ScrollView>
         {footer ? (
-          <View style={[styles.footer, { paddingHorizontal: gutter }]}>
+          <View style={[styles.footer, { paddingHorizontal: gutter }]} testID="screen-footer">
             <View style={[styles.footerColumn, { maxWidth: contentMaxWidth }]}>{footer}</View>
           </View>
         ) : null}
