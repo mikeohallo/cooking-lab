@@ -2,9 +2,9 @@
  * Every cook's tags, and the kitchen's whole tag list, for History.
  *
  * One hook because History needs both and needs them together: the tags of the
- * cooks it is listing, so a search can match and highlight them, and the list
- * of tags that are on at least one cook, so *Show me my tags* has something to
- * show. Both are read once per visit rather than per cook — see
+ * cooks it is listing, so a search can match and highlight them, and every tag
+ * ever created, so *Show me my tags* offers the whole of the kitchen's words —
+ * including one that is on no cook right now. Both are read once per visit rather than per cook — see
  * `listForCooks` — and nothing here writes anything.
  */
 
@@ -16,7 +16,7 @@ import { useStorage } from './StorageProvider';
 export type TagIndex = {
   /** Cook id to its tags, alphabetically. A cook with none is absent. */
   readonly byCook: ReadonlyMap<CookId, readonly Tag[]>;
-  /** Every tag on at least one cook, in one alphabet. */
+  /** Every tag ever created, in one alphabet, on a cook now or not. */
   readonly allTags: readonly Tag[];
   readonly loading: boolean;
   /** Why the tags could not be read. The cooks are still listed without them. */
@@ -40,7 +40,7 @@ export function useTagIndex(cookIds: readonly CookId[], refreshToken = 0): TagIn
     let live = true;
     const ids = key === '' ? [] : key.split('|');
 
-    Promise.all([data.cookTags.listForCooks(ids), data.cookTags.listUsedTags()])
+    Promise.all([data.cookTags.listForCooks(ids), data.tags.listByName()])
       .then(([taggings, used]) => {
         if (!live) {
           return;

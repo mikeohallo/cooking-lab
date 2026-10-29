@@ -19,8 +19,11 @@
  * -------------------------------------------------------
  * `unlink` and nothing else. The tag row itself is never deleted here: "not on
  * this cook" and "not a word I use" are different, and only the cook can mean
- * the second. A tag that ends up on no cook simply stops appearing in the
- * lists, which are built from `listUsedTags`.
+ * the second. A tag that ends up on no cook stays in *Show me my tags* and in
+ * the suggestions, which are built from every tag ever created (`listByName`):
+ * taking the last cook off a word does not take the word out of the kitchen.
+ * Only *Used before:* counts cooks, because it is ordered by how often a tag is
+ * used, and a tag on no cook has not been used.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -37,7 +40,7 @@ export const SUGGESTION_LIMIT = 6;
 export type CookTagsState = {
   /** The tags on this cook, alphabetically. */
   readonly tags: readonly Tag[];
-  /** Every tag that is on at least one cook, alphabetically. */
+  /** Every tag ever created, alphabetically, whether or not a cook carries it now. */
   readonly allTags: readonly Tag[];
   /** The most-used tags that are not already on this cook. */
   readonly usedBefore: readonly Tag[];
@@ -75,7 +78,7 @@ export function useCookTags(
   const read = useCallback(async () => {
     const [onCook, used, popular] = await Promise.all([
       data.cookTags.listForCook(cookId),
-      data.cookTags.listUsedTags(),
+      data.tags.listByName(),
       data.cookTags.listMostUsedTags(USED_BEFORE_LIMIT * 2),
     ]);
     return { onCook, used, popular };
@@ -177,20 +180,17 @@ export function useCookTags(
       }
       try {
         const matches = await data.tags.suggest(needle, SUGGESTION_LIMIT * 3);
-        const used = new Set(allTags.map((tag) => tag.id));
         const already = new Set(tags.map((tag) => tag.id));
-        // Only tags the kitchen actually uses, and not one already on this cook:
-        // offering back a tag that is already a chip above the field is noise.
-        return matches
-          .filter((tag) => used.has(tag.id) && !already.has(tag.id))
-          .slice(0, SUGGESTION_LIMIT);
+        // Every tag the kitchen has ever made, on a cook now or not, but not one
+        // already on this cook: offering back a chip above the field is noise.
+        return matches.filter((tag) => !already.has(tag.id)).slice(0, SUGGESTION_LIMIT);
       } catch {
         // Suggestions are a convenience; failing to fetch them must never stop
         // the cook typing the tag out in full.
         return [];
       }
     },
-    [data, allTags, tags],
+    [data, tags],
   );
 
   const onCook = new Set(tags.map((tag) => tag.id));

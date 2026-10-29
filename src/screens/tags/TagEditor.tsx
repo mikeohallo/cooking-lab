@@ -25,6 +25,8 @@ type TagEditorProps = {
   cookId: CookId;
   /** Bumped by the route when the screen regains focus, to reload. */
   refreshToken?: number;
+  /** Prints the control's own "Tags" label. Off where the screen heads it already. */
+  labelled?: boolean;
   testID?: string;
 };
 
@@ -39,15 +41,25 @@ type TagEditorProps = {
  *   the field      type it, with his own matching tags offered as he goes;
  *   *Used before:* the tags he reaches for most, that are not on this cook yet,
  *                  as one tap each;
- *   *Show me my tags*  everything he has ever used, in one alphabet, with the
+ *   *Show me my tags*  every tag he has ever made, in one alphabet, with the
  *                  ones on this cook already ticked.
  *
  * The field is the slowest of the four and is deliberately not the only one: a
  * notebook whose filing needs typing is a notebook that stops being filed.
- * Every list is built from tags that are on at least one cook, so nothing is
- * ever offered back that the kitchen has stopped using.
+ * The suggestions and *Show me my tags* offer every tag ever created, even one
+ * that is on no cook right now: taking a tag off a cook never deletes it, so it
+ * must not quietly vanish from the lists either. *Used before:* counts cooks,
+ * so it holds only tags that are on one.
+ *
+ * `labelled` is false where the screen already gives the control a heading of
+ * its own (Review), so the word "Tags" is never printed twice.
  */
-export function TagEditor({ cookId, refreshToken = 0, testID = 'tag-editor' }: TagEditorProps) {
+export function TagEditor({
+  cookId,
+  refreshToken = 0,
+  labelled = true,
+  testID = 'tag-editor',
+}: TagEditorProps) {
   const tagging = useCookTags(cookId, refreshToken);
   const [draft, setDraft] = useState('');
   const [suggestions, setSuggestions] = useState<readonly Tag[]>([]);
@@ -79,9 +91,11 @@ export function TagEditor({ cookId, refreshToken = 0, testID = 'tag-editor' }: T
 
   return (
     <View style={styles.editor} testID={testID}>
-      <AppText variant="label" tone="muted">
-        {TAGS_LABEL}
-      </AppText>
+      {labelled ? (
+        <AppText variant="label" tone="muted" testID="tag-editor-label">
+          {TAGS_LABEL}
+        </AppText>
+      ) : null}
 
       {tagging.tags.length > 0 ? (
         <View style={styles.chips} testID="cook-tags">

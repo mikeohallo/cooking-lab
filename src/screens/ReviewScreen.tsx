@@ -238,7 +238,8 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       */}
       <View style={styles.section}>
         <AppText variant="sectionTitle">{TAGS_LABEL}</AppText>
-        <TagEditor cookId={cook.id} />
+        {/* The section title above is the heading; the control prints none. */}
+        <TagEditor cookId={cook.id} labelled={false} />
       </View>
 
       <View style={styles.section}>

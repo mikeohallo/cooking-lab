@@ -14,6 +14,7 @@ import {
   HIDE_MY_TAGS,
   NO_TAGS_YET,
   SHOW_MY_TAGS,
+  TAGS_LABEL,
   USED_BEFORE,
 } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
@@ -220,18 +221,48 @@ describe('an open cook', () => {
     );
   });
 
-  it('lists only tags that are on at least one cook', async () => {
+  // Fix round 0.2.1 (F1): this replaces slice 3's "only tags in use" rule.
+  it('lists every tag ever created, including one that is on no cook', async () => {
     await startCook('cook-1');
     await startCook('cook-2');
-    const abandoned = await tagCook('cook-2', 'aubergine');
-    await harness.storage.data.cookTags.unlink('cook-2', abandoned);
+    const resting = await tagCook('cook-2', 'aubergine');
+    await harness.storage.data.cookTags.unlink('cook-2', resting);
     const used = await tagCook('cook-2', 'pork chops');
     await openCook('cook-1');
 
     await user.press(await screen.findByRole('button', { name: SHOW_MY_TAGS }));
 
     expect(await screen.findByTestId(`all-tag-${used}`)).toBeOnTheScreen();
-    expect(screen.queryByTestId(`all-tag-${abandoned}`)).toBeNull();
+    expect(screen.getByTestId(`all-tag-${resting}`)).toBeOnTheScreen();
+  });
+
+  it('still offers a cook’s only tag after it is taken off', async () => {
+    await startCook('cook-1');
+    const tagId = await tagCook('cook-1', 'brown butter');
+    await openCook('cook-1');
+
+    await user.press(await screen.findByTestId(`cook-tag-${tagId}`));
+    await waitFor(async () =>
+      expect(await harness.storage.data.cookTags.listForCook('cook-1')).toEqual([]),
+    );
+    expect(await screen.findByTestId('cook-tags-empty')).toBeOnTheScreen();
+
+    // In the suggestions as he types…
+    await user.type(screen.getByTestId('tag-input'), 'brow');
+    expect(await screen.findByTestId(`tag-suggestion-${tagId}`)).toBeOnTheScreen();
+
+    // …and in the whole alphabet, not ticked.
+    await user.press(screen.getByRole('button', { name: SHOW_MY_TAGS }));
+    const chip = await screen.findByTestId(`all-tag-${tagId}`);
+    expect(chip).toBeOnTheScreen();
+    expect(chip.props.accessibilityState?.checked ?? false).toBe(false);
+
+    // And one tap puts it back.
+    await user.press(chip);
+    await waitFor(async () => {
+      const tags = await harness.storage.data.cookTags.listForCook('cook-1');
+      expect(tags.map((tag) => tag.id)).toEqual([tagId]);
+    });
   });
 
   it('refuses a tag that is too long, and keeps what was typed', async () => {
@@ -303,6 +334,27 @@ describe('Review', () => {
     expect(await screen.findByTestId('tag-editor')).toBeOnTheScreen();
     expect(await screen.findByTestId(`tag-used-before-${tagId}`)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: SHOW_MY_TAGS })).toBeOnTheScreen();
+  });
+
+  // Fix round 0.2.1 (F2): the section heading and the control's own label
+  // both said "Tags".
+  it('heads the tags once, not twice', async () => {
+    await startCook('cook-1');
+    await harness.render(
+      <ReviewScreen cookId="cook-1" onBack={jest.fn()} onFinished={jest.fn()} />,
+    );
+    await screen.findByTestId('tag-editor');
+
+    expect(screen.getAllByText(TAGS_LABEL)).toHaveLength(1);
+    expect(screen.queryByTestId('tag-editor-label')).toBeNull();
+  });
+
+  it('keeps the control’s own label on the cook’s page, which has no heading', async () => {
+    await startCook('cook-1');
+    await openCook('cook-1');
+
+    expect(screen.getAllByText(TAGS_LABEL)).toHaveLength(1);
+    expect(screen.getByTestId('tag-editor-label')).toBeOnTheScreen();
   });
 
   it('tags the cook from Review and keeps it after the review is saved', async () => {

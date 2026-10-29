@@ -221,10 +221,9 @@ export type CookTagRepository = {
   /**
    * Every tag that is on at least one cook, alphabetically.
    *
-   * What the tag lists on screen are built from. A tag that is on no cook is
-   * not shown anywhere: it is either one the cook has just taken off its last
-   * cook, or one restored from a backup of a cook that is gone, and offering
-   * it back would be the app suggesting its own leftovers.
+   * No longer what the tag lists on screen are built from: since 0.2.1 they
+   * offer every tag ever created (`TagRepository.listByName`), because taking a
+   * tag off its last cook never deletes it and must not hide it either.
    */
   listUsedTags(): Promise<readonly Tag[]>;
   /** The tags on the most cooks, most-used first, then alphabetically. */
