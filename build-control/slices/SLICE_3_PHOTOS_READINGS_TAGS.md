@@ -400,3 +400,109 @@ configurations was not evidence that it would pass on the machine that counts.
 Caught by a test that could not tell the two apart — `Found multiple elements
 with text: All` — which is exactly the confusion a person would have had a few
 millimetres below the filter row. See decision 4.
+
+## Fix round (0.2.1)
+
+**Date:** 29 October 2026
+**Version:** 0.2.1 (`versionCode` 4)
+
+Five things Mike found using slice 3 on the phone. Code, tests and docs only:
+no build was made and nothing was installed in this round.
+
+### F1 — every tag stays offered
+
+*Show me my tags* and the suggestions under *Add a tag…* now offer every tag
+ever created, including one that is on no cook right now. This replaces the
+rule above that the lists show only tags in use: taking a tag off its last cook
+still never deletes it, and now it doesn't hide it either. History's *Show me
+my tags* follows the same rule. *Used before:* is unchanged — it is ordered by
+how many cooks carry a tag, and a tag on no cook has not been used.
+
+The lists read `tags.listByName()` instead of `cookTags.listUsedTags()`; the
+suggestions no longer filter out unused tags.
+
+**Tested** in `tagScreens.test.tsx`: a cook's only tag is taken off and is
+still offered, in the suggestions and, unticked, in the whole alphabet, and one
+tap puts it back; a tag unlinked from every cook is listed beside one in use.
+The slice 3 test that asserted the opposite ("lists only tags that are on at
+least one cook") was replaced, because it pinned the rule this fix replaces.
+
+### F2 — Review
+
+Review printed "Tags" twice: its own section title, then the tag control's
+label. `TagEditor` takes `labelled={false}` there; the cook's own page, which
+has no section title, keeps the label. The *Finish review* bar is a sibling of
+the scrolling area, never inside it, so the scrolling content ends above it.
+
+**Tested** in `tagScreens.test.tsx` (one "Tags" on Review, one on the cook's
+page) and `bottomInsets.test.tsx` (the bar is in the footer, outside the
+scrolling area, and everything Review shows is inside it).
+
+### F3 — neutral card for a reading of nothing in particular
+
+A *Somewhere else* reading, and every reading from before slice 3, is drawn on
+the plain surface colour with the border token, and the number in the ordinary
+text colour. Only Internal is amber and only Oven is grey. Stored data does not
+change: the card is chosen from the same absence of `meta.readingKind` as
+before.
+
+**Tested** in `readingComposer.test.tsx`: the card's background, border and
+number colour for a new *Somewhere else* reading and for one written the way
+slice 1 wrote it, that neither uses any amber or oven colour, and that the
+older reading's stored `meta` is exactly what was written.
+
+### F4 — photos whole, at their own shape
+
+A timeline photo is drawn with `contain`, never `cover`, so nothing is cropped.
+It takes the full width; its height comes from its own proportions once it has
+loaded, capped at 70% of the window (`src/layout/photoFrame.ts`), and anything
+taller is letterboxed on the frame's muted ground. The frame has a 1 dp border
+in the border token and the photo corner radius, so a photo cannot be taken for
+part of the app. Tapping it still opens it full screen.
+
+**Tested** in `photoFrame.test.ts` (landscape, portrait, the cap on narrow and
+wide displays, the placeholder shape before loading) and `photoScreens.test.tsx`
+(contain, the border and radius, the frame taking the picture's shape on load,
+the cap with a very tall picture, and tap to open).
+
+Mike's photo check on the Fold 6 found photos come out the right way up, which
+closes item 2 of "What has not been tried on a device" above.
+
+### F5 — nothing pinned to the bottom sits under the navigation bar
+
+On Mike's Samsung the photo viewer's *Remove photo* and *Close*, and the remove
+confirm, sat partly under the navigation bar: the viewer is a modal and took no
+inset at all. It is now drawn edge to edge on purpose (`statusBarTranslucent`,
+`navigationBarTranslucent`), so it behaves the same with three-button and
+gesture navigation, and is padded by the safe-area insets — the bar by its own
+spacing plus the bottom inset. Review's *Finish review* bar and the cook
+composer already sat in a body padded by the bottom inset (and the keyboard,
+when it is open); that is unchanged and now pinned by tests.
+
+**Tested** in `bottomInsets.test.tsx`, every case rendered with a non-zero
+bottom inset — three-button and gesture navigation, each on a narrow and a wide
+display: the viewer's bar padding with *Remove photo* and *Close*, with the
+confirm open, and on a reviewed cook with *Close* alone; Review's *Finish
+review* bar and the composer in the footer with the body padded by the inset.
+
+**Not tried on a device.** Tests cannot show a real navigation bar. The next
+TEST build should be checked on both displays with three-button and gesture
+navigation: the viewer's buttons and confirm, *Finish review*, and the
+composer.
+
+### Also in this round
+
+- `CLAUDE.md`: build lines are "build cooking-lab at `<commit>`" with the
+  variant in the text; device evidence goes to the runs folder next to the repo
+  and is never committed; what a native build on Mike's PC needs; no PC paths,
+  user names or device details in the repo. Local paths, a host name, a user
+  name and the phone's model code were taken out of older records.
+- `app.config.ts`: version 0.2.1, `versionCode` 4.
+
+### Verification
+
+Run against the repository at the fix round's last commit: `check:secrets`,
+`typecheck`, `lint` and `npm test` pass on the desktop and on CI; the test and
+suite counts are the ones in the top-level `README.md`. Nothing was deleted or
+weakened apart from the one test replaced under F1, and the `coreLoop` budget is
+unchanged.
