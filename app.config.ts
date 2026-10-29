@@ -66,12 +66,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // Slice 3: photos, oven and internal readings, tags and tag search.
     // Bump `versionCode` with every production build that follows; Android will
     // not update an installed app to the same code.
-    version: '0.2.0',
+    version: '0.2.1',
     orientation: 'default',
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 3,
+      versionCode: 4,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
         // The app's sage, from src/theme/tokens.ts.
