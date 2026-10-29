@@ -2,6 +2,14 @@
 
 [![CI](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml)
 
+**For** one cook, on one Android phone, who wants a dish to get better each time it's made. **It does** three things today: records a cook as it happens (notes, photos, oven and food temperatures), asks one question afterwards and keeps the answer in the cook's own words, and finds any cook again by title or tag. Evidence is kept apart from interpretation: nothing the cook wrote is ever rewritten.
+
+**Try it:** the app is built from this repo and installed on your own phone (see "Building the TEST APK"); there's nothing to download. Everything but the build runs anywhere with Node: `npm ci && npm test`.
+
+**What's measured:** 863 automated tests across 48 suites, run with typecheck, lint, a secrets check and a dependency audit on every push (badge above). The public repository has been through three outside assessments. The third called it "a substantial personal product with strong automated coverage", and found a screenshot showing the test phone's whole app drawer, wording that contradicted itself about privacy and history, a test-build screenshot that wasn't the test build, and a critical dependency advisory. Each was fixed: the screenshots were cropped in every commit (`build-control/history-rewrites.md` explains both history rewrites), a guard now stops mixed test builds, and advisories are triaged in `build-control/dependency-triage.md` with CI failing on any critical one.
+
+**Where the AI is:** not in the app yet. Next, without AI, the app brings back last time's note when the same dish comes round again. After that, Claude may propose a summary and next-time suggestions after a review; the cook keeps, edits or discards them, and nothing enters the record without the cook's approval. Claude built the app as architect and engineer; the product owner set direction, made the product calls and tested on the phone. Privacy is the architecture: an encrypted database on the phone, no account, no cloud storage, no analytics.
+
 A private, local-first cooking notebook for a single Android device.
 
     Cook -> Observe -> Review -> Learn -> Cook Again
