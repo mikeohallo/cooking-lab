@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
@@ -6,6 +7,7 @@ import { ReadingIcon } from '../../components/ReadingIcon';
 import { PHOTO_ALT, PHOTO_LABEL, PHOTO_MISSING, VIEW_PHOTO } from '../../content/product';
 import type { CookEvent } from '../../domain/entities';
 import { formatTime } from '../../format/dateTime';
+import { photoFrame, PLACEHOLDER_RATIO, type PixelSize } from '../../layout/photoFrame';
 import { colors, radius, readingTreatments, space } from '../../theme/tokens';
 import { formatCelsius, readingKindFromEvent, readingKindLabel, whereFromEvent } from './temperature';
 
@@ -35,7 +37,9 @@ type TimelineEventProps = {
  * same thing. The word is always there: the colour distinguishes the two at a
  * glance and carries none of the meaning on its own.
  *
- * A photograph is the picture itself, full width. Everything else that can
+ * A photograph is the picture itself, whole and at its own shape, full width
+ * and in a thin bordered frame so it can never be taken for part of the app.
+ * Everything else that can
  * legitimately be in a timeline is labelled with its kind so it can never pass
  * for the cook's own words.
  */
@@ -135,15 +139,7 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
         );
       }
 
-      const picture = (
-        <Image
-          source={{ uri: photo.uri }}
-          style={styles.photo}
-          resizeMode="cover"
-          accessibilityLabel={PHOTO_ALT}
-          testID={`photo-${event.id}`}
-        />
-      );
+      const picture = <TimelinePicture uri={photo.uri} eventId={event.id} />;
 
       if (photo.onOpen === undefined) {
         return (
@@ -197,6 +193,41 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
   }
 }
 
+/**
+ * One photograph, whole. `contain`, never `cover`: nothing the camera saw is
+ * cut off. The frame is the full width; its height comes from the picture's own
+ * proportions once it has loaded, capped by `photoFrame`, and anything taller
+ * than the cap is letterboxed on the frame's muted ground.
+ */
+function TimelinePicture({ uri, eventId }: { uri: string; eventId: string }) {
+  const { height: windowHeight } = useWindowDimensions();
+  const [frameWidth, setFrameWidth] = useState(0);
+  const [natural, setNatural] = useState<PixelSize | null>(null);
+  const frame = photoFrame(frameWidth, natural, windowHeight);
+
+  return (
+    <View
+      style={[styles.photoFrame, frame ? { height: frame.height } : styles.photoFramePending]}
+      onLayout={(layout) => setFrameWidth(layout.nativeEvent.layout.width)}
+      testID={`photo-frame-${eventId}`}
+    >
+      <Image
+        source={{ uri }}
+        style={styles.photo}
+        resizeMode="contain"
+        accessibilityLabel={PHOTO_ALT}
+        onLoad={(loaded) => {
+          const source = loaded.nativeEvent?.source;
+          if (source && source.width > 0 && source.height > 0) {
+            setNatural({ width: source.width, height: source.height });
+          }
+        }}
+        testID={`photo-${eventId}`}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   temperature: {
     backgroundColor: colors.surface,
@@ -239,10 +270,19 @@ const styles = StyleSheet.create({
   photoBlock: {
     gap: space.xxs,
   },
+  photoFrame: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.photo,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMuted,
+  },
+  photoFramePending: {
+    aspectRatio: 1 / PLACEHOLDER_RATIO,
+  },
   photo: {
     width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: radius.photo,
-    backgroundColor: colors.surfaceMuted,
+    height: '100%',
   },
 });

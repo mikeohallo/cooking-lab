@@ -6,7 +6,8 @@
  * scripted so a refusal and a cancellation can each be driven deliberately.
  */
 
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import {
   ADD_PHOTO,
@@ -21,7 +22,9 @@ import {
   REMOVE_PHOTO_KEEP,
   TAKE_PHOTO,
 } from '../src/content/product';
+import { PHOTO_HEIGHT_SHARE } from '../src/layout/photoFrame';
 import { CookScreen } from '../src/screens/CookScreen';
+import { colors, radius } from '../src/theme/tokens';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
 
 const user = userEvent.setup();
@@ -309,3 +312,76 @@ describe('a photograph whose file has gone', () => {
     expect(screen.queryByTestId('photo-lost-photo')).toBeNull();
   });
 });
+
+// Fix round 0.2.1 (F4): whole, at its own shape, in a frame.
+describe('a photograph in the timeline', () => {
+  function flat(style: unknown): Record<string, unknown> {
+    return (StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>) ?? {};
+  }
+
+  async function photoInTimeline(): Promise<string> {
+    await startCook();
+    await openCook();
+    await takePhoto();
+    const events = await waitFor(async () => {
+      const found = await harness.storage.data.cookEvents.listForCook({ cookId: 'cook-1' });
+      expect(found).toHaveLength(1);
+      return found;
+    });
+    const id = events[0]!.id;
+    await screen.findByTestId(`photo-${id}`);
+    return id;
+  }
+
+  it('is drawn whole, never cropped', async () => {
+    const id = await photoInTimeline();
+    expect(screen.getByTestId(`photo-${id}`).props.resizeMode).toBe('contain');
+  });
+
+  it('has a thin border in the border token and the photo corner radius', async () => {
+    const id = await photoInTimeline();
+    const frame = flat(screen.getByTestId(`photo-frame-${id}`).props.style);
+    expect(frame.borderWidth).toBe(1);
+    expect(frame.borderColor).toBe(colors.border);
+    expect(frame.borderRadius).toBe(radius.photo);
+    expect(frame.overflow).toBe('hidden');
+    expect(frame.width).toBe('100%');
+  });
+
+  it('takes its own shape once it has loaded', async () => {
+    const id = await photoInTimeline();
+    await fireEvent(screen.getByTestId(`photo-frame-${id}`), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 240 } },
+    });
+    await fireEvent(screen.getByTestId(`photo-${id}`), 'load', {
+      nativeEvent: { source: { width: 2048, height: 1024 } },
+    });
+    expect(flat(screen.getByTestId(`photo-frame-${id}`).props.style).height).toBe(160);
+  });
+
+  it('is capped at part of the window, and letterboxed, when it is taller', async () => {
+    const id = await photoInTimeline();
+    await fireEvent(screen.getByTestId(`photo-frame-${id}`), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 240 } },
+    });
+    await fireEvent(screen.getByTestId(`photo-${id}`), 'load', {
+      nativeEvent: { source: { width: 512, height: 4096 } },
+    });
+    // At its own shape this one would be 2560 dp tall in a 320 dp frame. It is
+    // drawn at the cap instead, and still whole inside it.
+    const frame = flat(screen.getByTestId(`photo-frame-${id}`).props.style);
+    expect(frame.height).toBeLessThan(2560);
+    expect(frame.height).toBe(Math.round(windowHeight() * PHOTO_HEIGHT_SHARE));
+    expect(screen.getByTestId(`photo-${id}`).props.resizeMode).toBe('contain');
+  });
+
+  it('still opens full screen when tapped', async () => {
+    const id = await photoInTimeline();
+    await user.press(screen.getByTestId(`event-${id}`));
+    expect(await screen.findByTestId('photo-viewer-image')).toBeOnTheScreen();
+  });
+});
+
+function windowHeight(): number {
+  return Dimensions.get('window').height;
+}
