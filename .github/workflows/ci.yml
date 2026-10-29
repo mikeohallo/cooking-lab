@@ -48,6 +48,15 @@ jobs:
           set -o pipefail
           npm test -- --ci --silent 2>&1 | tee jest.log
 
+      # How many tests ran, said where anybody can read it. The log needs a
+      # GitHub sign-in; an annotation does not, and the README's count is
+      # checked against this one.
+      - name: Say how many ran
+        if: success()
+        run: |
+          grep -E 'Tests:|Test Suites:' jest.log \
+            | while IFS= read -r line; do printf '::notice::%s\n' "$line"; done
+
       # A red CI that nobody can read is not a gate.
       #
       # Actions logs need a GitHub sign-in even on a public repository, so a
