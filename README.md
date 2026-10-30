@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml)
 
-**For** one cook, on one Android phone, who wants a dish to get better each time it's made. **It does** three things today: records a cook as it happens (notes, photos, oven and food temperatures), asks one question afterwards and keeps the answer in the cook's own words, and finds any cook again by title or tag. Evidence is kept apart from interpretation: nothing the cook wrote is ever rewritten.
+**For** one cook, on one Android phone, who wants a dish to get better each time it's made. **It does** three things today: records a cook as it happens (notes, photos, oven and food temperatures), asks one question afterwards and keeps the answer in the cook's own words, and finds any cook again by title or tag. Evidence is kept apart from interpretation, and nothing the cook writes is lost: an edit keeps the earlier words, and a cook is only deleted when its owner deletes it.
 
 **Try it:** the app is built from this repo and installed on your own phone (see "Building the TEST APK"); there's nothing to download. Everything but the build runs anywhere with Node: `npm ci && npm test`.
 
-**What's measured:** 863 automated tests across 48 suites, run with typecheck, lint, a secrets check and a dependency audit on every push (badge above). The public repository has been through three outside assessments. The third called it "a substantial personal product with strong automated coverage", and found a screenshot showing the test phone's whole app drawer, wording that contradicted itself about privacy and history, a test-build screenshot that wasn't the test build, and a critical dependency advisory. Each was fixed: the screenshots were cropped in every commit (`build-control/history-rewrites.md` explains both history rewrites), a guard now stops mixed test builds, and advisories are triaged in `build-control/dependency-triage.md` with CI failing on any critical one.
+**What's measured:** 987 automated tests across 57 suites, run with typecheck, lint, a secrets check and a dependency audit on every push (badge above). The public repository has been through three outside assessments. The third called it "a substantial personal product with strong automated coverage", and found a screenshot showing the test phone's whole app drawer, wording that contradicted itself about privacy and history, a test-build screenshot that wasn't the test build, and a critical dependency advisory. Each was fixed: the screenshots were cropped in every commit (`build-control/history-rewrites.md` explains both history rewrites), a guard now stops mixed test builds, and advisories are triaged in `build-control/dependency-triage.md` with CI failing on any critical one.
 
 **Where the AI is:** not in the app yet. Next, without AI, the app brings back last time's note when the same dish comes round again. After that, Claude may propose a summary and next-time suggestions after a review; the cook keeps, edits or discards them, and nothing enters the record without the cook's approval. Claude built the app as architect and engineer; the product owner set direction, made the product calls and tested on the phone. Privacy is the architecture: an encrypted database on the phone, no account, no cloud storage, no analytics.
 
@@ -22,7 +22,8 @@ The app records a cook as it happens — notes, temperatures, photographs —
 asks one question afterwards, and stores the answer in the cook's own words.
 Evidence is kept strictly separate from interpretation: an assistant may
 *propose* findings and lessons, but nothing enters history until the cook
-approves it, and nothing the cook wrote is ever rewritten.
+approves it. Nothing the cook writes is lost: an edit keeps the earlier words,
+and a cook is only deleted when its owner deletes it.
 
 It is also an experiment in how a product leader builds software with AI.
 The product owner sets direction, makes product decisions and tests on the
@@ -42,13 +43,30 @@ database on the phone. There is no account, no cloud backend, no cloud storage
 and no analytics, and none is planned. The only remote call the app is planned
 to make is to an AI model, in a later slice.
 
-**Current state (slices 1 to 3):** a cook can be started in one tap and
-captured as it happens — notes, photographs, and Celsius readings that say
-whether they were taken of the oven or of the food — then reviewed with a
-verdict in the cook's own words and found again in History. Cooks can be given
-tags in the kitchen's own words and found by them: History searches titles and
-tags together, and says which cooks matched everything you typed and which
-matched part of it.
+**Current state (0.2.2):** a cook can be started in one tap and captured as
+it happens:
+
+* **Notes and photos.** A photo chosen from the Gallery goes into the timeline
+  at the time it was taken, read from its own date and time (never its
+  location); one taken with the camera goes in as it is taken.
+* **Oven and Internal readings** in Celsius, each labelled with what it was
+  taken of, plus a free-text reading for anywhere else.
+* **Tags and search.** Cooks can be tagged in the kitchen's own words, and
+  History searches titles and tags together, saying which cooks matched
+  everything you typed and which matched part of it.
+* **Editing with history.** Any note, and the verdict once a cook is reviewed,
+  can be edited. The edit is kept beside the earlier words rather than over
+  them: the timeline shows the latest, marked "edited", and every earlier
+  version can be read with its time. The title can be changed on any cook.
+* **Deleting a cook.** Long-press a cook, or use ⋯ on its page, then confirm.
+  "Cook deleted · Undo" stays up for a few seconds; after that the cook, its
+  notes, readings, photos and edits are gone for good.
+* **The screen stays on** while an open cook is in front, so it doesn't sleep
+  mid-cook. A toggle on the cook's page turns it off for that cook.
+
+A cook is then reviewed with a verdict in the cook's own words and found again
+in History. The cook screen scrolls however long a note gets, and the note box,
+Send and the reading buttons stay reachable above the keyboard.
 
 A photograph is re-encoded into the app's own private storage with its
 metadata removed, so a picture of dinner does not carry the location of the
@@ -109,20 +127,23 @@ cannot reach that behaviour.
 
 ## Android permissions
 
-The installed app asks for two, and the list is held in place by a test
+The installed app has two, and the list is held in place by a test
 (`__tests__/androidPermissions.test.ts`) that works out the merged manifest
 from every installed native module and fails if anything else appears.
 
 | Permission | Why |
 |---|---|
-| `CAMERA` | Taking a photograph of a cook. Android asks once, the first time. |
+| `CAMERA` | Taking a photograph of a cook. Android asks for camera access the first time a photo is taken, and not before. |
 | `INTERNET` | Required by the Metro development client; the app itself makes no network calls. |
 
 Everything else any dependency declares is stripped in `app.config.ts`.
 Notably there is **no storage or media permission**: a picture from the phone
-is chosen through Android's own photo picker, which runs outside the app and
-hands over the one file the person chose, so the app never has access to the
-photo library at all.
+is chosen through Android's own system photo picker, which runs outside the
+app and hands over the one file the person chose, so it needs no storage
+permission and the app never has access to the photo library at all.
+
+Keeping the screen on during a cook needs no permission either: it is a
+property of the app's own window (`expo-keep-awake`), not a wake lock.
 
 A photograph is re-encoded into app-private storage as a JPEG with its long
 edge capped and every metadata segment removed — EXIF, GPS, XMP and comments —
@@ -209,14 +230,6 @@ is enough), tap it, allow the installer once. An update over an installed copy
 keeps its data as long as the signature matches and `versionCode` has gone up —
 so bump `versionCode` in `app.config.ts` for every build that will update an
 installed app.
-
-## Permissions
-
-The app requests no device capabilities. `INTERNET` is retained because the Metro
-development client cannot connect without it. Permissions pulled in transitively
-by Expo tooling (`READ_/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,
-`VIBRATE`, and `expo-secure-store`'s `USE_BIOMETRIC`/`USE_FINGERPRINT`) are
-stripped via `android.blockedPermissions` in `app.config.ts`.
 
 ## Dependencies
 

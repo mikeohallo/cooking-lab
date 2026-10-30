@@ -7,7 +7,7 @@
  */
 
 export const PRODUCT_TAGLINE =
-  'A private cooking notebook for one kitchen. Stored on this device. You choose what to export or share.';
+  'A private cooking notebook for one kitchen. Stored on this device. Nothing you write is lost, and you choose what to export or share.';
 
 export const CORE_LOOP_STEPS = ['Cook', 'Observe', 'Review', 'Learn', 'Cook Again'] as const;
 
@@ -154,7 +154,7 @@ export const STATUS_REVIEWED = 'Reviewed';
 export const STARTING_TITLE = 'Opening your notebook';
 export const COOK_NOT_FOUND_TITLE = 'That cook isn’t here';
 export const COOK_NOT_FOUND_BODY =
-  'Nothing was changed. It may have been removed, or the link is stale. Go back to Home to continue.';
+  'Nothing was changed. It may have been deleted, or the link is stale. Go back to Home to continue.';
 export const BACK_TO_HOME = 'Back to Home';
 export const RETRY = 'Try again';
 export const UNSAVED_KEPT = 'Your text is still here. Nothing was lost.';
