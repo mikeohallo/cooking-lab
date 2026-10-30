@@ -19,6 +19,11 @@ type CardProps = {
   onLongPress?: () => void;
   /** What the long-press does, for the screen reader's action list. */
   longPressLabel?: string;
+  /**
+   * A tappable card that is the one shown beside the list, on the inner
+   * display: a heavier ink border, and "selected" for TalkBack.
+   */
+  selected?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
@@ -35,12 +40,13 @@ export function Card({
   onPress,
   onLongPress,
   longPressLabel,
+  selected,
   accessibilityLabel,
   accessibilityHint,
   testID,
   style,
 }: CardProps) {
-  const base = [styles.card, variantStyles[variant], style];
+  const base = [styles.card, variantStyles[variant], selected && styles.selected, style];
 
   if (onPress) {
     return (
@@ -48,6 +54,7 @@ export function Card({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityHint={accessibilityHint}
+        accessibilityState={selected === undefined ? undefined : { selected }}
         onPress={onPress}
         onLongPress={onLongPress}
         accessibilityActions={
@@ -106,5 +113,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     backgroundColor: colors.surfaceMuted,
+  },
+  selected: {
+    borderColor: colors.primary,
+    borderWidth: 2,
   },
 });

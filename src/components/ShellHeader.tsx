@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { getAppIdentity, isTestBuild } from '../config/appIdentity';
@@ -9,6 +10,8 @@ import { TestBadge } from './TestBadge';
 type ShellHeaderProps = {
   /** Optional screen title shown under the application name. */
   subtitle?: string;
+  /** Something on the trailing side of the title — Home's ⋯ menu (0.3.0). */
+  trailing?: ReactNode;
 };
 
 /**
@@ -16,17 +19,20 @@ type ShellHeaderProps = {
  * variant only, an unmistakable TEST badge plus a short explanation of what
  * this build is. Production renders neither.
  */
-export function ShellHeader({ subtitle }: ShellHeaderProps) {
+export function ShellHeader({ subtitle, trailing }: ShellHeaderProps) {
   const identity = getAppIdentity();
   const showTestAffordances = isTestBuild();
 
   return (
     <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <AppText variant="display" accessibilityRole="header" style={styles.appName}>
-          {identity.name}
-        </AppText>
-        {showTestAffordances ? <TestBadge /> : null}
+      <View style={styles.topRow}>
+        <View style={styles.titleRow}>
+          <AppText variant="display" accessibilityRole="header">
+            {identity.name}
+          </AppText>
+          {showTestAffordances ? <TestBadge /> : null}
+        </View>
+        {trailing ?? null}
       </View>
       {subtitle ? (
         <AppText variant="secondary" tone="muted">
@@ -47,14 +53,17 @@ const styles = StyleSheet.create({
     gap: space.xs,
     marginBottom: space.lg,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.xs,
+  },
   titleRow: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: space.xs,
-  },
-  appName: {
-    flexShrink: 1,
   },
   testNotice: {
     backgroundColor: colors.testSurface,

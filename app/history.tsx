@@ -1,22 +1,10 @@
-import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { Redirect } from 'expo-router';
 
-import { useFocusRefresh } from '../src/state/useFocusRefresh';
-import type { CookId } from '../src/domain/entities';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
-
+/**
+ * History is Home now (0.3.0): the search, the filters and every reviewed
+ * cook, ten to a page. An old link or a back stack that still names
+ * `/history` lands there instead of on a screen that no longer exists.
+ */
 export default function HistoryRoute() {
-  const router = useRouter();
-  const refreshToken = useFocusRefresh();
-
-  const openCook = useCallback((cookId: CookId) => router.push(`/cook/${cookId}`), [router]);
-  const goBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace('/');
-  }, [router]);
-
-  return <HistoryScreen onOpenCook={openCook} onBack={goBack} refreshToken={refreshToken} />;
+  return <Redirect href="/" />;
 }

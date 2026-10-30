@@ -20,7 +20,6 @@ import {
 } from '../src/content/product';
 import { createSqliteDataLayer } from '../src/data/sqlite/dataLayer';
 import { CookScreen } from '../src/screens/CookScreen';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
 import { countingIds } from './support/database';
@@ -51,7 +50,7 @@ describe('the core loop', () => {
   it('cooks dinner and keeps the history', async () => {
     // Home: one tap starts a cook.
     const onOpenCook = jest.fn();
-    await harness.render(<HomeScreen onOpenCook={onOpenCook} onHistory={jest.fn()} />);
+    await harness.render(<HomeScreen onOpenCook={onOpenCook} />);
     await screen.findByTestId('home-empty');
     await user.press(screen.getByRole('button', { name: NEW_COOK_TITLE }));
     await waitFor(() => expect(onOpenCook).toHaveBeenCalled());
@@ -95,7 +94,7 @@ describe('the core loop', () => {
 
     // History: the cook is there, reviewed, with its verdict.
     const onOpenFromHistory = jest.fn();
-    await harness.render(<HistoryScreen onOpenCook={onOpenFromHistory} onBack={jest.fn()} />);
+    await harness.render(<HomeScreen onOpenCook={onOpenFromHistory} />);
     await screen.findByTestId('history-list');
     expect(screen.getByText('Great crust. Apple and cabbage needed acid.')).toBeOnTheScreen();
     await user.press(screen.getByTestId(`cook-card-${cookId}`));

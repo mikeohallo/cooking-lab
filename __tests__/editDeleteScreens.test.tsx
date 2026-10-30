@@ -19,7 +19,6 @@ import {
   ORIGINAL_VERSION,
 } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
@@ -55,7 +54,7 @@ describe('deleting a cook from Home', () => {
   });
 
   it('long-press, Delete cook, confirm: the card goes and Undo is offered; Undo brings it back', async () => {
-    await harness.render(<HomeScreen onOpenCook={() => {}} onHistory={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     const card = await screen.findByTestId('cook-card-cook-done');
 
     await fireEvent(card, 'longPress');
@@ -77,7 +76,7 @@ describe('deleting a cook from Home', () => {
   });
 
   it('changes nothing when the cook answers Keep it', async () => {
-    await harness.render(<HomeScreen onOpenCook={() => {}} onHistory={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await fireEvent(await screen.findByTestId('cook-card-cook-open'), 'longPress');
     await fireEvent.press(await screen.findByTestId('delete-cook'));
     await fireEvent.press(screen.getByTestId('delete-cook-keep'));
@@ -89,7 +88,7 @@ describe('deleting a cook from Home', () => {
 
   it('deletes it for good once the undo window has passed', async () => {
     jest.useFakeTimers();
-    await harness.render(<HomeScreen onOpenCook={() => {}} onHistory={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await fireEvent(await screen.findByTestId('cook-card-cook-done'), 'longPress');
     await fireEvent.press(await screen.findByTestId('delete-cook'));
     await fireEvent.press(screen.getByTestId('delete-cook-confirm-button'));
@@ -110,7 +109,7 @@ describe('deleting a cook from Home', () => {
 describe('deleting a cook from History', () => {
   it('works from a card there too', async () => {
     await cook('cook-a', 'Bread', 'Dense.');
-    await harness.render(<HistoryScreen onOpenCook={() => {}} onBack={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
 
     await fireEvent(await screen.findByTestId('cook-card-cook-a'), 'longPress');
     await fireEvent.press(await screen.findByTestId('delete-cook'));

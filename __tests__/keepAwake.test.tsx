@@ -15,7 +15,6 @@ import { AppState, Pressable, type AppStateStatus } from 'react-native';
 
 import { SCREEN_CAN_SLEEP, SCREEN_STAYS_ON } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { KEEP_AWAKE_TAG } from '../src/state/useKeepScreenOn';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
@@ -130,11 +129,11 @@ describe('everywhere else', () => {
   });
 
   it('never asks on Home or History', async () => {
-    await harness.render(<HomeScreen onOpenCook={() => {}} onHistory={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await screen.findByTestId('home-screen');
     await cleanup();
-    await harness.render(<HistoryScreen onOpenCook={() => {}} onBack={() => {}} />);
-    await screen.findByTestId('history-screen');
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
+    await screen.findByTestId('home-screen');
     expect(activate).not.toHaveBeenCalled();
   });
 });

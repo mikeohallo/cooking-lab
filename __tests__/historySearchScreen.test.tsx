@@ -11,16 +11,14 @@ import { screen, userEvent, waitFor, within } from '@testing-library/react-nativ
 
 import {
   CLEAR_SEARCH,
-  FILTER_ALL,
-  FILTER_OPEN,
-  FILTER_REVIEWED,
+  COOKING_NOW,
   SEARCH_GROUP_ALL,
   SEARCH_GROUP_SOME,
   SEARCH_NO_RESULTS_TITLE,
   SEARCH_PLACEHOLDER,
   SHOW_MY_TAGS,
 } from '../src/content/product';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
+import { HomeScreen } from '../src/screens/HomeScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
 
 const user = userEvent.setup();
@@ -65,8 +63,8 @@ async function fillHistory(): Promise<void> {
 }
 
 async function openHistory(): Promise<void> {
-  await harness.render(<HistoryScreen onBack={jest.fn()} onOpenCook={jest.fn()} />);
-  await screen.findByTestId('history-screen');
+  await harness.render(<HomeScreen onOpenCook={jest.fn()} />);
+  await screen.findByTestId('home-screen');
 }
 
 describe('the search box', () => {
@@ -93,9 +91,8 @@ describe('the search box', () => {
     await fillHistory();
     await openHistory();
 
-    expect(screen.getByTestId('history-filter-all')).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: FILTER_OPEN })).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: FILTER_REVIEWED })).toBeOnTheScreen();
+    expect(screen.getByTestId('history-meal-filter')).toBeOnTheScreen();
+    expect(screen.getByRole('checkbox', { name: 'Breakfast' })).toBeOnTheScreen();
   });
 });
 
@@ -130,9 +127,6 @@ describe('searching', () => {
     expect(await screen.findByTestId('history-group-all')).toBeOnTheScreen();
     expect(screen.getByText(SEARCH_GROUP_ALL)).toBeOnTheScreen();
     expect(screen.getByText(SEARCH_GROUP_SOME)).toBeOnTheScreen();
-    // The headings cannot be confused with the All / Open / Reviewed filters
-    // a few millimetres above them.
-    expect(SEARCH_GROUP_ALL).not.toBe(FILTER_ALL);
     // The cider braise matched both; the chops matched one and are still here.
     expect(screen.getByTestId('history-group-all')).toContainElement(
       screen.getByTestId('cook-card-cook-cider'),
@@ -190,15 +184,16 @@ describe('searching', () => {
     expect(screen.getByText(SEARCH_NO_RESULTS_TITLE)).toBeOnTheScreen();
   });
 
-  it('searches inside the chosen filter', async () => {
+  it('searches the reviewed cooks, and leaves Cooking now as it is', async () => {
     await fillHistory();
     await openHistory();
 
-    await user.press(screen.getByRole('tab', { name: FILTER_OPEN }));
     await user.type(screen.getByTestId('history-search'), 'pork');
 
-    // The pork cooks are both reviewed, so Open has none of them.
-    expect(await screen.findByTestId('history-search-empty')).toBeOnTheScreen();
+    const results = await screen.findByTestId('history-results');
+    expect(within(results).queryByTestId('cook-card-cook-open')).toBeNull();
+    expect(within(screen.getByTestId('cooking-now')).getByText(COOKING_NOW)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('cooking-now')).getByTestId('cook-card-cook-open')).toBeOnTheScreen();
   });
 
   it('clears back to the ordinary list', async () => {
@@ -285,6 +280,7 @@ describe('searching by a tag he taps', () => {
       'user',
       '2026-10-01T18:00:00.000Z',
     );
+    await data.capture.saveReview('cook-bare', null, 'user', '2026-10-01T19:00:00.000Z');
     await openHistory();
 
     await screen.findByTestId('history-list');

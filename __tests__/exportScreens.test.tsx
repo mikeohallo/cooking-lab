@@ -3,12 +3,9 @@
  * remembers: where they appear, what they hand over, and what they say when
  * the hand-over fails.
  */
-import { cleanup, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { screen, userEvent } from '@testing-library/react-native';
 
 import {
-  EMPTY_HISTORY_TITLE,
-  EMPTY_OPEN_TITLE,
-  EMPTY_REVIEWED_TITLE,
   READING_SOMEWHERE_ELSE,
   CANCEL,
   EXPORT_COOK,
@@ -17,11 +14,8 @@ import {
   EXPORT_EVERYTHING,
   EXPORT_EVERYTHING_HINT,
   EXPORT_FAILED_TITLE,
-  FILTER_OPEN,
-  FILTER_REVIEWED,
 } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
 
@@ -50,17 +44,21 @@ async function seedReviewedCook(id = 'done-cook'): Promise<void> {
 
 describe('Export everything, on Home', () => {
   it('is not offered while there is nothing to export', async () => {
-    await harness.render(<HomeScreen onOpenCook={jest.fn()} onHistory={jest.fn()} />);
+    await harness.render(<HomeScreen onOpenCook={jest.fn()} />);
     await screen.findByTestId('home-empty');
+    await user.press(screen.getByTestId('home-more'));
 
     expect(screen.queryByRole('button', { name: EXPORT_EVERYTHING })).toBeNull();
   });
 
   it('hands one backup file to the share sheet and says what went in it', async () => {
     await seedReviewedCook();
-    await harness.render(<HomeScreen onOpenCook={jest.fn()} onHistory={jest.fn()} />);
+    await harness.render(<HomeScreen onOpenCook={jest.fn()} />);
 
-    await user.press(await screen.findByRole('button', { name: EXPORT_EVERYTHING }));
+    // Export everything is in Home's ⋯ menu (0.3.0).
+    await screen.findByTestId('history-list');
+    await user.press(screen.getByTestId('home-more'));
+    await user.press(screen.getByRole('button', { name: EXPORT_EVERYTHING }));
 
     expect(screen.getByText(EXPORT_EVERYTHING_HINT)).toBeOnTheScreen();
     expect(await screen.findByTestId('export-everything-done')).toBeOnTheScreen();
@@ -75,9 +73,11 @@ describe('Export everything, on Home', () => {
     await seedReviewedCook();
     const before = await harness.storage.data.snapshots.readSnapshot();
     harness.sink.fail = new Error('The share sheet could not be opened.');
-    await harness.render(<HomeScreen onOpenCook={jest.fn()} onHistory={jest.fn()} />);
+    await harness.render(<HomeScreen onOpenCook={jest.fn()} />);
 
-    await user.press(await screen.findByRole('button', { name: EXPORT_EVERYTHING }));
+    await screen.findByTestId('history-list');
+    await user.press(screen.getByTestId('home-more'));
+    await user.press(screen.getByRole('button', { name: EXPORT_EVERYTHING }));
 
     expect(await screen.findByTestId('export-everything-failed')).toBeOnTheScreen();
     expect(screen.getByText(EXPORT_FAILED_TITLE)).toBeOnTheScreen();
@@ -111,37 +111,6 @@ describe('Export this cook, on a reviewed cook', () => {
     await screen.findByTestId('cook-screen');
 
     expect(screen.queryByRole('button', { name: EXPORT_COOK })).toBeNull();
-  });
-});
-
-describe('History’s empty state names the filter', () => {
-  it('says there are no open cooks when every cook is reviewed', async () => {
-    await seedReviewedCook();
-    await harness.render(<HistoryScreen onBack={jest.fn()} onOpenCook={jest.fn()} />);
-    await screen.findByTestId('history-list');
-
-    await user.press(screen.getByRole('tab', { name: FILTER_OPEN }));
-
-    await waitFor(() => expect(screen.getByText(EMPTY_OPEN_TITLE)).toBeOnTheScreen());
-    expect(screen.queryByText(EMPTY_HISTORY_TITLE)).toBeNull();
-  });
-
-  it('says nothing is reviewed yet when the only cook is open', async () => {
-    const { data, now } = harness.storage;
-    await data.capture.startCook({ id: 'open-cook', startedAt: now() }, 'user', now());
-    await harness.render(<HistoryScreen onBack={jest.fn()} onOpenCook={jest.fn()} />);
-    await screen.findByTestId('history-list');
-
-    await user.press(screen.getByRole('tab', { name: FILTER_REVIEWED }));
-
-    await waitFor(() => expect(screen.getByText(EMPTY_REVIEWED_TITLE)).toBeOnTheScreen());
-    await cleanup();
-  });
-
-  it('still says no cooks yet when the notebook is empty', async () => {
-    await harness.render(<HistoryScreen onBack={jest.fn()} onOpenCook={jest.fn()} />);
-
-    expect(await screen.findByText(EMPTY_HISTORY_TITLE)).toBeOnTheScreen();
   });
 });
 

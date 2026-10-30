@@ -122,10 +122,12 @@ describe('meal type on a cook', () => {
   it('shows the label on Home and lets "Who’s eating" be reached from there', async () => {
     await startCook('cook-1', 'Brownies');
     granted(await harness.storage.data.cookRecord.setMealType('cook-1', 'dessert', 'user', harness.tick()));
+    granted(await harness.storage.data.capture.saveReview('cook-1', null, 'user', harness.tick()));
     const onHousehold = jest.fn();
-    await harness.render(<HomeScreen onOpenCook={() => {}} onHistory={() => {}} onHousehold={onHousehold} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} onHousehold={onHousehold} />);
 
     expect(await screen.findByTestId('cook-meal-cook-1')).toHaveTextContent('Dessert');
+    await fireEvent.press(screen.getByTestId('home-more'));
     await fireEvent.press(screen.getByTestId('whos-eating'));
     expect(onHousehold).toHaveBeenCalled();
   });

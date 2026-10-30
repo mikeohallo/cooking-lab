@@ -18,10 +18,10 @@ export const TEST_BUILD_NOTICE =
 
 export const NEW_COOK_TITLE = 'New Cook';
 export const NEW_COOK_HINT = 'Start now. Add a title later, or never.';
-export const HISTORY_TITLE = 'History';
-export const SEE_ALL_HISTORY = 'See all history';
-export const CONTINUE_COOKING = 'Continue cooking';
-export const RECENT_COOKS = 'Recent cooks';
+export const COOKING_NOW = 'Cooking now';
+export const HOME_MORE = 'More: export everything, who’s eating';
+export const PAGE_PREVIOUS = 'Previous';
+export const PAGE_NEXT = 'Next';
 export const EMPTY_HOME_TITLE = 'Nothing cooked yet';
 export const EMPTY_HOME_BODY =
   'A cook can be as small as one sentence. Tap New Cook, say what happened, and come back to it after dinner.';
@@ -89,7 +89,7 @@ export const TAG_FAILED_TITLE = 'That tag was not saved';
 
 // --- Search ---------------------------------------------------------------
 
-export const SEARCH_PLACEHOLDER = 'Search titles, tags or ingredients';
+export const SEARCH_PLACEHOLDER = 'Search titles, tags, ingredients';
 /**
  * The two result groups: everything that matched every word he typed, then
  * everything that matched part of it.
@@ -133,19 +133,8 @@ export const EXPORT_DONE_TITLE = 'Export ready';
 export const EXPORT_FAILED_TITLE = 'Nothing was exported';
 export const EXPORT_FAILED_BODY = 'Your cooks are unchanged. Try again in a moment.';
 
-// --- History --------------------------------------------------------------
+// --- History, which is Home since 0.3.0 -----------------------------------
 
-export const FILTER_ALL = 'All';
-export const FILTER_OPEN = 'Open';
-export const FILTER_REVIEWED = 'Reviewed';
-export const EMPTY_HISTORY_TITLE = 'No cooks yet';
-export const EMPTY_HISTORY_BODY =
-  'Every cook you record will be listed here, newest first, and you can search them by title or tag.';
-export const EMPTY_OPEN_TITLE = 'No open cooks';
-export const EMPTY_OPEN_BODY = 'Every cook here has been reviewed. Start a new one from Home.';
-export const EMPTY_REVIEWED_TITLE = 'Nothing reviewed yet';
-export const EMPTY_REVIEWED_BODY =
-  'Finish a cook and say how it went, and it will be listed here.';
 export const STATUS_OPEN = 'Open';
 export const STATUS_REVIEWED = 'Reviewed';
 

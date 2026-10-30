@@ -99,7 +99,7 @@ describe('routes', () => {
 
   it('shows the history route', async () => {
     await renderRouter(APP_DIR, { initialUrl: '/history' });
-    await waitFor(() => expect(screen.getByTestId('history-screen')).toBeOnTheScreen(), {
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeOnTheScreen(), {
       timeout: 4000,
     });
   });

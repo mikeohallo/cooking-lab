@@ -14,7 +14,7 @@ import {
 } from '@testing-library/react-native';
 
 import type { EvidenceDecision } from '../src/domain/evidence';
-import { HistoryScreen } from '../src/screens/HistoryScreen';
+import { HomeScreen } from '../src/screens/HomeScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
 
 let harness: ScreenHarness;
@@ -105,7 +105,7 @@ describe('History: search and filters', () => {
       .filter((id, index, all) => all.indexOf(id) === index);
 
   it('finds a cook by its ingredients, showing the matched line', async () => {
-    await harness.render(<HistoryScreen onOpenCook={() => {}} onBack={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await screen.findByTestId('history-list');
     await fireEvent.changeText(screen.getByTestId('history-search'), 'buttermilk');
     expect(await screen.findByTestId('cook-ingredients-line-cook-pancakes')).toHaveTextContent('buttermilk');
@@ -118,7 +118,7 @@ describe('History: search and filters', () => {
   });
 
   it('filters by meal type, any of the ones picked, and labels each card', async () => {
-    await harness.render(<HistoryScreen onOpenCook={() => {}} onBack={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await screen.findByTestId('history-list');
     expect(screen.getByTestId('cook-meal-cook-tart')).toHaveTextContent('Dessert');
 
@@ -129,7 +129,7 @@ describe('History: search and filters', () => {
   });
 
   it('filters by who and stars: at least that many, N/A never, guests too, combined with search', async () => {
-    await harness.render(<HistoryScreen onOpenCook={() => {}} onBack={() => {}} />);
+    await harness.render(<HomeScreen onOpenCook={() => {}} />);
     await screen.findByTestId('history-list');
 
     await fireEvent.press(screen.getByTestId('history-who-toggle'));
