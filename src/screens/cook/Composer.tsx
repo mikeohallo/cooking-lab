@@ -23,6 +23,7 @@ import {
 import type { PhotoOrigin } from '../../data/adapters';
 import type { JsonObject } from '../../domain/entities';
 import type { ReadingKind } from '../../domain/enums';
+import { NOTE_MAX_LINES } from '../../layout/footerLimit';
 import { space } from '../../theme/tokens';
 import type { WriteState } from '../../state/useWrite';
 import { parseTemperature, readingKindLabel } from './temperature';
@@ -249,6 +250,9 @@ export function Composer({
                 accessibilityLabel="Note"
                 multiline
                 rows={2}
+                // Grows to five lines and then scrolls inside itself, so a
+                // pasted recipe cannot push Send off the screen (0.2.2).
+                maxRows={NOTE_MAX_LINES}
                 invalid={blankRefused}
                 helper={blankRefused ? 'Write something first. One word is enough.' : undefined}
                 testID="note-input"

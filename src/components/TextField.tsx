@@ -1,5 +1,7 @@
 import { forwardRef } from 'react';
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
+
+import { maxTextBoxHeight } from '../layout/footerLimit';
 
 import { MIN_TOUCH_TARGET, colors, radius, space, type } from '../theme/tokens';
 import { AppText } from './AppText';
@@ -15,6 +17,11 @@ type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
   multiline?: boolean;
   /** Approximate number of visible lines for a multiline field. */
   rows?: number;
+  /**
+   * The most lines a multiline field grows to before it scrolls inside itself.
+   * Without it, a long paste grows the field without limit (fix round 0.2.2).
+   */
+  maxRows?: number;
 };
 
 /**
@@ -23,10 +30,16 @@ type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
  * and font scaling grows the field rather than clipping it.
  */
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, helper, invalid = false, multiline = false, rows = 3, ...input },
+  { label, helper, invalid = false, multiline = false, rows = 3, maxRows, ...input },
   ref,
 ) {
-  const minHeight = multiline ? (type.body.lineHeight ?? 23) * rows + space.md * 2 : MIN_TOUCH_TARGET;
+  const { fontScale } = useWindowDimensions();
+  const lineHeight = type.body.lineHeight ?? 23;
+  const minHeight = multiline ? lineHeight * rows + space.md * 2 : MIN_TOUCH_TARGET;
+  const capped = multiline && maxRows !== undefined;
+  const maxHeight = capped
+    ? Math.max(minHeight, maxTextBoxHeight(lineHeight, maxRows, fontScale, space.sm))
+    : undefined;
 
   return (
     <View style={styles.field}>
@@ -42,7 +55,15 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         textAlignVertical={multiline ? 'top' : 'center'}
         placeholderTextColor={colors.textMuted}
         accessibilityLabel={input.accessibilityLabel ?? label ?? input.placeholder}
-        style={[styles.input, { minHeight }, invalid && styles.inputInvalid]}
+        // A capped field scrolls inside itself once it is full, rather than
+        // growing until it pushes everything below it off the screen.
+        scrollEnabled={capped ? true : input.scrollEnabled}
+        style={[
+          styles.input,
+          { minHeight },
+          maxHeight !== undefined ? { maxHeight } : null,
+          invalid && styles.inputInvalid,
+        ]}
       />
       {helper ? (
         <AppText variant="caption" tone={invalid ? 'danger' : 'muted'}>
