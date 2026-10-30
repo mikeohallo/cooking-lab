@@ -36,6 +36,7 @@ import type {
   IsoTimestamp,
   Lesson,
   LessonId,
+  Revision,
 } from '../../domain/entities';
 import type {
   Actor,
@@ -52,6 +53,7 @@ import type {
   NewCook,
   NewCookEvent,
   ReviewDecision,
+  RevisionIdentity,
 } from '../../domain/evidence';
 import {
   appendCookEvent,
@@ -59,10 +61,13 @@ import {
   applyLessonCandidate,
   createCook,
   decideFinding as decideFindingRule,
+  deleteCook,
   decideLesson as decideLessonRule,
   openCookReview,
   recordBriefingUsefulness,
   removeCookEvent,
+  reviseNote as reviseNoteRule,
+  reviseVerdict as reviseVerdictRule,
   saveCookReview,
   updateCook as updateCookRule,
   updateCookEvent,
@@ -74,11 +79,13 @@ import type {
   BriefingRepository,
   BriefingService,
   CookCaptureService,
+  CookDeletionRepository,
   CookEventRepository,
   CookRepository,
   FindingRepository,
   LessonRepository,
   ReviewService,
+  RevisionRepository,
   SnapshotService,
 } from '../repositories';
 import { RecordNotFoundError } from './repositories';
@@ -92,6 +99,7 @@ import {
   toFindingSource,
   toImportBatch,
   toLesson as toLessonRecord,
+  toRevision as toRevisionRecord,
   toTag,
 } from './rows';
 
@@ -230,6 +238,8 @@ export function createReviewService(
 export function createCookCaptureService(
   cooks: CookRepository,
   events: CookEventRepository,
+  revisions: RevisionRepository,
+  deletions: CookDeletionRepository,
 ): CookCaptureService {
   return {
     async startCook(
@@ -310,6 +320,60 @@ export function createCookCaptureService(
         return decision;
       }
       return { allowed: true, record: await events.save(decision.record) };
+    },
+
+    /**
+     * Reword a note. The rule decides and builds the revision; the note's own
+     * row is not written to at all, which is what keeps its first words.
+     */
+    async reviseNote(
+      id: CookEventId,
+      text: string,
+      identity: RevisionIdentity,
+      actor: Actor,
+      at: IsoTimestamp,
+    ): Promise<EvidenceDecision<Revision>> {
+      const current = await loadOrThrow(() => events.findById(id), 'cook event', id);
+      const decision = reviseNoteRule(current, text, identity, actor, at);
+      if (!decision.allowed) {
+        return decision;
+      }
+      return { allowed: true, record: await revisions.create(decision.record) };
+    },
+
+    /** Reword a reviewed cook's verdict. `cooks.verdict` is not written to. */
+    async reviseVerdict(
+      id: CookId,
+      text: string,
+      identity: RevisionIdentity,
+      actor: Actor,
+      at: IsoTimestamp,
+    ): Promise<EvidenceDecision<Revision>> {
+      const current = await loadOrThrow(() => cooks.findById(id), 'cook', id);
+      const decision = reviseVerdictRule(current, text, identity, actor, at);
+      if (!decision.allowed) {
+        return decision;
+      }
+      return { allowed: true, record: await revisions.create(decision.record) };
+    },
+
+    /**
+     * Ask for a cook to be deleted: rule 12 decides, and the cook is then
+     * hidden for its undo window. Nothing of it is removed here; see
+     * `src/data/deletion/workflow.ts` for the rest.
+     */
+    async requestCookDeletion(
+      id: CookId,
+      actor: Actor,
+      at: IsoTimestamp,
+    ): Promise<EvidenceDecision<Cook>> {
+      const current = await loadOrThrow(() => cooks.findById(id), 'cook', id);
+      const decision = deleteCook(current, actor);
+      if (!decision.allowed) {
+        return decision;
+      }
+      await deletions.request(id, at);
+      return decision;
     },
 
     /**
@@ -394,6 +458,11 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
   const briefingColumns = 'id, cook_id, content, useful, created_at';
   const importColumns =
     'id, filename, status, candidates_total, candidates_resolved, created_at';
+  const revisionColumns = 'id, cook_id, cook_event_id, field, text, revised_at';
+  // A cook whose deletion is pending is not exported: to the cook it is
+  // already gone, and the file is "everything" they still have. Its rows are
+  // left out wherever they hang off it.
+  const KEPT = (column: string) => `${column} NOT IN (SELECT cook_id FROM cook_deletions)`;
 
   const rowsOf = async (sql: string) => adapter.select({ sql, params: [] });
 
@@ -410,21 +479,30 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         briefings,
         briefingSources,
         importBatches,
+        revisions,
       ] = await Promise.all([
-        rowsOf(`SELECT ${cookColumns} FROM cooks ORDER BY id ASC`),
-        rowsOf(`SELECT ${eventColumns} FROM cook_events ORDER BY id ASC`),
-        rowsOf(`SELECT ${findingColumns} FROM findings ORDER BY id ASC`),
+        rowsOf(`SELECT ${cookColumns} FROM cooks WHERE ${KEPT('id')} ORDER BY id ASC`),
+        rowsOf(`SELECT ${eventColumns} FROM cook_events WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
+        rowsOf(`SELECT ${findingColumns} FROM findings WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
         rowsOf(
-          'SELECT finding_id, cook_event_id FROM finding_sources ORDER BY finding_id ASC, cook_event_id ASC',
+          `SELECT finding_id, cook_event_id FROM finding_sources
+           WHERE finding_id IN (SELECT id FROM findings WHERE ${KEPT('cook_id')})
+           ORDER BY finding_id ASC, cook_event_id ASC`,
         ),
-        rowsOf(`SELECT ${lessonColumns} FROM lessons ORDER BY id ASC`),
+        rowsOf(`SELECT ${lessonColumns} FROM lessons WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
         rowsOf('SELECT id, name, kind FROM tags ORDER BY id ASC'),
-        rowsOf('SELECT cook_id, tag_id FROM cook_tags ORDER BY cook_id ASC, tag_id ASC'),
-        rowsOf(`SELECT ${briefingColumns} FROM briefings ORDER BY id ASC`),
         rowsOf(
-          'SELECT briefing_id, cook_id FROM briefing_sources ORDER BY briefing_id ASC, cook_id ASC',
+          `SELECT cook_id, tag_id FROM cook_tags WHERE ${KEPT('cook_id')} ORDER BY cook_id ASC, tag_id ASC`,
+        ),
+        rowsOf(`SELECT ${briefingColumns} FROM briefings WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
+        rowsOf(
+          `SELECT briefing_id, cook_id FROM briefing_sources
+           WHERE ${KEPT('cook_id')}
+             AND briefing_id IN (SELECT id FROM briefings WHERE ${KEPT('cook_id')})
+           ORDER BY briefing_id ASC, cook_id ASC`,
         ),
         rowsOf(`SELECT ${importColumns} FROM import_batches ORDER BY id ASC`),
+        rowsOf(`SELECT ${revisionColumns} FROM revisions WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
       ]);
 
       return {
@@ -438,6 +516,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         briefings: briefings.map(toBriefingRecord),
         briefingSources: briefingSources.map(toBriefingSource),
         importBatches: importBatches.map(toImportBatch),
+        revisions: revisions.map(toRevisionRecord),
       };
     },
   };

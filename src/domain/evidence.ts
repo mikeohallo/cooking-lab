@@ -34,6 +34,18 @@
  *      removal costs the record nothing, because it carries no words. Every
  *      other entry stays: a note the cook wishes they had not written is still
  *      what they observed. The assistant may remove nothing at all, ever.
+ *  11. Nothing the cook writes is lost (0.2.2). The cook may reword a note or
+ *      a verdict, and an edit never overwrites: the original stays exactly as
+ *      it was first written and each edit is a new `Revision` beside it, so
+ *      every earlier version can still be read. A note's own words can no
+ *      longer be overwritten in place at all — `updateCookEvent` refuses it —
+ *      so the protection is stronger than before editing existed, not weaker.
+ *      The assistant may reword nothing.
+ *  12. A cook is deleted only when its owner deletes it (0.2.2). Deleting a
+ *      whole cook is its own operation, asked for explicitly, confirmed on
+ *      screen and offered back for a few seconds with Undo; it is not a
+ *      relaxation of rule 10, which still governs a cook that is being kept.
+ *      The assistant may delete nothing.
  *
  * `provenance` never appears in any of this. It records whether a row came from
  * live cooking or an import, and it is not a way of saying who wrote something.
@@ -56,6 +68,8 @@ import type {
   Lesson,
   LessonId,
   PhotoLogicalPath,
+  Revision,
+  RevisionId,
 } from './entities';
 import type {
   ConfidenceLevel,
@@ -94,7 +108,17 @@ export type EvidenceDenialCode =
   /** Rule 10: the assistant tried to remove a timeline entry. */
   | 'ai_cannot_remove_raw_evidence'
   /** Rule 10: something other than a photograph was offered for removal. */
-  | 'only_a_photo_may_be_removed';
+  | 'only_a_photo_may_be_removed'
+  /** Rule 11: an overwrite of a note's words was asked for; edits are revisions. */
+  | 'words_are_revised_not_overwritten'
+  /** Rule 11: something other than a note was offered for rewording. */
+  | 'only_a_note_may_be_reworded'
+  /** Rule 11: a verdict was offered for rewording before the cook has a review. */
+  | 'only_a_reviewed_verdict_may_be_reworded'
+  /** Rule 11: an edit with no words in it. */
+  | 'revision_needs_words'
+  /** Rule 12: the assistant tried to delete a cook. */
+  | 'ai_cannot_delete_a_cook';
 
 export type EvidenceDenial = {
   readonly allowed: false;
@@ -229,6 +253,14 @@ export function saveCookReview(
   if (denial) {
     return denial;
   }
+  // Rule 11: once a cook is reviewed its verdict is kept as first saved, and a
+  // change of words is an edit (`reviseVerdict`), never a second save over it.
+  if (cook.status === 'reviewed' && verdict !== cook.verdict) {
+    return deny(
+      'words_are_revised_not_overwritten',
+      'this cook is already reviewed; edit the verdict to change it, and the first words are kept',
+    );
+  }
   return allow({
     ...cook,
     status: 'reviewed',
@@ -283,6 +315,14 @@ export type CookEventPatch = {
   readonly meta?: JsonValue | null;
 };
 
+/**
+ * Revise a timeline entry in place.
+ *
+ * From 0.2.2 this refuses to change a note's words, for the cook too. A note
+ * is reworded with `reviseNote`, which keeps the original; an in-place change of
+ * `body` would be the one way left to lose what the cook first wrote, so it is
+ * closed rather than left unused. Nothing on any screen called this for a note.
+ */
 export function updateCookEvent(
   event: CookEvent,
   patch: CookEventPatch,
@@ -291,6 +331,12 @@ export function updateCookEvent(
   const denial = denyIfNotUser(actor, 'a timeline entry');
   if (denial) {
     return denial;
+  }
+  if (event.kind === 'user_note' && patch.body !== undefined && patch.body !== event.body) {
+    return deny(
+      'words_are_revised_not_overwritten',
+      'a note keeps its first words; an edit is saved beside them as a new version',
+    );
   }
   return allow({
     ...event,
@@ -335,6 +381,142 @@ export function removeCookEvent(
     );
   }
   return allow(event);
+}
+
+// ---------------------------------------------------------------------------
+// Rule 11 — an edit keeps the earlier words
+// ---------------------------------------------------------------------------
+
+export type RevisionIdentity = {
+  readonly id: RevisionId;
+};
+
+/** Words for an edit: something, not only spaces. Stored exactly as typed. */
+function deniedWords(text: string): EvidenceDenial | null {
+  if (typeof text !== 'string' || text.trim() === '') {
+    return deny('revision_needs_words', 'write something first; an edit needs words');
+  }
+  return null;
+}
+
+/**
+ * Reword a note.
+ *
+ * Returns a new `Revision` and leaves the note itself exactly as it was: the
+ * original words stay in its row, byte for byte, and keep their place in the
+ * timeline. The newest revision is what the screen shows, marked "edited", and
+ * the earlier versions are a tap away. Open or reviewed makes no difference —
+ * a cook remembers the right word after dinner as often as during it.
+ *
+ * Only a note: a reading is a number and a photograph is a picture, neither of
+ * them words to reword, and the assistant's own message is not the cook's.
+ */
+export function reviseNote(
+  event: CookEvent,
+  text: string,
+  identity: RevisionIdentity,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<Revision> {
+  const denial = denyIfNotUser(actor, 'a note');
+  if (denial) {
+    return denial;
+  }
+  if (event.kind !== 'user_note') {
+    return deny(
+      'only_a_note_may_be_reworded',
+      'only a note can be edited; readings and photos stay as they were taken',
+    );
+  }
+  const empty = deniedWords(text);
+  if (empty) {
+    return empty;
+  }
+  return allow({
+    id: identity.id,
+    cookId: event.cookId,
+    cookEventId: event.id,
+    field: 'note',
+    text,
+    revisedAt: at,
+  });
+}
+
+/**
+ * Reword the verdict on a reviewed cook.
+ *
+ * The verdict saved with the review stays in `cooks.verdict` as it was typed;
+ * the edit is a new `Revision`. An open cook has no verdict to reword yet — it
+ * gets one by being reviewed.
+ */
+export function reviseVerdict(
+  cook: Cook,
+  text: string,
+  identity: RevisionIdentity,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<Revision> {
+  const denial = denyIfNotUser(actor, 'a verdict');
+  if (denial) {
+    return denial;
+  }
+  if (cook.status !== 'reviewed') {
+    return deny(
+      'only_a_reviewed_verdict_may_be_reworded',
+      'a verdict is written in the review; edit it once the cook is reviewed',
+    );
+  }
+  const empty = deniedWords(text);
+  if (empty) {
+    return empty;
+  }
+  return allow({
+    id: identity.id,
+    cookId: cook.id,
+    cookEventId: null,
+    field: 'verdict',
+    text,
+    revisedAt: at,
+  });
+}
+
+/**
+ * The words to show for a note or a verdict: the newest edit, or the original.
+ *
+ * `revisions` are the edits of that one note or verdict, in any order. The
+ * newest by `revisedAt` wins, and on a tie the later in the list.
+ */
+export function latestWords(
+  original: string | null,
+  revisions: readonly Revision[],
+): { readonly text: string | null; readonly edited: boolean } {
+  let latest: Revision | null = null;
+  for (const revision of revisions) {
+    if (latest === null || revision.revisedAt >= latest.revisedAt) {
+      latest = revision;
+    }
+  }
+  return latest === null ? { text: original, edited: false } : { text: latest.text, edited: true };
+}
+
+// ---------------------------------------------------------------------------
+// Rule 12 — a cook is deleted only by its owner
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete a whole cook: its notes, readings, photos, tag links and edits.
+ *
+ * Its own operation, not a wider `removeCookEvent`. Nothing about rule 10
+ * changes: a cook that is being kept still loses only a photograph taken by
+ * mistake. This is the cook's owner deciding the whole record should go, which
+ * the screens ask them to confirm and then offer back for a few seconds. The
+ * assistant is refused outright.
+ */
+export function deleteCook(cook: Cook, actor: Actor): EvidenceDecision<Cook> {
+  if (actor !== 'user') {
+    return deny('ai_cannot_delete_a_cook', 'the assistant cannot delete a cook');
+  }
+  return allow(cook);
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ import type {
   ImportBatch,
   JsonValue,
   Lesson,
+  Revision,
   Tag,
 } from '../../domain/entities';
 import {
@@ -42,6 +43,7 @@ import {
   isImportBatchStatus,
   isProposalStatus,
   isProvenance,
+  isRevisedField,
   isTagKind,
 } from '../../domain/enums';
 import { isJsonValue } from '../../domain/invariants';
@@ -248,6 +250,19 @@ export function toTag(row: SqlRow): Tag {
   };
 }
 
+export function toRevision(row: SqlRow): Revision {
+  const table = 'revisions';
+  return {
+    id: requiredText(table, row, 'id'),
+    cookId: requiredText(table, row, 'cook_id'),
+    cookEventId: optionalText(table, row, 'cook_event_id'),
+    field: requiredEnum(table, row, 'field', isRevisedField),
+    // Read back exactly as stored, like the verdict.
+    text: requiredText(table, row, 'text'),
+    revisedAt: requiredText(table, row, 'revised_at'),
+  };
+}
+
 export function toCookTag(row: SqlRow): CookTag {
   const table = 'cook_tags';
   return {
@@ -320,6 +335,19 @@ export function cookParams(cook: Cook): readonly SqlValue[] {
     cook.reviewSavedAt,
     cook.verdict,
     cook.createdAt,
+  ];
+}
+
+export const REVISION_COLUMNS = 'id, cook_id, cook_event_id, field, text, revised_at';
+
+export function revisionParams(revision: Revision): readonly SqlValue[] {
+  return [
+    revision.id,
+    revision.cookId,
+    revision.cookEventId,
+    revision.field,
+    revision.text,
+    revision.revisedAt,
   ];
 }
 

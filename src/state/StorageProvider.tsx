@@ -15,6 +15,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import type { AiService, PrivateFileStore } from '../data/adapters';
+import type { CookDeletionWorkflow } from '../data/deletion/workflow';
 import type { ExportService } from '../data/export/service';
 import type { PhotoService } from '../data/photos/capture';
 import type { DataLayer } from '../data/repositories';
@@ -34,6 +35,8 @@ export type AppStorage = {
    */
   readonly photos: PrivateFileStore;
   readonly photoWorkflow: PhotoService;
+  /** Deletes a cook, with an undo window. See `src/data/deletion/workflow.ts`. */
+  readonly deletions: CookDeletionWorkflow;
   /** Supplies ids for the records screens create: cooks, events, lessons. */
   readonly newId: () => string;
   /** The current instant, in the ISO UTC form the data model requires. */
@@ -96,6 +99,7 @@ export function StorageProvider({
               exporter: result.storage.exporter,
               photos: result.storage.photos,
               photoWorkflow: result.storage.photoWorkflow,
+              deletions: result.storage.deletions,
               newId,
               now,
             },

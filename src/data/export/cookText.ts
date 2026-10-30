@@ -14,9 +14,15 @@
  * The verdict, every note and every lesson appear exactly as they were
  * stored, whitespace included. The only text this module adds is labels,
  * times and the line saying where the file came from.
+ *
+ * A note or a verdict the cook has edited (0.2.2) is printed as it now reads —
+ * its newest version, exactly as typed — and marked "(edited)", so a reader
+ * knows there were earlier words. Every version is in *Export everything*.
  */
 
-import type { Cook, CookEvent, Lesson, Tag } from '../../domain/entities';
+import type { Cook, CookEvent, Lesson, Revision, Tag } from '../../domain/entities';
+import { latestWords } from '../../domain/evidence';
+import { photoPlacedWhenAdded } from '../../domain/photoTime';
 import type { AppVariant } from '../../config/variants';
 import { celsiusFromEvent, readingKindFromEvent } from '../../domain/invariants';
 import { formatDateTimeWithYear, formatTime } from '../../format/dateTime';
@@ -29,12 +35,17 @@ export type CookTextInput = {
   readonly lessons: readonly Lesson[];
   /** The cook's tags, as they are on screen. */
   readonly tags: readonly Tag[];
+  /** Every edit of this cook's notes and verdict. Empty when there are none. */
+  readonly revisions?: readonly Revision[];
   readonly variant: AppVariant;
   /** When the file was made. */
   readonly exportedAt: string;
 };
 
 export const UNTITLED_COOK_EXPORT = 'Untitled cook';
+
+/** Printed after words the cook has edited since they were first written. */
+export const EDITED_MARK = '(edited)';
 
 /** The line a TEST-build file carries so it can never pass for real history. */
 export const TEST_EXPORT_NOTICE =
@@ -77,12 +88,19 @@ function readingLabelOf(event: CookEvent): string | null {
   }
 }
 
-/** One timeline entry as a line: the time, then what happened. */
-export function renderEventLine(event: CookEvent): string {
+/**
+ * One timeline entry as a line: the time, then what happened.
+ *
+ * `edits` are this note's revisions, if it has any: the line then carries its
+ * newest words and says it was edited.
+ */
+export function renderEventLine(event: CookEvent, edits: readonly Revision[] = []): string {
   const time = formatTime(event.ts).padEnd(8, ' ');
   switch (event.kind) {
-    case 'user_note':
-      return `${time} ${event.body ?? ''}`;
+    case 'user_note': {
+      const shown = latestWords(event.body, edits);
+      return shown.edited ? `${time} ${shown.text ?? ''} ${EDITED_MARK}` : `${time} ${event.body ?? ''}`;
+    }
     case 'temp': {
       // Both, when there is both: the kind says what it was taken of and the
       // cook's own words say where. Neither is a substitute for the other.
@@ -93,7 +111,7 @@ export function renderEventLine(event: CookEvent): string {
       return `${time} ${formatCelsiusPlain(event)}${suffix}`;
     }
     case 'photo':
-      return `${time} [Photo]`;
+      return photoPlacedWhenAdded(event) ? `${time} [Photo, added]` : `${time} [Photo]`;
     case 'assistant_msg':
       return `${time} Assistant: ${event.body ?? ''}`;
     case 'plan':
@@ -110,6 +128,11 @@ export function renderEventLine(event: CookEvent): string {
  */
 export function renderCookAsText(input: CookTextInput): string {
   const { cook, events, lessons, tags, variant, exportedAt } = input;
+  const revisions = input.revisions ?? [];
+  const verdict = latestWords(
+    cook.verdict,
+    revisions.filter((revision) => revision.field === 'verdict'),
+  );
   const title = cook.title ?? UNTITLED_COOK_EXPORT;
   const lines: string[] = [];
 
@@ -134,9 +157,9 @@ export function renderCookAsText(input: CookTextInput): string {
     lines.push('');
   }
 
-  lines.push('Verdict');
-  if (cook.verdict !== null && cook.verdict.trim() !== '') {
-    lines.push(cook.verdict);
+  lines.push(verdict.edited ? `Verdict ${EDITED_MARK}` : 'Verdict');
+  if (verdict.text !== null && verdict.text.trim() !== '') {
+    lines.push(verdict.text);
   } else {
     lines.push(cook.status === 'reviewed' ? 'No verdict was written for this cook.' : 'Not reviewed yet.');
   }
@@ -155,7 +178,12 @@ export function renderCookAsText(input: CookTextInput): string {
     lines.push('Nothing was noted during this cook.');
   } else {
     for (const event of events) {
-      lines.push(renderEventLine(event));
+      lines.push(
+        renderEventLine(
+          event,
+          revisions.filter((revision) => revision.cookEventId === event.id),
+        ),
+      );
     }
   }
   lines.push('');
@@ -168,13 +196,19 @@ export function renderCookAsText(input: CookTextInput): string {
   if (photos.length > 0) {
     lines.push('Photos');
     for (const photo of photos) {
-      lines.push(`Photo, ${formatTime(photo.ts)}`);
+      lines.push(
+        photoPlacedWhenAdded(photo)
+          ? `Photo, added ${formatTime(photo.ts)}`
+          : `Photo, ${formatTime(photo.ts)}`,
+      );
     }
     lines.push('');
   }
 
   lines.push(
-    `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record, unchanged.`,
+    revisions.length > 0
+      ? `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record; words marked ${EDITED_MARK} are shown as the cook last wrote them, and every earlier version is kept in the app.`
+      : `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record, unchanged.`,
   );
   lines.push('');
 

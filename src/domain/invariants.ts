@@ -30,6 +30,7 @@ import type {
   IsoTimestamp,
   JsonValue,
   Lesson,
+  Revision,
   SchemaMeta,
   Tag,
 } from './entities';
@@ -45,6 +46,7 @@ import {
   isImportBatchStatus,
   isProposalStatus,
   isProvenance,
+  isRevisedField,
   isStoredReadingKind,
   isTagKind,
 } from './enums';
@@ -484,6 +486,40 @@ export function validateLesson(lesson: Lesson): readonly ValidationIssue[] {
   checkTimestamp('createdAt', lesson.createdAt, issues);
   checkOptionalTimestamp('updatedAt', lesson.updatedAt, issues);
   checkOrder('createdAt', lesson.createdAt, 'updatedAt', lesson.updatedAt, issues);
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// Revisions
+// ---------------------------------------------------------------------------
+
+/**
+ * One edit of a note or a verdict.
+ *
+ * The text is checked for being words of a sane length and nothing else — not
+ * trimmed, not cased — for the same reason the verdict is not: it is the cook's
+ * own words. A note's edit names the note; a verdict's edit names none, because
+ * a verdict belongs to the cook rather than to a timeline entry.
+ */
+export function validateRevision(revision: Revision): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  checkId('id', revision.id, issues);
+  checkId('cookId', revision.cookId, issues);
+  checkOptionalId('cookEventId', revision.cookEventId, issues);
+  checkEnum('field', revision.field, isRevisedField, issues);
+  checkRequiredText('text', revision.text, MAX_TEXT_LENGTH, issues);
+  checkTimestamp('revisedAt', revision.revisedAt, issues);
+
+  if (revision.field === 'note' && revision.cookEventId === null) {
+    issues.push(issue('cookEventId', 'required', 'an edit of a note must name the note'));
+  }
+  if (revision.field === 'verdict' && revision.cookEventId !== null) {
+    issues.push(
+      issue('cookEventId', 'inconsistent_state', 'an edit of a verdict belongs to the cook, not an entry'),
+    );
+  }
 
   return issues;
 }

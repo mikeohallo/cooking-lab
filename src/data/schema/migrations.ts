@@ -19,7 +19,9 @@
  *
  * Version 1 ran on a device on 16 October 2026 and holds a real kitchen's
  * history. Its text is frozen from here on; version 2 below is a new entry, as
- * the rule requires, and the first one.
+ * the rule requires, and the first one. Version 2 has run on a device too
+ * (0.2.0 and 0.2.1), so it is frozen as well, and version 3 (0.2.2) is the
+ * next new entry.
  *
  * WHAT THE SCHEMA DOES NOT CONTAIN
  * --------------------------------
@@ -294,6 +296,64 @@ SELECT cook_id, tag_id FROM cook_tags_rebuild`.trim();
 const V2_DROP_HOLD_TAGS = 'DROP TABLE tags_rebuild';
 const V2_DROP_HOLD_COOK_TAGS = 'DROP TABLE cook_tags_rebuild';
 
+// ---------------------------------------------------------------------------
+// Version 3 — edits keep the earlier words, and a deletion can be undone
+// ---------------------------------------------------------------------------
+//
+// Two new tables and nothing else. No existing table is rebuilt, altered or
+// written to, so every row already on the phone is byte for byte what it was:
+// that is the whole safety argument for this migration, and the reason it is
+// two CREATEs rather than a column on `cook_events`.
+//
+// `revisions` is where an edit goes. A note or a verdict is never overwritten:
+// the original stays in its own row (`cook_events.body`, `cooks.verdict`)
+// exactly as it was first written, and each edit is a new row here holding the
+// words as they were changed to, with the time. The newest revision is what a
+// screen shows; every earlier one, and the original, can still be read.
+//
+// `cook_deletions` holds a cook the cook has asked to delete, for the few
+// seconds an Undo is offered. A cook listed here is hidden from every list and
+// from Export everything; Undo removes the row and the cook is back exactly as
+// it was, because nothing else was touched. Once the undo window has passed —
+// or at the next start, if the app closed during it — the cook is deleted for
+// good. Both tables cascade from `cooks`, so deleting a cook takes its
+// revisions and its pending-deletion row with it.
+
+const V3_CREATE_REVISIONS = `
+CREATE TABLE revisions (
+  id            TEXT PRIMARY KEY NOT NULL,
+  cook_id       TEXT NOT NULL
+                REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  cook_event_id TEXT
+                REFERENCES cook_events(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  field         TEXT NOT NULL CHECK (field IN ('note','verdict')),
+  text          TEXT NOT NULL,
+  revised_at    TEXT NOT NULL,
+  CHECK ((field = 'note'    AND cook_event_id IS NOT NULL)
+      OR (field = 'verdict' AND cook_event_id IS NULL))
+)`.trim();
+
+const V3_INDEX_REVISIONS_COOK = 'CREATE INDEX ix_revisions_cook ON revisions (cook_id, revised_at)';
+const V3_INDEX_REVISIONS_EVENT =
+  'CREATE INDEX ix_revisions_event ON revisions (cook_event_id, revised_at)';
+
+const V3_CREATE_COOK_DELETIONS = `
+CREATE TABLE cook_deletions (
+  cook_id      TEXT PRIMARY KEY NOT NULL
+               REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  requested_at TEXT NOT NULL
+)`.trim();
+
+const V3_STAMP_SCHEMA_VERSION = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '3')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
+const V3_STAMP_APPLIED_AT = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
 const V2_STAMP_SCHEMA_VERSION = `
 INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_VERSION_KEY}', '2')
@@ -330,6 +390,10 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
  *
  * Version 2 makes `tags.kind` nullable, keeping every existing kind valid, and
  * gives a tag with no kind a uniqueness rule of its own.
+ *
+ * Version 3 adds `revisions`, where an edited note or verdict keeps every
+ * version of its words, and `cook_deletions`, which holds a deleted cook for
+ * its undo window. It changes no existing table.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -374,6 +438,18 @@ export const MIGRATIONS: readonly Migration[] = [
       V2_STAMP_APPLIED_AT,
     ],
   },
+  {
+    version: 3,
+    name: 'revisions_and_cook_deletions',
+    statements: [
+      V3_CREATE_REVISIONS,
+      V3_INDEX_REVISIONS_COOK,
+      V3_INDEX_REVISIONS_EVENT,
+      V3_CREATE_COOK_DELETIONS,
+      V3_STAMP_SCHEMA_VERSION,
+      V3_STAMP_APPLIED_AT,
+    ],
+  },
 ];
 
 /** The version a fully migrated database reports. */
@@ -395,6 +471,8 @@ export const SCHEMA_TABLES: readonly string[] = [
   'briefings',
   'briefing_sources',
   'import_batches',
+  'revisions',
+  'cook_deletions',
 ];
 
 export type MigrationDefect = {

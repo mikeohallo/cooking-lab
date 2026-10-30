@@ -31,6 +31,7 @@ function mockReadyResult(): StorageStartupResult {
       // Never reached: no route takes a photograph while it is only being
       // mounted, and nothing on screen asks for one until a button is pressed.
       photoWorkflow: {} as never,
+      deletions: {} as never,
       assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
       exporter: {} as never,
       schemaVersion: LATEST_SCHEMA_VERSION,

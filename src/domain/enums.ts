@@ -134,6 +134,17 @@ export type CreatedBy = (typeof CREATED_BY_VALUES)[number];
 export const TAG_KINDS = ['dish', 'ingredient', 'technique', 'equipment'] as const;
 export type TagKind = (typeof TAG_KINDS)[number];
 
+/**
+ * What an edit can change, from schema version 3 on.
+ *
+ * Two things, both the cook's own words: a `note` in the timeline and the
+ * `verdict` on a reviewed cook. A reading and a photograph are not words and
+ * are not edited; the title is a label the cook has always been able to change
+ * in place, and stays that way.
+ */
+export const REVISED_FIELDS = ['note', 'verdict'] as const;
+export type RevisedField = (typeof REVISED_FIELDS)[number];
+
 /** How far an import has got. `failed` batches are retained. */
 export const IMPORT_BATCH_STATUSES = ['processing', 'ready', 'done', 'failed'] as const;
 export type ImportBatchStatus = (typeof IMPORT_BATCH_STATUSES)[number];
@@ -167,5 +178,6 @@ export const isTagKindOrNone = (v: unknown): v is TagKind | null =>
 export const isReadingKind = (v: unknown): v is ReadingKind => isOneOf(READING_KINDS, v);
 export const isStoredReadingKind = (v: unknown): v is StoredReadingKind =>
   isOneOf(STORED_READING_KINDS, v);
+export const isRevisedField = (v: unknown): v is RevisedField => isOneOf(REVISED_FIELDS, v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>
   isOneOf(IMPORT_BATCH_STATUSES, v);

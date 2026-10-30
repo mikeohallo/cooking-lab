@@ -41,6 +41,7 @@ import type {
   IsoTimestamp,
   Lesson,
   LessonId,
+  Revision,
   SchemaState,
   Tag,
   TagId,
@@ -52,6 +53,7 @@ import type { DatabaseAdapter, SqlRow, SqlValue, Transaction } from '../adapters
 import type {
   BriefingQuery,
   BriefingRepository,
+  CookDeletionRepository,
   CookEventQuery,
   CookEventRepository,
   CookQuery,
@@ -64,6 +66,7 @@ import type {
   LessonQuery,
   LessonRepository,
   PageRequest,
+  RevisionRepository,
   SchemaStateRepository,
   SortDirection,
   TagRepository,
@@ -75,6 +78,7 @@ import {
   FINDING_COLUMNS,
   IMPORT_BATCH_COLUMNS,
   LESSON_COLUMNS,
+  REVISION_COLUMNS,
   TAG_COLUMNS,
   briefingParams,
   cookEventParams,
@@ -83,6 +87,7 @@ import {
   importBatchParams,
   lessonParams,
   placeholders,
+  revisionParams,
   tagParams,
   toBriefing,
   toBriefingSource,
@@ -93,6 +98,7 @@ import {
   toFindingSource,
   toImportBatch,
   toLesson,
+  toRevision,
   toTag,
   writeBoolean,
   writeJson,
@@ -159,6 +165,15 @@ async function selectOne<T>(
 // ---------------------------------------------------------------------------
 
 /**
+ * A cook whose deletion is pending is gone as far as any list is concerned.
+ *
+ * It is still whole in the database for its undo window (see
+ * `cook_deletions`), and `findById` still finds it so that Undo can, but no
+ * list, count or tag tally sees it.
+ */
+const NOT_PENDING_DELETION = 'id NOT IN (SELECT cook_id FROM cook_deletions)';
+
+/**
  * The `WHERE` clause for a cook query.
  *
  * `tagIds` narrows rather than widens: a cook must carry every tag asked for,
@@ -166,9 +181,9 @@ async function selectOne<T>(
  * braised plus everything beef.
  */
 function cookWhere(query: CookQuery | undefined, params: SqlValue[]): string {
-  const clauses: string[] = [];
+  const clauses: string[] = [NOT_PENDING_DELETION];
   if (query === undefined) {
-    return '';
+    return ` WHERE ${clauses.join(' AND ')}`;
   }
   if (query.status !== undefined) {
     clauses.push('status = ?');
@@ -198,7 +213,7 @@ function cookWhere(query: CookQuery | undefined, params: SqlValue[]): string {
     );
     params.push(...tagIds, tagIds.length);
   }
-  return clauses.length === 0 ? '' : ` WHERE ${clauses.join(' AND ')}`;
+  return ` WHERE ${clauses.join(' AND ')}`;
 }
 
 export function createCookRepository(adapter: DatabaseAdapter): CookRepository {
@@ -319,7 +334,9 @@ export function createCookEventRepository(adapter: DatabaseAdapter): CookEventRe
         sql += ' AND kind = ?';
         params.push(query.kind);
       }
-      sql += ` ${orderBy('ts', query.sort, 'oldest_first')}${pageClause(query.page, params)}`;
+      // Two entries at the same instant keep the order they were written in.
+      const direction = (query.sort ?? 'oldest_first') === 'newest_first' ? 'DESC' : 'ASC';
+      sql += ` ${orderBy('ts', query.sort, 'oldest_first')}, rowid ${direction}${pageClause(query.page, params)}`;
       return (await selectRows(adapter, sql, params)).map(toCookEvent);
     },
 
@@ -803,6 +820,7 @@ export function createCookTagRepository(adapter: DatabaseAdapter): CookTagReposi
         adapter,
         `SELECT DISTINCT t.id AS id, t.name AS name, t.kind AS kind
          FROM tags t JOIN cook_tags ct ON ct.tag_id = t.id
+         WHERE ct.cook_id NOT IN (SELECT cook_id FROM cook_deletions)
          ORDER BY t.name COLLATE NOCASE ASC`,
         [],
       );
@@ -822,12 +840,134 @@ export function createCookTagRepository(adapter: DatabaseAdapter): CookTagReposi
         adapter,
         `SELECT t.id AS id, t.name AS name, t.kind AS kind, count(ct.cook_id) AS uses
          FROM tags t JOIN cook_tags ct ON ct.tag_id = t.id
+         WHERE ct.cook_id NOT IN (SELECT cook_id FROM cook_deletions)
          GROUP BY t.id, t.name, t.kind
          ORDER BY uses DESC, t.name COLLATE NOCASE ASC
          LIMIT ?`,
         [limit],
       );
       return rows.map(toTag);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Revisions
+// ---------------------------------------------------------------------------
+
+/**
+ * Edits of notes and verdicts. Insert and read; nothing here changes or
+ * removes a row. Ordered by time, and by the order written on a tie, so the
+ * last row for a note is always its newest words.
+ */
+export function createRevisionRepository(adapter: DatabaseAdapter): RevisionRepository {
+  return {
+    async create(revision: Revision): Promise<Revision> {
+      await adapter.execute({
+        sql: insertInto('revisions', REVISION_COLUMNS),
+        params: revisionParams(revision),
+      });
+      return revision;
+    },
+
+    async listForCook(cookId: CookId): Promise<readonly Revision[]> {
+      const rows = await selectRows(
+        adapter,
+        `SELECT ${REVISION_COLUMNS} FROM revisions WHERE cook_id = ? ORDER BY revised_at ASC, rowid ASC`,
+        [cookId],
+      );
+      return rows.map(toRevision);
+    },
+
+    async listVerdictsForCooks(cookIds: readonly CookId[]): Promise<readonly Revision[]> {
+      if (cookIds.length === 0) {
+        return [];
+      }
+      const rows = await selectRows(
+        adapter,
+        `SELECT ${REVISION_COLUMNS} FROM revisions
+         WHERE field = 'verdict' AND cook_id IN (${placeholders(cookIds.length)})
+         ORDER BY revised_at ASC, rowid ASC`,
+        [...cookIds],
+      );
+      return rows.map(toRevision);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cook deletions
+// ---------------------------------------------------------------------------
+
+/**
+ * Deleting a cook, in two steps with an undo window between them.
+ *
+ * `request` only hides the cook: one row in `cook_deletions`, and every list
+ * stops showing it. Nothing of the cook is touched, which is what makes
+ * `cancel` an exact Undo. `purge` is the deletion itself.
+ */
+export function createCookDeletionRepository(adapter: DatabaseAdapter): CookDeletionRepository {
+  return {
+    async request(cookId: CookId, at: IsoTimestamp): Promise<void> {
+      await adapter.execute({
+        sql: 'INSERT OR IGNORE INTO cook_deletions (cook_id, requested_at) VALUES (?, ?)',
+        params: [cookId, at],
+      });
+    },
+
+    async cancel(cookId: CookId): Promise<void> {
+      await adapter.execute({ sql: 'DELETE FROM cook_deletions WHERE cook_id = ?', params: [cookId] });
+    },
+
+    async listPending(): Promise<readonly CookId[]> {
+      const rows = await selectRows(
+        adapter,
+        'SELECT cook_id FROM cook_deletions ORDER BY requested_at ASC, cook_id ASC',
+        [],
+      );
+      return rows.map((row) => String(row.cook_id));
+    },
+
+    /**
+     * The deletion itself, in one transaction.
+     *
+     * The schema's cascades take the cook's timeline, edits, findings, lessons,
+     * tag links, briefings and its pending-deletion row. Two things are done
+     * by hand, inside the same transaction:
+     *
+     *   * the photo paths are read first, so the caller can delete the files
+     *     once the rows are gone — rows first, files second, for the reason
+     *     `PhotoService.remove` gives;
+     *   * a tag that was on this cook and on no other cook is deleted too, so
+     *     it drops out of the tag lists with the cook. A tag that was already
+     *     on no cook before this — kept since 0.2.1 so it stays offered — is
+     *     not touched: it was not this cook's.
+     *
+     * A cook that followed on from this one keeps its own history, with
+     * `parent_cook_id` set to NULL by the schema.
+     */
+    async purge(cookId: CookId): Promise<{ readonly photoPaths: readonly string[] }> {
+      return adapter.withTransaction(async (tx) => {
+        const photoRows = await tx.select({
+          sql: `SELECT photo_path FROM cook_events
+                WHERE cook_id = ? AND photo_path IS NOT NULL ORDER BY ts ASC`,
+          params: [cookId],
+        });
+        const tagRows = await tx.select({
+          sql: `SELECT tag_id FROM cook_tags
+                WHERE cook_id = ?
+                  AND tag_id NOT IN (SELECT tag_id FROM cook_tags WHERE cook_id <> ?)`,
+          params: [cookId, cookId],
+        });
+        await tx.execute({ sql: 'DELETE FROM cooks WHERE id = ?', params: [cookId] });
+        for (const row of tagRows) {
+          await tx.execute({
+            sql: 'DELETE FROM tags WHERE id = ? AND NOT EXISTS (SELECT 1 FROM cook_tags WHERE tag_id = ?)',
+            params: [String(row.tag_id), String(row.tag_id)],
+          });
+        }
+        return { photoPaths: photoRows.map((row) => String(row.photo_path)) };
+      });
     },
   };
 }

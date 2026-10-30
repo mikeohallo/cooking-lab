@@ -33,6 +33,14 @@ import { createNodeSqliteHarness, type NodeSqliteHarness } from './support/nodeS
 
 const V1_ONLY: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version === 1);
 
+/**
+ * The tables version 2 knows. Version 3 (0.2.2) added two more, which do not
+ * exist yet in a version 1 notebook; they are counted in `schemaV3.test.ts`.
+ */
+const V2_TABLES: readonly string[] = SCHEMA_TABLES.filter(
+  (table) => table !== 'revisions' && table !== 'cook_deletions',
+);
+
 const AT = '2026-10-18T17:00:00.000Z';
 
 type Opened = {
@@ -117,7 +125,7 @@ async function fillVersionOne(adapter: DatabaseAdapter): Promise<void> {
 /** Row counts for every table, as one object that can be compared whole. */
 async function census(adapter: DatabaseAdapter): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  for (const table of SCHEMA_TABLES) {
+  for (const table of V2_TABLES) {
     const rows = await adapter.select({ sql: `SELECT count(*) AS total FROM ${table}` });
     counts[table] = Number(rows[0]?.total ?? -1);
   }
@@ -160,7 +168,9 @@ describe('version 1 to version 2, with a notebook in it', () => {
 
     const result = await runMigrations(opened.adapter);
 
-    expect(result.applied).toEqual([2]);
+    // Version 3 (0.2.2) follows straight on; it adds two tables and touches
+    // none of these rows, which is what the rest of this test checks.
+    expect(result.applied).toEqual([2, 3]);
     expect(result.versionAfter).toBe(LATEST_SCHEMA_VERSION);
 
     expect(await census(opened.adapter)).toEqual(before);

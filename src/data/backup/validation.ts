@@ -30,6 +30,7 @@ import type {
   ImportBatch,
   IsoTimestamp,
   Lesson,
+  Revision,
   SnapshotEntityKey,
   Tag,
 } from '../../domain/entities';
@@ -46,6 +47,7 @@ import {
   validateFindingSource,
   validateImportBatch,
   validateLesson,
+  validateRevision,
   validateTag,
 } from '../../domain/invariants';
 import { isSafePhotoLogicalPath } from '../photos/photoPaths';
@@ -53,6 +55,7 @@ import type { BackupEnvelope, BackupPhotoManifestEntry } from './contract';
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
+  FIRST_REVISIONS_FORMAT_VERSION,
   FIRST_UNTYPED_TAG_FORMAT_VERSION,
   SHA256_HEX_PATTERN,
   SUPPORTED_BACKUP_FORMAT_VERSIONS,
@@ -139,6 +142,7 @@ const RECORD_VALIDATORS: Readonly<Record<SnapshotEntityKey, RecordValidator>> = 
   briefings: (row) => validateBriefing(row as unknown as Briefing),
   briefingSources: (row) => validateBriefingSource(row as unknown as BriefingSource),
   importBatches: (row) => validateImportBatch(row as unknown as ImportBatch),
+  revisions: (row) => validateRevision(row as unknown as Revision),
 };
 
 /** The natural key of a row, used for duplicate detection and for sorting. */
@@ -242,9 +246,21 @@ export function validateBackup(candidate: unknown): BackupValidation {
   }
 
   const entities = candidate.entities;
+  const declaredVersion =
+    typeof candidate.formatVersion === 'number' ? candidate.formatVersion : 0;
   const collections = new Map<SnapshotEntityKey, readonly unknown[]>();
   for (const key of SNAPSHOT_ENTITY_KEYS) {
     const rows = entities[key];
+    // A file from before format 3 has no edits to carry, and no collection for
+    // them: read as none. From format 3 on the collection is required.
+    if (
+      key === 'revisions' &&
+      rows === undefined &&
+      declaredVersion < FIRST_REVISIONS_FORMAT_VERSION
+    ) {
+      collections.set(key, []);
+      continue;
+    }
     if (!Array.isArray(rows)) {
       issues.push(problem(`entities.${key}`, 'missing_collection', `${key} must be an array`));
       continue;
@@ -323,6 +339,48 @@ export function validateBackup(candidate: unknown): BackupValidation {
           `a tag with no kind needs backup format ${FIRST_UNTYPED_TAG_FORMAT_VERSION} or later`,
         ),
       );
+    }
+  });
+
+  // --- edits, as format 3 carries them --------------------------------------
+  const eventsById = new Map<string, CookEvent>();
+  for (const row of collections.get('cookEvents') ?? []) {
+    if (isRecordObject(row) && typeof row.id === 'string') {
+      eventsById.set(row.id, row as unknown as CookEvent);
+    }
+  }
+  (collections.get('revisions') ?? []).forEach((row, index) => {
+    const at = `entities.revisions[${index}]`;
+    const revision = row as Revision;
+    if (formatVersion < FIRST_REVISIONS_FORMAT_VERSION) {
+      issues.push(
+        problem(
+          at,
+          'record_needs_a_later_format',
+          `an edit needs backup format ${FIRST_REVISIONS_FORMAT_VERSION} or later`,
+        ),
+      );
+    }
+    checkReference(
+      `${at}.cookId`,
+      typeof revision.cookId === 'string' ? revision.cookId : null,
+      cookIds,
+      'cook',
+      issues,
+    );
+    if (typeof revision.cookEventId === 'string') {
+      const event = eventsById.get(revision.cookEventId);
+      if (event === undefined) {
+        checkReference(`${at}.cookEventId`, revision.cookEventId, cookEventIds, 'cook event', issues);
+      } else if (event.kind !== 'user_note' || event.cookId !== revision.cookId) {
+        issues.push(
+          problem(
+            `${at}.cookEventId`,
+            'invalid_record',
+            'an edit of a note must name a note on the same cook',
+          ),
+        );
+      }
     }
   });
 
@@ -513,6 +571,7 @@ export function canonicaliseBackup(envelope: BackupEnvelope): BackupEnvelope {
     briefings: [...source.briefings].sort(byKey('briefings')),
     briefingSources: [...source.briefingSources].sort(byKey('briefingSources')),
     importBatches: [...source.importBatches].sort(byKey('importBatches')),
+    revisions: [...(source.revisions ?? [])].sort(byKey('revisions')),
   };
 
   return {
@@ -601,5 +660,11 @@ export function deserialiseBackup(text: string): BackupParseResult {
   if (!validation.valid) {
     return { ok: false, issues: validation.issues };
   }
-  return { ok: true, envelope: parsed as BackupEnvelope };
+  const envelope = parsed as BackupEnvelope;
+  // A file from before format 3 carries no edits; read it as carrying none, so
+  // every reader sees the same shape whatever version the file was.
+  if ((envelope.entities as Partial<DatabaseSnapshot>).revisions === undefined) {
+    return { ok: true, envelope: { ...envelope, entities: { ...envelope.entities, revisions: [] } } };
+  }
+  return { ok: true, envelope };
 }

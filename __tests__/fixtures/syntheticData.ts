@@ -31,6 +31,7 @@ import type {
   CookEvent,
   CookTag,
   DatabaseSnapshot,
+  Revision,
   Finding,
   FindingSource,
   ImportBatch,
@@ -400,6 +401,34 @@ const SYNTHETIC_IMPORT_BATCHES: readonly ImportBatch[] = [
   },
 ];
 
+/** One note edited once, and one verdict edited twice (backup format 3). */
+const SYNTHETIC_REVISIONS: readonly Revision[] = [
+  {
+    id: 'synthetic-revision-note-1',
+    cookId: COOK_BAKE,
+    cookEventId: EVENT_NOTE,
+    field: 'note',
+    text: 'Shaped at 17:20, not 17:25. Still slack.',
+    revisedAt: '2026-08-14T20:10:00.000Z',
+  },
+  {
+    id: 'synthetic-revision-verdict-1',
+    cookId: COOK_IMPORTED,
+    cookEventId: null,
+    field: 'verdict',
+    text: 'Dense. Under-proved by an hour.',
+    revisedAt: '2026-07-03T09:00:00.000Z',
+  },
+  {
+    id: 'synthetic-revision-verdict-2',
+    cookId: COOK_IMPORTED,
+    cookEventId: null,
+    field: 'verdict',
+    text: 'Dense. Under-proved by an hour at least.',
+    revisedAt: '2026-07-04T09:00:00.000Z',
+  },
+];
+
 const SYNTHETIC_PHOTO_MANIFEST: readonly BackupPhotoManifestEntry[] = [
   {
     logicalPath: SYNTHETIC_PHOTO_PATH,
@@ -426,6 +455,7 @@ export function syntheticSnapshot(): DatabaseSnapshot {
     briefings: SYNTHETIC_BRIEFINGS,
     briefingSources: SYNTHETIC_BRIEFING_SOURCES,
     importBatches: SYNTHETIC_IMPORT_BATCHES,
+    revisions: SYNTHETIC_REVISIONS,
   };
 }
 

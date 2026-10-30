@@ -40,6 +40,7 @@ import type {
   NewCook,
   NewCookEvent,
   ReviewDecision,
+  RevisionIdentity,
 } from '../domain/evidence';
 import type {
   Briefing,
@@ -59,6 +60,7 @@ import type {
   IsoTimestamp,
   Lesson,
   LessonId,
+  Revision,
   SchemaState,
   Tag,
   TagId,
@@ -94,7 +96,9 @@ export type CookQuery = {
 
 export type CookRepository = {
   create(cook: Cook): Promise<Cook>;
+  /** Finds a cook whether or not its deletion is pending, so Undo can find it. */
   findById(id: CookId): Promise<Cook | null>;
+  /** Every cook but one whose deletion is pending: those are already gone to the cook. */
   list(query?: CookQuery): Promise<readonly Cook[]>;
   count(query?: CookQuery): Promise<number>;
   /**
@@ -122,6 +126,40 @@ export type CookEventRepository = {
   listForCook(query: CookEventQuery): Promise<readonly CookEvent[]>;
   save(event: CookEvent): Promise<CookEvent>;
   delete(id: CookEventId): Promise<void>;
+};
+
+/**
+ * The edits of notes and verdicts (schema version 3).
+ *
+ * Append-only. There is no `save` and no `delete`: an edit is never changed and
+ * never taken back, only followed by a newer one, and the rows go only when the
+ * whole cook does.
+ */
+export type RevisionRepository = {
+  create(revision: Revision): Promise<Revision>;
+  /** Every edit on this cook, notes and verdict, oldest first. */
+  listForCook(cookId: CookId): Promise<readonly Revision[]>;
+  /** Every verdict edit on these cooks, oldest first, for the lists. */
+  listVerdictsForCooks(cookIds: readonly CookId[]): Promise<readonly Revision[]>;
+};
+
+/**
+ * A cook whose deletion is pending: hidden, and still whole, for its undo
+ * window. See `src/data/deletion/workflow.ts`.
+ */
+export type CookDeletionRepository = {
+  /** Mark the cook as deleted-pending. Idempotent. */
+  request(cookId: CookId, at: IsoTimestamp): Promise<void>;
+  /** Undo: the cook is listed again exactly as it was. */
+  cancel(cookId: CookId): Promise<void>;
+  /** Every cook whose deletion is pending, oldest request first. */
+  listPending(): Promise<readonly CookId[]>;
+  /**
+   * Delete the cook for good, with everything that hangs off it, and every tag
+   * that was on this cook and on no other. One transaction. Returns the photo
+   * files the cook's timeline referred to, for the caller to delete after.
+   */
+  purge(cookId: CookId): Promise<{ readonly photoPaths: readonly string[] }>;
 };
 
 export type FindingQuery = {
@@ -350,6 +388,30 @@ export type CookCaptureService = {
     actor: Actor,
   ): Promise<EvidenceDecision<CookEvent>>;
   /**
+   * Reword a note: a new revision beside the original, which stays as it was.
+   * See `reviseNote` in `src/domain/evidence.ts`.
+   */
+  reviseNote(
+    id: CookEventId,
+    text: string,
+    identity: RevisionIdentity,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Revision>>;
+  /** Reword the verdict on a reviewed cook, the same way. */
+  reviseVerdict(
+    id: CookId,
+    text: string,
+    identity: RevisionIdentity,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Revision>>;
+  /**
+   * Ask for a cook to be deleted. The rule decides (`deleteCook`); the cook is
+   * then hidden and held for its undo window, not yet gone.
+   */
+  requestCookDeletion(id: CookId, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Cook>>;
+  /**
    * Take back a photograph. Refused for every other kind, and for the
    * assistant; see `removeCookEvent` in `src/domain/evidence.ts`.
    *
@@ -392,6 +454,8 @@ export type DataLayer = {
   readonly cookTags: CookTagRepository;
   readonly briefings: BriefingRepository;
   readonly importBatches: ImportBatchRepository;
+  readonly revisions: RevisionRepository;
+  readonly cookDeletions: CookDeletionRepository;
   readonly schemaState: SchemaStateRepository;
   readonly review: ReviewService;
   readonly capture: CookCaptureService;

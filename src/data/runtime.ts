@@ -25,6 +25,7 @@ import type { AiService, DatabaseAdapter, PrivateFileStore } from './adapters';
 import type { DataLayer } from './repositories';
 import type { AppVariant } from '../config/variants';
 import { selectAiService } from './ai/selection';
+import { createCookDeletionWorkflow, type CookDeletionWorkflow } from './deletion/workflow';
 import { createExportService, type ExportService } from './export/service';
 import { createPrivateFileStore } from './files/privateFileStore';
 import { createPhotoService, type PhotoService } from './photos/capture';
@@ -51,6 +52,8 @@ export type CookingLabStorage = {
   readonly assistant: AiService;
   /** Gets history out of the phone: the portable backup, or one cook as text. */
   readonly exporter: ExportService;
+  /** Deletes a cook, with an undo window. */
+  readonly deletions: CookDeletionWorkflow;
   /** The schema version the open database reports. */
   readonly schemaVersion: number;
   /** True when this launch created the database and its key for the first time. */
@@ -95,6 +98,16 @@ export async function startCookingLabStorage(
   const data = createSqliteDataLayer(database, options.newId);
   const photos = createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort);
   const now = options.now ?? (() => new Date().toISOString());
+  const deletions = createCookDeletionWorkflow({ data, photos, now });
+
+  // A cook whose undo window was cut short by the app closing is deleted now,
+  // as the cook asked. A failure here is not a reason to keep the notebook
+  // shut: the cook stays hidden, and the next start tries again.
+  try {
+    await deletions.finishPending();
+  } catch {
+    // Deliberately quiet; see above.
+  }
 
   return {
     ok: true,
@@ -110,6 +123,7 @@ export async function startCookingLabStorage(
         now,
       }),
       assistant: selectAiService({ variant: options.variant }),
+      deletions,
       exporter: createExportService({
         data,
         photos,

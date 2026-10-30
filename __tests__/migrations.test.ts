@@ -9,6 +9,7 @@ import {
   IMPORT_BATCH_STATUSES,
   PROPOSAL_STATUSES,
   PROVENANCES,
+  REVISED_FIELDS,
   TAG_KINDS,
 } from '../src/domain/enums';
 import type { Migration } from '../src/data/schema/migrations';
@@ -35,6 +36,10 @@ function statementsOf(version: number): readonly string[] {
 
 const V1_STATEMENTS = statementsOf(1);
 const V2_STATEMENTS = statementsOf(2);
+const V3_STATEMENTS = statementsOf(3);
+
+/** The tables version 3 adds; every other table is version 1's. */
+const V3_TABLES: readonly string[] = ['revisions', 'cook_deletions'];
 
 /**
  * A `CREATE TABLE` for a table, out of one migration's statements.
@@ -93,6 +98,13 @@ function columnsOf(table: string): readonly string[] {
 const FROZEN_V1_DIGEST = '32a382a14384e3de56ebe3253ed06b382eca38b9fd0f8548378a0b88df956df8';
 const FROZEN_V1_STATEMENT_COUNT = 28;
 
+/**
+ * Version 2's text, pinned the same way (0.2.2). It ran on the phones with
+ * 0.2.0 and 0.2.1, so it is history now too.
+ */
+const FROZEN_V2_DIGEST = '3ae75e32f4a3b7c682cdcc976edc39c245a362a04910ebf487e30b88f74c52d0';
+const FROZEN_V2_STATEMENT_COUNT = 15;
+
 const migration = (version: number, statements: readonly string[] = ['CREATE TABLE t (a TEXT)']): Migration => ({
   version,
   name: `m${version}`,
@@ -111,12 +123,20 @@ describe('migration list', () => {
     expect(LATEST_SCHEMA_VERSION).toBe(MIGRATIONS.length);
   });
 
-  it('is the two versions this build knows, in order and named', () => {
+  it('is the three versions this build knows, in order and named', () => {
     expect(MIGRATIONS.map((migration) => [migration.version, migration.name])).toEqual([
       [1, 'local_foundation'],
       [2, 'tags_without_a_kind'],
+      [3, 'revisions_and_cook_deletions'],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(2);
+    expect(LATEST_SCHEMA_VERSION).toBe(3);
+  });
+
+  it('has not edited version 2, which has run on a device', () => {
+    const digest = createHash('sha256').update(V2_STATEMENTS.join('\n')).digest('hex');
+
+    expect(digest).toBe(FROZEN_V2_DIGEST);
+    expect(V2_STATEMENTS).toHaveLength(FROZEN_V2_STATEMENT_COUNT);
   });
 
   it('has not edited version 1, which has run on a device', () => {
@@ -177,12 +197,13 @@ describe('pendingMigrations', () => {
 });
 
 describe('schema v1 columns', () => {
-  it('creates every table the app expects, and no others', () => {
-    for (const table of SCHEMA_TABLES) {
+  it('creates every table the app expects but version 3’s two, and no others', () => {
+    const v1Tables = SCHEMA_TABLES.filter((table) => !V3_TABLES.includes(table));
+    for (const table of v1Tables) {
       expect(() => createStatementFor(table)).not.toThrow();
     }
     const created = V1_STATEMENTS.filter((sql) => sql.startsWith('CREATE TABLE '));
-    expect(created).toHaveLength(SCHEMA_TABLES.length);
+    expect(created).toHaveLength(v1Tables.length);
   });
 
   it.each([
@@ -462,6 +483,53 @@ describe('schema v2 — a tag no longer has to have a kind', () => {
         expect(dropped).toContain(table);
       }
     }
+  });
+});
+
+describe('schema version 3 — edits and pending deletions', () => {
+  it('creates exactly its two tables, and touches no existing one', () => {
+    const created = V3_STATEMENTS.filter((sql) => sql.startsWith('CREATE TABLE ')).map(
+      (sql) => sql.split(' ')[2] ?? '',
+    );
+    expect(created).toEqual(['revisions', 'cook_deletions']);
+
+    // Nothing that could change a row already on the phone: no drop, no
+    // alter, no delete, no update, and no insert but the version stamp.
+    const sql = V3_STATEMENTS.join('\n');
+    expect(sql).not.toContain('DROP ');
+    expect(sql).not.toContain('ALTER TABLE');
+    expect(sql).not.toMatch(/^\s*DELETE FROM/m);
+    expect(sql).not.toMatch(/^\s*UPDATE /m);
+    for (const statement of V3_STATEMENTS.filter((s) => s.startsWith('INSERT'))) {
+      expect(statement).toContain('INSERT INTO schema_meta');
+    }
+    expect(sql).not.toContain('PRAGMA');
+  });
+
+  it('keeps the edited field to the vocabulary in the domain', () => {
+    const revisions = createStatementIn(V3_STATEMENTS, 'revisions');
+    expect(checkListIn(revisions, 'field')).toEqual([...REVISED_FIELDS]);
+  });
+
+  it('ties a note’s edit to its note and a verdict’s edit to no entry', () => {
+    const revisions = createStatementIn(V3_STATEMENTS, 'revisions');
+    expect(revisions).toContain("(field = 'note'    AND cook_event_id IS NOT NULL)");
+    expect(revisions).toContain("(field = 'verdict' AND cook_event_id IS NULL)");
+  });
+
+  it('goes with its cook: both tables cascade from cooks', () => {
+    for (const table of ['revisions', 'cook_deletions']) {
+      expect(createStatementIn(V3_STATEMENTS, table)).toContain(
+        'REFERENCES cooks(id) ON DELETE CASCADE',
+      );
+    }
+    expect(createStatementIn(V3_STATEMENTS, 'revisions')).toContain(
+      'REFERENCES cook_events(id) ON DELETE CASCADE',
+    );
+  });
+
+  it('stamps version 3', () => {
+    expect(V3_STATEMENTS.join('\n')).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '3')`);
   });
 });
 

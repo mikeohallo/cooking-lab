@@ -16,12 +16,14 @@ import type { DatabaseAdapter } from '../adapters';
 import type { DataLayer } from '../repositories';
 import {
   createBriefingRepository,
+  createCookDeletionRepository,
   createCookEventRepository,
   createCookRepository,
   createCookTagRepository,
   createFindingRepository,
   createImportBatchRepository,
   createLessonRepository,
+  createRevisionRepository,
   createSchemaStateRepository,
   createTagRepository,
   type IdSource,
@@ -51,6 +53,8 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
   const cookTags = createCookTagRepository(adapter);
   const briefings = createBriefingRepository(adapter);
   const importBatches = createImportBatchRepository(adapter);
+  const revisions = createRevisionRepository(adapter);
+  const cookDeletions = createCookDeletionRepository(adapter);
   const schemaState = createSchemaStateRepository(adapter);
 
   return {
@@ -62,9 +66,11 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
     cookTags,
     briefings,
     importBatches,
+    revisions,
+    cookDeletions,
     schemaState,
     review: createReviewService(findings, lessons),
-    capture: createCookCaptureService(cooks, cookEvents),
+    capture: createCookCaptureService(cooks, cookEvents, revisions, cookDeletions),
     briefingWorkflow: createBriefingService(briefings),
     snapshots: createSnapshotService(adapter),
   };

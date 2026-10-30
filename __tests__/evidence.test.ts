@@ -174,11 +174,21 @@ describe('rule 1 — raw evidence belongs to the cook', () => {
     );
   });
 
-  it('lets the cook edit their own timeline entry', () => {
-    const edited = granted(updateCookEvent(EVENT, { body: 'Lid on at a rolling boil.' }, 'user'));
+  // 0.2.2 replaced this test. It pinned "the cook may overwrite a note's
+  // words in place"; from 0.2.2 nothing the cook writes is lost, an edit is a
+  // revision beside the original (rule 11), and the in-place overwrite is
+  // refused for the cook too. `revisions.test.ts` covers the edit itself.
+  it('refuses to overwrite a note’s words in place, even for the cook', () => {
+    expect(EVENT.kind).toBe('user_note');
+    expect(
+      refusalCode(updateCookEvent(EVENT, { body: 'Lid on at a rolling boil.' }, 'user')),
+    ).toBe('words_are_revised_not_overwritten');
+  });
 
-    expect(edited.body).toBe('Lid on at a rolling boil.');
-    expect(edited.id).toBe(EVENT.id);
+  it('still lets the cook save a note with its words unchanged', () => {
+    const same = granted(updateCookEvent(EVENT, { body: EVENT.body }, 'user'));
+
+    expect(same).toEqual(EVENT);
   });
 });
 

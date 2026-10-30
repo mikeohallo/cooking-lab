@@ -1,7 +1,7 @@
 /**
  * The Cooking Lab domain records.
  *
- * These are the eleven tables of the local database expressed as TypeScript.
+ * These are the tables of the local database expressed as TypeScript.
  * Every record is deeply `readonly`: a record is a value, and the only way to
  * change one is to produce a new one through a function that is allowed to do
  * so (see `src/domain/evidence.ts`). That is what makes the evidence
@@ -31,6 +31,7 @@ import type {
   ImportBatchStatus,
   ProposalStatus,
   Provenance,
+  RevisedField,
   TagKind,
 } from './enums';
 
@@ -48,6 +49,7 @@ export type LessonId = EntityId;
 export type TagId = EntityId;
 export type BriefingId = EntityId;
 export type ImportBatchId = EntityId;
+export type RevisionId = EntityId;
 
 /** An ISO-8601 instant in UTC, e.g. `2026-09-05T18:31:00.000Z`. */
 export type IsoTimestamp = string;
@@ -107,6 +109,27 @@ export type CookEvent = {
   readonly meta: JsonValue | null;
   /** Required for `photo` events, forbidden otherwise. */
   readonly photoPath: PhotoLogicalPath | null;
+};
+
+/**
+ * One edit of the cook's own words (schema version 3).
+ *
+ * An edit never overwrites anything. The note's row in `cook_events`, and the
+ * verdict in `cooks`, keep the words exactly as they were first written; each
+ * edit is one of these, holding the words as they were changed to and when.
+ * The newest is what a screen shows, marked "edited", and every earlier
+ * version — the original included — can still be read. See rule 11 in
+ * `src/domain/evidence.ts`.
+ */
+export type Revision = {
+  readonly id: RevisionId;
+  readonly cookId: CookId;
+  /** The note this edits. `null` for a verdict, which belongs to the cook. */
+  readonly cookEventId: CookEventId | null;
+  readonly field: RevisedField;
+  /** The words as they were changed to, stored exactly as typed. */
+  readonly text: string;
+  readonly revisedAt: IsoTimestamp;
 };
 
 // ---------------------------------------------------------------------------
@@ -245,6 +268,8 @@ export type DatabaseSnapshot = {
   readonly briefings: readonly Briefing[];
   readonly briefingSources: readonly BriefingSource[];
   readonly importBatches: readonly ImportBatch[];
+  /** Every edit of a note or a verdict. Backup format 3 and later. */
+  readonly revisions: readonly Revision[];
 };
 
 /** The keys of `DatabaseSnapshot`, in a fixed order, for deterministic output. */
@@ -259,6 +284,7 @@ export const SNAPSHOT_ENTITY_KEYS = [
   'briefings',
   'briefingSources',
   'importBatches',
+  'revisions',
 ] as const;
 export type SnapshotEntityKey = (typeof SNAPSHOT_ENTITY_KEYS)[number];
 
@@ -275,5 +301,6 @@ export function emptySnapshot(): DatabaseSnapshot {
     briefings: [],
     briefingSources: [],
     importBatches: [],
+    revisions: [],
   };
 }

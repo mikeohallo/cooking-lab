@@ -52,6 +52,26 @@
  * This build writes version 2 and reads both, because every backup a kitchen
  * already has is a version 1 file and a format that cannot read its own history
  * is not a backup format.
+ *
+ * WHAT CHANGED IN FORMAT VERSION 3 (0.2.2)
+ * ----------------------------------------
+ * One new collection, `entities.revisions`: every edit of a note or a verdict,
+ * each with the words it was changed to and when. The originals are where they
+ * always were — `cookEvents[].body` and `cooks[].verdict` — and are exactly as
+ * first written, so a reader that knows nothing of revisions still reads every
+ * cook's first words correctly; one that does know reads every version.
+ *
+ * A version 3 file must carry the collection, even empty. A version 1 or 2
+ * file has none, and is read as having no edits. A file that calls itself 1 or
+ * 2 and carries an edit is wrong about itself, and is reported, as an untyped
+ * tag in a version 1 file is.
+ *
+ * Also new in version 3, and not version-gated because an older reader already
+ * accepts any JSON in `meta`: a photograph chosen from the Gallery says how its
+ * place in the timeline was decided (`meta.photoTime`, see
+ * `src/domain/photoTime.ts`).
+ *
+ * This build writes version 3 and reads 1, 2 and 3.
  */
 
 import type {
@@ -66,10 +86,18 @@ import type {
 export const BACKUP_FORMAT = 'cooking-lab.backup';
 
 /** The envelope version this build writes. */
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 
 /** Envelope versions this build can read. */
-export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2];
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3];
+
+/**
+ * The first version that carries `entities.revisions`.
+ *
+ * Before it the collection is absent and read as empty; from it on the
+ * collection is required, and an earlier file that carries one is refused.
+ */
+export const FIRST_REVISIONS_FORMAT_VERSION = 3;
 
 /**
  * The first version in which a tag may have no kind.
