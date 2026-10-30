@@ -37,6 +37,54 @@ export const USED_BEFORE_LIMIT = 6;
 /** How many suggestions the field offers while a word is being typed. */
 export const SUGGESTION_LIMIT = 6;
 
+/**
+ * The suggestions to offer: each name once, none already on this cook.
+ *
+ * "Each tag appears once" (0.2.2). Two rows can carry the same name — a tag a
+ * kind was given before schema version 2 and the untyped one named since — and
+ * offering both draws the same chip twice. The first, which `suggest` has
+ * already ranked best, is the one kept.
+ */
+export function uniqueSuggestions(
+  matches: readonly Tag[],
+  onCook: readonly Tag[],
+  limit: number,
+): readonly Tag[] {
+  const takenIds = new Set(onCook.map((tag) => tag.id));
+  const takenNames = new Set(onCook.map((tag) => tag.name.toLowerCase()));
+  const offered: Tag[] = [];
+  for (const tag of matches) {
+    const name = tag.name.toLowerCase();
+    if (takenIds.has(tag.id) || takenNames.has(name)) {
+      continue;
+    }
+    takenNames.add(name);
+    offered.push(tag);
+    if (offered.length === limit) {
+      break;
+    }
+  }
+  return offered;
+}
+
+/**
+ * *Used before:* without whatever the field is offering right now.
+ *
+ * While a word is being typed the suggestions sit directly above *Used
+ * before:*, and the same chip in both lines reads as one tag shown twice. The
+ * suggestion is the one nearer the cook's thumb, so it wins.
+ */
+export function usedBeforeWithout(
+  usedBefore: readonly Tag[],
+  suggestions: readonly Tag[],
+): readonly Tag[] {
+  const shownIds = new Set(suggestions.map((tag) => tag.id));
+  const shownNames = new Set(suggestions.map((tag) => tag.name.toLowerCase()));
+  return usedBefore.filter(
+    (tag) => !shownIds.has(tag.id) && !shownNames.has(tag.name.toLowerCase()),
+  );
+}
+
 export type CookTagsState = {
   /** The tags on this cook, alphabetically. */
   readonly tags: readonly Tag[];
@@ -180,10 +228,10 @@ export function useCookTags(
       }
       try {
         const matches = await data.tags.suggest(needle, SUGGESTION_LIMIT * 3);
-        const already = new Set(tags.map((tag) => tag.id));
         // Every tag the kitchen has ever made, on a cook now or not, but not one
-        // already on this cook: offering back a chip above the field is noise.
-        return matches.filter((tag) => !already.has(tag.id)).slice(0, SUGGESTION_LIMIT);
+        // already on this cook — offering back a chip already shown is noise —
+        // and each name once.
+        return uniqueSuggestions(matches, tags, SUGGESTION_LIMIT);
       } catch {
         // Suggestions are a convenience; failing to fetch them must never stop
         // the cook typing the tag out in full.

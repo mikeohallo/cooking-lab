@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ActionButton } from '../../components/ActionButton';
@@ -18,7 +18,8 @@ import {
 } from '../../content/product';
 import type { CookId, Tag } from '../../domain/entities';
 import { MAX_TAG_ENTRY_LENGTH } from '../../domain/invariants';
-import { useCookTags } from '../../state/useCookTags';
+import { useScreenScroll } from '../../layout/ScreenScroll';
+import { useCookTags, usedBeforeWithout } from '../../state/useCookTags';
 import { space } from '../../theme/tokens';
 
 type TagEditorProps = {
@@ -53,6 +54,15 @@ type TagEditorProps = {
  *
  * `labelled` is false where the screen already gives the control a heading of
  * its own (Review), so the word "Tags" is never printed twice.
+ *
+ * THE SUGGESTIONS SIT ABOVE THE FIELD (0.2.2)
+ * -------------------------------------------
+ * On the cover display they used to sit under it, which is where the keyboard
+ * comes up, so the one list meant to save typing was hidden by the keyboard
+ * the cook was typing on. They are now drawn above the field, and while the
+ * field has focus the page is scrolled to put the suggestions and the field
+ * at the top of the screen (`useScreenScroll`). Each tag is offered once, and
+ * a tag being suggested is left out of *Used before:* while it is.
  */
 export function TagEditor({
   cookId,
@@ -64,6 +74,9 @@ export function TagEditor({
   const [draft, setDraft] = useState('');
   const [suggestions, setSuggestions] = useState<readonly Tag[]>([]);
   const [showingAll, setShowingAll] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const typing = useRef<View>(null);
+  const { reveal } = useScreenScroll();
 
   // Suggestions follow the field a keystroke behind, which is as fast as a
   // local query needs to be and avoids a query per character on a phone.
@@ -80,6 +93,15 @@ export function TagEditor({
     };
   }, [draft, suggest]);
 
+  // While the field has focus, keep the suggestions and the field in sight:
+  // once when the keyboard comes up, and again whenever the suggestions change
+  // and the block grows.
+  useEffect(() => {
+    if (focused) {
+      reveal(typing.current);
+    }
+  }, [focused, suggestions, reveal]);
+
   const submit = async () => {
     const added = await tagging.add(draft);
     if (added) {
@@ -88,6 +110,7 @@ export function TagEditor({
   };
 
   const onCook = new Set(tagging.tags.map((tag) => tag.id));
+  const usedBefore = usedBeforeWithout(tagging.usedBefore, suggestions);
 
   return (
     <View style={styles.editor} testID={testID}>
@@ -125,56 +148,60 @@ export function TagEditor({
         />
       ) : null}
 
-      <View style={styles.addRow}>
-        <View style={styles.addField}>
-          <TextField
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={ADD_TAG_PLACEHOLDER}
-            accessibilityLabel="Add a tag"
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={MAX_TAG_ENTRY_LENGTH}
-            onSubmitEditing={() => void submit()}
-            returnKeyType="done"
-            testID="tag-input"
+      <View ref={typing} style={styles.typing} testID="tag-typing">
+        {suggestions.length > 0 ? (
+          <View style={styles.chips} testID="tag-suggestions">
+            {suggestions.map((tag) => (
+              <TagChip
+                key={tag.id}
+                name={tag.name}
+                variant="pick"
+                disabled={tagging.saving}
+                onPress={() => {
+                  setDraft('');
+                  void tagging.addExisting(tag);
+                }}
+                testID={`tag-suggestion-${tag.id}`}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        <View style={styles.addRow}>
+          <View style={styles.addField}>
+            <TextField
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={ADD_TAG_PLACEHOLDER}
+              accessibilityLabel="Add a tag"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={MAX_TAG_ENTRY_LENGTH}
+              onSubmitEditing={() => void submit()}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              returnKeyType="done"
+              testID="tag-input"
+            />
+          </View>
+          <ActionButton
+            label={ADD_TAG}
+            variant="secondary"
+            disabled={draft.trim() === ''}
+            pending={tagging.saving}
+            onPress={() => void submit()}
+            testID="tag-add"
           />
         </View>
-        <ActionButton
-          label={ADD_TAG}
-          variant="secondary"
-          disabled={draft.trim() === ''}
-          pending={tagging.saving}
-          onPress={() => void submit()}
-          testID="tag-add"
-        />
       </View>
 
-      {suggestions.length > 0 ? (
-        <View style={styles.chips} testID="tag-suggestions">
-          {suggestions.map((tag) => (
-            <TagChip
-              key={tag.id}
-              name={tag.name}
-              variant="pick"
-              disabled={tagging.saving}
-              onPress={() => {
-                setDraft('');
-                void tagging.addExisting(tag);
-              }}
-              testID={`tag-suggestion-${tag.id}`}
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {tagging.usedBefore.length > 0 ? (
+      {usedBefore.length > 0 ? (
         <View style={styles.block} testID="tags-used-before">
           <AppText variant="label" tone="muted">
             {USED_BEFORE}
           </AppText>
           <View style={styles.chips}>
-            {tagging.usedBefore.map((tag) => (
+            {usedBefore.map((tag) => (
               <TagChip
                 key={tag.id}
                 name={tag.name}
@@ -225,6 +252,9 @@ const styles = StyleSheet.create({
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: space.xs,
+  },
+  typing: {
     gap: space.xs,
   },
   addRow: {
