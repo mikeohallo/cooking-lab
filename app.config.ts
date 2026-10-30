@@ -63,19 +63,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'cooking-lab',
     scheme: 'cookinglab',
     icon,
-    // 0.2.2: fixes from cooking with 0.2.1 — the cook screen scrolls, edits
-    // keep their history, a cook can be deleted, the screen stays on.
+    // 0.3.0: update 2 — meal types, ingredients, who ate it, Cook this again
+    // (part 1); colour scheme A and Plus Jakarta Sans, Home as History with
+    // pages, two panes on the inner display (part 2).
     // Bump `versionCode` with every production build that follows; Android will
     // not update an installed app to the same code.
-    version: '0.2.2',
+    version: '0.3.0',
     orientation: 'default',
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 5,
+      versionCode: 6,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
-        // The app's sage, from src/theme/tokens.ts.
+        // The launcher icon's sage, from Design Baseline v1. The icon itself was
+        // not part of 0.3.0's new look, so it keeps the colour it was drawn on.
         backgroundColor: '#526A55',
       },
       softwareKeyboardLayoutMode: 'resize',

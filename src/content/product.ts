@@ -4,6 +4,12 @@
  *
  * Sentence case throughout; British spelling; Celsius. Nothing here promises
  * a feature the current milestone does not have.
+ *
+ * As of 0.3.0: Home is also History — New Cook, Cooking now, the search and
+ * its filters, and every reviewed cook ten to a page, with Export everything
+ * and Who's eating in its ⋯ menu. A cook records its meal type, ingredients
+ * and who ate it; Cook this again shows what was said last time. There is no
+ * separate History screen, so nothing here names one.
  */
 
 export const PRODUCT_TAGLINE =

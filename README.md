@@ -43,17 +43,18 @@ database on the phone. There is no account, no cloud backend, no cloud storage
 and no analytics, and none is planned. The only remote call the app is planned
 to make is to an AI model, in a later slice.
 
-**Current state (0.2.2):** a cook can be started in one tap and captured as
-it happens:
+**Current state (0.3.0, built 30 October, not yet on a device):** a cook can
+be started in one tap and captured as it happens:
 
 * **Notes and photos.** A photo chosen from the Gallery goes into the timeline
   at the time it was taken, read from its own date and time (never its
   location); one taken with the camera goes in as it is taken.
 * **Oven and Internal readings** in Celsius, each labelled with what it was
   taken of, plus a free-text reading for anywhere else.
-* **Tags and search.** Cooks can be tagged in the kitchen's own words, and
-  History searches titles and tags together, saying which cooks matched
-  everything you typed and which matched part of it.
+* **Tags and search.** Cooks can be tagged in the kitchen's own words. Home
+  searches titles, tags and ingredients together, saying which cooks matched
+  everything you typed and which matched part of it, and filters by meal type
+  and by who gave how many stars.
 * **Editing with history.** Any note, and the verdict once a cook is reviewed,
   can be edited. The edit is kept beside the earlier words rather than over
   them: the timeline shows the latest, marked "edited", and every earlier
@@ -64,18 +65,30 @@ it happens:
 * **The screen stays on** while an open cook is in front, so it doesn't sleep
   mid-cook. A toggle on the cook's page turns it off for that cook.
 
-**On `main`, not yet in a build (0.3.0, part 1 of 2):** a meal type on every
-cook; an Ingredients box at the top of every cook, every version kept; a review
-that asks who ate it (one to five stars, or N/A for someone who didn't, a line,
-guests) from a household list kept on the phone; *Cook this again*, which
-starts a new cook with the same title, tags, meal type and ingredients and
-shows what was said last time; and History searching ingredients and filtering
-by meal type and by who gave how many stars. See
-`build-control/slices/RELEASE_0.3.0_PART1.md`.
+* **What a cook records (0.3.0).** A meal type — Breakfast, Lunch/Dinner,
+  Dessert, Snack — each with its own colour and always its word; an
+  Ingredients box at the top of every cook, every version kept; and, on the
+  review, who ate it (one to five stars, or N/A for someone who didn't, a line,
+  guests) from a household list kept on the phone. *Cook this again* starts a
+  new cook with the same title, tags, meal type and ingredients and shows what
+  was said last time.
+* **Home is History (0.3.0).** New Cook, then *Cooking now*, then the search
+  and every reviewed cook, newest first, ten to a page. Each card shows its
+  meal type, its whole title, the date, the stars in one line and the first
+  lines of the notes.
+* **Two panes on the unfolded inner display (0.3.0).** Home's list beside the
+  chosen cook's whole page; an open cook's timeline beside *Last time* and the
+  ingredients; the review's ratings beside the notes. The cover display stays
+  one column, and folding mid-cook keeps the note being typed.
+* **The look (0.3.0).** Colour scheme A, "Paprika", set in Plus Jakarta Sans
+  (`build-control/design/DESIGN_BASELINE_V2.md`).
 
-A cook is then reviewed with a verdict in the cook's own words and found again
-in History. The cook screen scrolls however long a note gets, and the note box,
-Send and the reading buttons stay reachable above the keyboard.
+See `build-control/slices/RELEASE_0.3.0.md` for what is in 0.3.0 and what has
+not been tried on a device yet.
+
+A cook is then reviewed in the cook's own words and found again from Home. The
+cook screen scrolls however long a note gets, and the note box, Send and the
+reading buttons stay reachable above the keyboard.
 
 A photograph is re-encoded into the app's own private storage with its
 metadata removed, so a picture of dinner does not carry the location of the
@@ -270,6 +283,9 @@ rather than ad-hoc width checks:
 * safe-area insets on all edges;
 * content column centred and capped at 560 dp so text never stretches across an
   unfolded screen;
+* two panes side by side from 600 dp wide when the shorter side is 600 dp too —
+  the unfolded inner display — and one column on the cover display either way
+  up;
 * no fixed heights, so Android font scaling grows the layout instead of clipping.
 
 ## Licence
