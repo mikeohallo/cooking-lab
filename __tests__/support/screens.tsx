@@ -11,6 +11,7 @@ import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PendingDeletionProvider } from '../../src/state/PendingDeletion';
 import { ReadyStorageProvider, type AppStorage } from '../../src/state/StorageProvider';
 import type { CapturedImage, EncodedPhoto, PhotoEncoder, PhotoSource, PhotoSourceOutcome } from '../../src/data/adapters';
 import { createUnavailableAiService } from '../../src/data/ai/unavailable';
@@ -18,6 +19,7 @@ import { createExportService } from '../../src/data/export/service';
 import type { ExportFile, ExportSink } from '../../src/data/export/sink';
 import { createPrivateFileStore } from '../../src/data/files/privateFileStore';
 import { createPhotoService } from '../../src/data/photos/capture';
+import { createCookDeletionWorkflow } from '../../src/data/deletion/workflow';
 import { LATEST_SCHEMA_VERSION } from '../../src/data/schema/migrations';
 import { countingIds, openTestDatabase, type TestDatabase } from './database';
 import { memoryFileSystem, nodeDigest, type MemoryFileSystem } from './memoryPorts';
@@ -169,6 +171,7 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
       newId,
       now,
     }),
+    deletions: createCookDeletionWorkflow({ data: db.data, photos, now }),
     newId,
     now,
   };
@@ -186,7 +189,10 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
     async render(element, override = storage) {
       await render(
         <SafeAreaProvider initialMetrics={TEST_SAFE_AREA}>
-          <ReadyStorageProvider storage={override}>{element}</ReadyStorageProvider>
+          <ReadyStorageProvider storage={override}>
+            {/* As the root layout mounts it, so delete and Undo work as in the app. */}
+            <PendingDeletionProvider>{element}</PendingDeletionProvider>
+          </ReadyStorageProvider>
         </SafeAreaProvider>,
       );
     },

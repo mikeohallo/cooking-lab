@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { usePendingDeletion } from '../state/PendingDeletion';
 import { useCookList } from '../state/useCookList';
 import { useTagIndex } from '../state/useTagIndex';
 import { ActionButton } from '../components/ActionButton';
@@ -14,6 +15,7 @@ import { TagChip } from '../components/TagChip';
 import { TextField } from '../components/TextField';
 import {
   CLEAR_SEARCH,
+  DELETE_COOK,
   EMPTY_HISTORY_BODY,
   EMPTY_HISTORY_TITLE,
   EMPTY_OPEN_BODY,
@@ -35,10 +37,11 @@ import {
   UNSAVED_KEPT,
   UNTITLED_COOK,
 } from '../content/product';
-import type { CookId } from '../domain/entities';
+import type { Cook, CookId } from '../domain/entities';
 import type { CookStatus } from '../domain/enums';
 import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { CookActions } from './CookActions';
 import { CookCard } from './HomeScreen';
 import {
   searchCooks,
@@ -97,15 +100,19 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
   const [typed, setTyped] = useState('');
   const [pickedTags, setPickedTags] = useState<readonly string[]>([]);
   const [showingTags, setShowingTags] = useState(false);
+  const [actionsFor, setActionsFor] = useState<Cook | null>(null);
+  // A cook deleted, or brought back with Undo, changes the list and the tags.
+  const { version } = usePendingDeletion();
+  const reload = refreshToken + version;
 
   const list = useCookList(
     filter === 'all' ? { sort: 'newest_first' } : { status: filter, sort: 'newest_first' },
-    refreshToken,
+    reload,
   );
   const cooks = list.status === 'ready' ? list.cooks : [];
   const tagIndex = useTagIndex(
     cooks.map((cook) => cook.id),
-    refreshToken,
+    reload,
   );
 
   const results = searchCooks(searchable(cooks, tagIndex.byCook), { typed, pickedTags });
@@ -230,7 +237,13 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
       {list.status === 'ready' && !searching ? (
         <View style={styles.list} testID="history-list">
           {cooks.map((cook) => (
-            <CookCard key={cook.id} cook={cook} onPress={() => onOpenCook(cook.id)} />
+            <CookCard
+              key={cook.id}
+              cook={cook}
+              verdict={list.status === 'ready' ? (list.verdicts[cook.id] ?? cook.verdict) : cook.verdict}
+              onPress={() => onOpenCook(cook.id)}
+              onLongPress={() => setActionsFor(cook)}
+            />
           ))}
         </View>
       ) : null}
@@ -241,16 +254,20 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
             label={SEARCH_GROUP_ALL}
             hits={results.all}
             onOpenCook={onOpenCook}
+            onActions={setActionsFor}
             testID="history-group-all"
           />
           <HitGroup
             label={SEARCH_GROUP_SOME}
             hits={results.some}
             onOpenCook={onOpenCook}
+            onActions={setActionsFor}
             testID="history-group-some"
           />
         </View>
       ) : null}
+
+      <CookActions cook={actionsFor} onClose={() => setActionsFor(null)} />
     </ScreenContainer>
   );
 }
@@ -259,11 +276,12 @@ type HitGroupProps = {
   label: string;
   hits: readonly SearchHit[];
   onOpenCook: (cookId: CookId) => void;
+  onActions: (cook: Cook) => void;
   testID: string;
 };
 
 /** One of the two result groups. An empty group is not drawn at all. */
-function HitGroup({ label, hits, onOpenCook, testID }: HitGroupProps) {
+function HitGroup({ label, hits, onOpenCook, onActions, testID }: HitGroupProps) {
   if (hits.length === 0) {
     return null;
   }
@@ -271,7 +289,12 @@ function HitGroup({ label, hits, onOpenCook, testID }: HitGroupProps) {
     <View style={styles.group} testID={testID}>
       <AppText variant="sectionTitle">{label}</AppText>
       {hits.map((hit) => (
-        <HitCard key={hit.cook.id} hit={hit} onPress={() => onOpenCook(hit.cook.id)} />
+        <HitCard
+          key={hit.cook.id}
+          hit={hit}
+          onPress={() => onOpenCook(hit.cook.id)}
+          onLongPress={() => onActions(hit.cook)}
+        />
       ))}
     </View>
   );
@@ -284,13 +307,23 @@ function HitGroup({ label, hits, onOpenCook, testID }: HitGroupProps) {
  * obvious *why* a cook is in the list — a search for "cider" that matched a tag
  * rather than the title would otherwise look like a mistake.
  */
-function HitCard({ hit, onPress }: { hit: SearchHit; onPress: () => void }) {
+function HitCard({
+  hit,
+  onPress,
+  onLongPress,
+}: {
+  hit: SearchHit;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
   const { cook } = hit;
   const title = cook.title ?? UNTITLED_COOK;
 
   return (
     <Card
       onPress={onPress}
+      onLongPress={onLongPress}
+      longPressLabel={DELETE_COOK}
       accessibilityLabel={`${title}, ${formatDateTime(cook.startedAt)}`}
       accessibilityHint={cook.status === 'open' ? 'Continue this cook' : 'Open this cook'}
       testID={`cook-card-${cook.id}`}

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { StartupGate } from '../src/state/StartupGate';
 import { StorageProvider } from '../src/state/StorageProvider';
 import { newDeviceId } from '../src/data/native/expoCrypto';
@@ -35,13 +36,16 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <StorageProvider start={initialiseStorage} newId={newDeviceId} onStarted={logStartup}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-          screenLayout={gated}
-        />
+        {/* Above every screen, so "Cook deleted · Undo" shows wherever the cook lands. */}
+        <PendingDeletionProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+            screenLayout={gated}
+          />
+        </PendingDeletionProvider>
       </StorageProvider>
     </SafeAreaProvider>
   );

@@ -37,6 +37,7 @@ import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
 import { TimelineEvent } from './cook/TimelineEvent';
+import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
 import { TagEditor } from './tags/TagEditor';
 
 type ReviewScreenProps = {
@@ -66,6 +67,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const [takeaway, setTakeaway] = useState('');
   const [lessonProblem, setLessonProblem] = useState<string | null>(null);
   const opened = useRef(false);
+  const [versions, setVersions] = useState<readonly Version[] | null>(null);
   const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
 
   // Record that the review was opened, once per cook, the first time the
@@ -123,7 +125,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     );
   }
 
-  const { cook, events } = load;
+  const { cook, events, revisions } = load;
   const verdict = verdictDraft ?? cook.verdict ?? '';
   const verdictTooLong = verdict.length > MAX_TEXT_LENGTH;
   const takeawayTooLong = takeaway.trim().length > MAX_TEXT_LENGTH;
@@ -261,6 +263,25 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
               <TimelineEvent
                 key={event.id}
                 event={event}
+                // A note shows its newest words, and "edited" opens the earlier
+                // ones; editing itself is on the cook's own page, not here.
+                note={
+                  event.kind === 'user_note'
+                    ? {
+                        revisions: revisions.filter((edit) => edit.cookEventId === event.id),
+                        editable: false,
+                        onSave: async () => null,
+                        onShowVersions: () =>
+                          setVersions(
+                            earlierVersions(
+                              event.body,
+                              event.ts,
+                              revisions.filter((edit) => edit.cookEventId === event.id),
+                            ),
+                          ),
+                      }
+                    : undefined
+                }
                 // Shown, but with no way to open one full screen and therefore
                 // no way to remove one: Review is for looking at the evidence
                 // and saying how it went, not for editing it.
@@ -272,6 +293,8 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
           </View>
         )}
       </View>
+
+      <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
     </ScreenContainer>
   );
 }

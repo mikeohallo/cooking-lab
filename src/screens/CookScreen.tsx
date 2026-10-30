@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
+import { useKeepScreenOn, useScreenStaysOn } from '../state/useKeepScreenOn';
 import { useExport } from '../state/useExport';
 import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite, type WriteState } from '../state/useWrite';
@@ -23,9 +24,11 @@ import {
   EDIT_TITLE,
   EMPTY_TIMELINE_BODY,
   EMPTY_TIMELINE_TITLE,
+  EDIT_VERDICT,
   EXPORT_COOK,
   EXPORT_COOK_HINT,
   FINISH_AND_REVIEW,
+  MORE_COOK_ACTIONS,
   PHOTO_CAMERA_BLOCKED_BODY,
   PHOTO_CAMERA_DENIED_BODY,
   PHOTO_CAMERA_DENIED_TITLE,
@@ -33,15 +36,22 @@ import {
   PHOTO_FAILED_TITLE,
   RETRY,
   SAVE_TITLE,
+  SCREEN_CAN_SLEEP,
+  SCREEN_STAYS_ON,
   STATUS_REVIEWED,
   UNTITLED_COOK,
+  VERDICT_ACTIONS,
 } from '../content/product';
 import type { PhotoOrigin } from '../data/adapters';
-import type { Cook, CookId, JsonObject } from '../domain/entities';
+import type { Cook, CookEvent, CookId, JsonObject, Revision } from '../domain/entities';
+import { latestWords } from '../domain/evidence';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
-import { MIN_TOUCH_TARGET, space } from '../theme/tokens';
+import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { CookActions } from './CookActions';
 import { Composer } from './cook/Composer';
+import { EditableWords } from './cook/EditableWords';
+import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
 import { PhotoViewer, type ViewedPhoto } from './cook/PhotoViewer';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { ExportNotice } from './ExportNotice';
@@ -53,6 +63,12 @@ type CookScreenProps = {
   onReview: (cookId: CookId) => void;
   /** Bumped by the route when the screen regains focus, to reload. */
   refreshToken?: number;
+  /**
+   * Whether this page is the one in front. The screen is kept on only while
+   * it is (0.2.2). The route says; a test that renders the screen alone leaves
+   * it at true.
+   */
+  inFront?: boolean;
 };
 
 /**
@@ -63,9 +79,15 @@ type CookScreenProps = {
  * Send. Every write goes through the capture service as the user, and the
  * timeline shows an entry only once the store has returned it.
  */
-export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookScreenProps) {
+export function CookScreen({
+  cookId,
+  onBack,
+  onReview,
+  refreshToken = 0,
+  inFront = true,
+}: CookScreenProps) {
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
-  const { load, reload, acceptCook, acceptEvent } = useCook(cookId, refreshToken);
+  const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken);
   const eventWrite = useWrite();
   const titleWrite = useWrite();
   const exportOne = useExport();
@@ -73,6 +95,12 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
   const [photoProblem, setPhotoProblem] = useState<PhotoProblem | null>(null);
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
   const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [versions, setVersions] = useState<readonly Version[] | null>(null);
+  const [staysOn, setStaysOn] = useScreenStaysOn(cookId);
+  // On while an open cook's page is in front and its toggle says so; the hook
+  // also lets go whenever the app leaves the foreground.
+  useKeepScreenOn(load.status === 'ready' && load.cook.status === 'open' && inFront && staysOn);
 
   if (load.status === 'loading') {
     return (
@@ -110,8 +138,40 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
     );
   }
 
-  const { cook, events, lessons } = load;
+  const { cook, events, lessons, revisions } = load;
   const readOnly = cook.status === 'reviewed';
+  const verdictEdits = revisions.filter((revision) => revision.field === 'verdict');
+  const verdictNow = latestWords(cook.verdict, verdictEdits);
+
+  const editsOf = (event: CookEvent): readonly Revision[] =>
+    revisions.filter((revision) => revision.cookEventId === event.id);
+
+  /** Save new words for a note: a new version beside the old ones. */
+  const saveNote = async (event: CookEvent, text: string): Promise<string | null> => {
+    try {
+      const decision = await data.capture.reviseNote(event.id, text, { id: newId() }, 'user', now());
+      if (!decision.allowed) {
+        return decision.message;
+      }
+      acceptRevision(decision.record);
+      return null;
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
+
+  const saveVerdict = async (text: string): Promise<string | null> => {
+    try {
+      const decision = await data.capture.reviseVerdict(cook.id, text, { id: newId() }, 'user', now());
+      if (!decision.allowed) {
+        return decision.message;
+      }
+      acceptRevision(decision.record);
+      return null;
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
 
   const sendNote = async (body: string): Promise<boolean> => {
     const result = await eventWrite.run(() =>
@@ -202,24 +262,51 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
         title={cook.title ?? UNTITLED_COOK}
         subtitle={formatDateTime(cook.startedAt)}
         onBack={onBack}
-        titleSlot={
-          readOnly ? undefined : (
-            <EditableTitle cook={cook} onSave={saveTitle} writeState={titleWrite.state} />
-          )
-        }
+        // The title can be changed on any cook, open or reviewed (0.2.2).
+        titleSlot={<EditableTitle cook={cook} onSave={saveTitle} writeState={titleWrite.state} />}
         trailing={
-          readOnly ? (
-            <StatusChip status="reviewed" label={STATUS_REVIEWED} testID="cook-status-chip" />
-          ) : (
-            <ActionButton
-              label={FINISH_AND_REVIEW}
-              variant="secondary"
-              onPress={() => onReview(cook.id)}
-              testID="finish-and-review"
-            />
-          )
+          <View style={styles.headerActions}>
+            {readOnly ? (
+              <StatusChip status="reviewed" label={STATUS_REVIEWED} testID="cook-status-chip" />
+            ) : (
+              <ActionButton
+                label={FINISH_AND_REVIEW}
+                variant="secondary"
+                onPress={() => onReview(cook.id)}
+                testID="finish-and-review"
+              />
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={MORE_COOK_ACTIONS}
+              onPress={() => setActionsOpen(true)}
+              style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
+              testID="cook-more"
+            >
+              <AppText variant="bodyStrong" tone="primary" importantForAccessibility="no">
+                ⋯
+              </AppText>
+            </Pressable>
+          </View>
         }
       />
+
+      {readOnly ? null : (
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: staysOn }}
+          accessibilityLabel={staysOn ? SCREEN_STAYS_ON : SCREEN_CAN_SLEEP}
+          accessibilityHint="Changes whether the screen stays on while this cook is open"
+          onPress={() => setStaysOn(!staysOn)}
+          style={[styles.awake, staysOn && styles.awakeOn]}
+          testID="screen-awake-toggle"
+        >
+          <View style={[styles.awakeDot, staysOn && styles.awakeDotOn]} />
+          <AppText variant="label" tone={staysOn ? 'primary' : 'muted'}>
+            {staysOn ? SCREEN_STAYS_ON : SCREEN_CAN_SLEEP}
+          </AppText>
+        </Pressable>
+      )}
 
       <View style={styles.tags}>
         <TagEditor cookId={cook.id} refreshToken={refreshToken} />
@@ -229,15 +316,35 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
 
       {readOnly ? (
         <Card variant="hero" testID="verdict-card">
-          <AppText variant="label" tone="muted">
-            Verdict
-          </AppText>
-          {cook.verdict !== null && cook.verdict.trim() !== '' ? (
-            <AppText variant="body">{cook.verdict}</AppText>
+          {verdictNow.text !== null && verdictNow.text.trim() !== '' ? (
+            <EditableWords
+              heading={
+                <AppText variant="label" tone="muted">
+                  Verdict
+                </AppText>
+              }
+              words={verdictNow.text}
+              edited={verdictNow.edited}
+              editable
+              onSave={saveVerdict}
+              onShowVersions={() =>
+                setVersions(
+                  earlierVersions(cook.verdict, cook.reviewSavedAt ?? cook.startedAt, verdictEdits),
+                )
+              }
+              actionsLabel={VERDICT_ACTIONS}
+              editLabel={EDIT_VERDICT}
+              testID="verdict"
+            />
           ) : (
-            <AppText variant="body" tone="muted">
-              No verdict was written for this cook.
-            </AppText>
+            <>
+              <AppText variant="label" tone="muted">
+                Verdict
+              </AppText>
+              <AppText variant="body" tone="muted">
+                No verdict was written for this cook.
+              </AppText>
+            </>
           )}
           {lessons.length > 0 ? (
             <View style={styles.lessons}>
@@ -268,6 +375,17 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
             <TimelineEvent
               key={event.id}
               event={event}
+              note={
+                event.kind === 'user_note'
+                  ? {
+                      revisions: editsOf(event),
+                      editable: true,
+                      onSave: (text) => saveNote(event, text),
+                      onShowVersions: () =>
+                        setVersions(earlierVersions(event.body, event.ts, editsOf(event))),
+                    }
+                  : undefined
+              }
               photo={
                 event.kind === 'photo'
                   ? {
@@ -291,6 +409,16 @@ export function CookScreen({ cookId, onBack, onReview, refreshToken = 0 }: CookS
         onClose={() => setViewing(null)}
         onRemove={removePhoto}
         canRemove={!readOnly}
+      />
+
+      <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
+
+      <CookActions
+        cook={actionsOpen ? cook : null}
+        onClose={() => setActionsOpen(false)}
+        // Deleted from its own page: go back, and the Undo is on the screen
+        // the cook lands on.
+        onDeleted={onBack}
       />
 
       {readOnly ? (
@@ -429,6 +557,49 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
 const styles = StyleSheet.create({
   tags: {
     marginBottom: space.md,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xxs,
+  },
+  more: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.control,
+  },
+  morePressed: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  awake: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: space.md,
+    marginBottom: space.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  awakeOn: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  awakeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: colors.textMuted,
+  },
+  awakeDotOn: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
   },
   timeline: {
     gap: space.xs,

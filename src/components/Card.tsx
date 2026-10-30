@@ -9,6 +9,13 @@ type CardProps = {
   variant?: 'surface' | 'muted' | 'hero';
   /** When set, the whole card is one tappable control. */
   onPress?: () => void;
+  /**
+   * A long-press, for a card that has more to offer than opening. Also given
+   * to a screen reader as a named action, so it never depends on the gesture.
+   */
+  onLongPress?: () => void;
+  /** What the long-press does, for the screen reader's action list. */
+  longPressLabel?: string;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
@@ -23,6 +30,8 @@ export function Card({
   children,
   variant = 'surface',
   onPress,
+  onLongPress,
+  longPressLabel,
   accessibilityLabel,
   accessibilityHint,
   testID,
@@ -37,6 +46,15 @@ export function Card({
         accessibilityLabel={accessibilityLabel}
         accessibilityHint={accessibilityHint}
         onPress={onPress}
+        onLongPress={onLongPress}
+        accessibilityActions={
+          onLongPress ? [{ name: 'longpress', label: longPressLabel ?? 'More actions' }] : undefined
+        }
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'longpress') {
+            onLongPress?.();
+          }
+        }}
         testID={testID}
         style={({ pressed }) => [base, styles.pressable, pressed && styles.pressed]}
       >

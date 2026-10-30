@@ -158,3 +158,40 @@ export const COOK_NOT_FOUND_BODY =
 export const BACK_TO_HOME = 'Back to Home';
 export const RETRY = 'Try again';
 export const UNSAVED_KEPT = 'Your text is still here. Nothing was lost.';
+
+// --- Deleting a cook (0.2.2) ----------------------------------------------
+
+export const DELETE_COOK = 'Delete cook';
+export const DELETE_COOK_CONFIRM_TITLE = 'Delete this cook?';
+export const DELETE_COOK_CONFIRM_BODY = 'Its notes, readings and photos go too.';
+export const DELETE_COOK_CONFIRM = 'Delete';
+export const DELETE_COOK_KEEP = 'Keep it';
+export const COOK_DELETED = 'Cook deleted';
+export const UNDO = 'Undo';
+export const MORE_COOK_ACTIONS = 'More actions for this cook';
+export const COOK_ACTIONS_CANCEL = 'Cancel';
+export const DELETE_FAILED_TITLE = 'This cook was not deleted';
+
+// --- Editing (0.2.2) -------------------------------------------------------
+
+export const EDIT = 'Edit';
+export const EDIT_NOTE = 'Edit note';
+export const EDIT_VERDICT = 'Edit verdict';
+export const SAVE_EDIT = 'Save';
+export const EDITED = 'edited';
+export const NOTE_ACTIONS = 'More actions for this note';
+export const VERDICT_ACTIONS = 'More actions for the verdict';
+export const EARLIER_VERSIONS = 'Earlier versions';
+export const ORIGINAL_VERSION = 'Original';
+export const CLOSE_VERSIONS = 'Close';
+export const EDIT_UNCHANGED = 'Nothing has changed yet.';
+
+// --- Keeping the screen on (0.2.2) ----------------------------------------
+
+export const SCREEN_STAYS_ON = 'Screen stays on';
+export const SCREEN_CAN_SLEEP = 'Screen can sleep';
+
+// --- Photos placed by when they were taken (0.2.2) -----------------------
+
+/** A photo placed at the time it was added, because its own time was missing or out of range. */
+export const PHOTO_ADDED_AT = 'added';

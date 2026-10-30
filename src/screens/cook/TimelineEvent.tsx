@@ -4,11 +4,22 @@ import { Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-n
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { ReadingIcon } from '../../components/ReadingIcon';
-import { PHOTO_ALT, PHOTO_LABEL, PHOTO_MISSING, VIEW_PHOTO } from '../../content/product';
-import type { CookEvent } from '../../domain/entities';
+import {
+  EDIT_NOTE,
+  NOTE_ACTIONS,
+  PHOTO_ADDED_AT,
+  PHOTO_ALT,
+  PHOTO_LABEL,
+  PHOTO_MISSING,
+  VIEW_PHOTO,
+} from '../../content/product';
+import type { CookEvent, Revision } from '../../domain/entities';
+import { latestWords } from '../../domain/evidence';
+import { photoPlacedWhenAdded } from '../../domain/photoTime';
 import { formatTime } from '../../format/dateTime';
 import { photoFrame, PLACEHOLDER_RATIO, type PixelSize } from '../../layout/photoFrame';
 import { colors, radius, readingTreatments, space } from '../../theme/tokens';
+import { EditableWords } from './EditableWords';
 import { formatCelsius, readingKindFromEvent, readingKindLabel, whereFromEvent } from './temperature';
 
 export type TimelinePhoto = {
@@ -18,10 +29,23 @@ export type TimelinePhoto = {
   readonly onOpen?: () => void;
 };
 
+/** What a note needs to show its newest words and to be edited (0.2.2). */
+export type TimelineNote = {
+  /** This note's edits, in any order. Empty when it has never been edited. */
+  readonly revisions: readonly Revision[];
+  /** Offers ⋯ → Edit. */
+  readonly editable: boolean;
+  /** Saves new words; resolves with a message when they were not saved. */
+  readonly onSave: (text: string) => Promise<string | null>;
+  readonly onShowVersions: () => void;
+};
+
 type TimelineEventProps = {
   event: CookEvent;
   /** Supplied for a `photo` event by whichever screen resolved the file. */
   photo?: TimelinePhoto;
+  /** Supplied for a `user_note` by a screen that shows edits. */
+  note?: TimelineNote;
 };
 
 /**
@@ -43,11 +67,31 @@ type TimelineEventProps = {
  * legitimately be in a timeline is labelled with its kind so it can never pass
  * for the cook's own words.
  */
-export function TimelineEvent({ event, photo }: TimelineEventProps) {
+export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
   const time = formatTime(event.ts);
 
   switch (event.kind) {
     case 'user_note':
+      if (note !== undefined) {
+        // The newest words, where the note has always sat: an edit never moves
+        // a note, because its time is when it was first written.
+        const shown = latestWords(event.body, note.revisions);
+        return (
+          <Card testID={`event-${event.id}`}>
+            <EditableWords
+              words={shown.text ?? ''}
+              edited={shown.edited}
+              caption={time}
+              editable={note.editable}
+              onSave={note.onSave}
+              onShowVersions={note.onShowVersions}
+              actionsLabel={NOTE_ACTIONS}
+              editLabel={EDIT_NOTE}
+              testID={`note-${event.id}`}
+            />
+          </Card>
+        );
+      }
       return (
         <Card testID={`event-${event.id}`}>
           <AppText variant="body">{event.body ?? ''}</AppText>
@@ -117,9 +161,12 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
     }
 
     case 'photo': {
+      // A photograph from the Gallery whose own time would not do sits at the
+      // time it was added, and says so (0.2.2; see `src/domain/photoTime.ts`).
+      const when = photoPlacedWhenAdded(event) ? `${PHOTO_ADDED_AT} ${time}` : time;
       const caption = (
-        <AppText variant="caption" tone="muted">
-          {`${PHOTO_LABEL} · ${time}`}
+        <AppText variant="caption" tone="muted" testID={`photo-caption-${event.id}`}>
+          {`${PHOTO_LABEL} · ${when}`}
         </AppText>
       );
 
@@ -133,7 +180,7 @@ export function TimelineEvent({ event, photo }: TimelineEventProps) {
               {PHOTO_MISSING}
             </AppText>
             <AppText variant="caption" tone="muted">
-              {time}
+              {when}
             </AppText>
           </Card>
         );

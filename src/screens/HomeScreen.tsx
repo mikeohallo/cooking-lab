@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
 import { useCookList, verdictExcerpt } from '../state/useCookList';
 import { useExport } from '../state/useExport';
@@ -14,6 +16,7 @@ import { StateNotice } from '../components/StateNotice';
 import { StatusChip } from '../components/StatusChip';
 import {
   CONTINUE_COOKING,
+  DELETE_COOK,
   EMPTY_HOME_BODY,
   EMPTY_HOME_TITLE,
   EXPORT_EVERYTHING,
@@ -30,6 +33,7 @@ import {
 import type { Cook, CookId } from '../domain/entities';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
+import { CookActions } from './CookActions';
 import { ExportNotice } from './ExportNotice';
 
 const RECENT_LIMIT = 5;
@@ -50,11 +54,15 @@ type HomeScreenProps = {
  */
 export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScreenProps) {
   const { data, exporter, newId, now } = useStorage();
-  const open = useCookList({ status: 'open', sort: 'newest_first' }, refreshToken);
+  // A cook deleted, or brought back with Undo, changes the lists too.
+  const { version } = usePendingDeletion();
+  const reload = refreshToken + version;
+  const open = useCookList({ status: 'open', sort: 'newest_first' }, reload);
   const recent = useCookList(
     { status: 'reviewed', sort: 'newest_first', page: { limit: RECENT_LIMIT + 1 } },
-    refreshToken,
+    reload,
   );
+  const [actionsFor, setActionsFor] = useState<Cook | null>(null);
   const create = useWrite();
   const exportAll = useExport();
 
@@ -113,7 +121,13 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
         <View style={styles.section}>
           <AppText variant="sectionTitle">{CONTINUE_COOKING}</AppText>
           {open.cooks.map((cook) => (
-            <CookCard key={cook.id} cook={cook} onPress={() => onOpenCook(cook.id)} />
+            <CookCard
+              key={cook.id}
+              cook={cook}
+              verdict={open.verdicts[cook.id] ?? cook.verdict}
+              onPress={() => onOpenCook(cook.id)}
+              onLongPress={() => setActionsFor(cook)}
+            />
           ))}
         </View>
       ) : null}
@@ -122,7 +136,13 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
         <View style={styles.section}>
           <AppText variant="sectionTitle">{RECENT_COOKS}</AppText>
           {recent.cooks.slice(0, RECENT_LIMIT).map((cook) => (
-            <CookCard key={cook.id} cook={cook} onPress={() => onOpenCook(cook.id)} />
+            <CookCard
+              key={cook.id}
+              cook={cook}
+              verdict={recent.verdicts[cook.id] ?? cook.verdict}
+              onPress={() => onOpenCook(cook.id)}
+              onLongPress={() => setActionsFor(cook)}
+            />
           ))}
         </View>
       ) : null}
@@ -150,22 +170,30 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
           <ExportNotice state={exportAll.state} testID="export-everything" />
         </View>
       ) : null}
+
+      <CookActions cook={actionsFor} onClose={() => setActionsFor(null)} />
     </ScreenContainer>
   );
 }
 
 type CookCardProps = {
   cook: Cook;
+  /** The verdict as it now reads — its newest edit, or as first written. */
+  verdict?: string | null;
   onPress: () => void;
+  /** Opens the cook's actions (Delete cook). */
+  onLongPress?: () => void;
 };
 
-/** A cook as a row on Home or in History. */
-export function CookCard({ cook, onPress }: CookCardProps) {
+/** A cook as a row on Home or in History. Long-press for Delete cook. */
+export function CookCard({ cook, verdict, onPress, onLongPress }: CookCardProps) {
   const title = cook.title ?? UNTITLED_COOK;
-  const excerpt = verdictExcerpt(cook.verdict);
+  const excerpt = verdictExcerpt(verdict === undefined ? cook.verdict : verdict);
   return (
     <Card
       onPress={onPress}
+      onLongPress={onLongPress}
+      longPressLabel={DELETE_COOK}
       accessibilityLabel={`${title}, ${formatDateTime(cook.startedAt)}`}
       accessibilityHint={cook.status === 'open' ? 'Continue this cook' : 'Open this cook'}
       testID={`cook-card-${cook.id}`}
