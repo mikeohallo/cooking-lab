@@ -72,6 +72,29 @@ code before anything is stored (`src/data/photos/jpeg.ts`), and
 `__tests__/photoMetadata.test.ts` proves it against a JPEG carrying a GPS
 block.
 
+## Added in 0.2.2, 30 October 2026
+
+One package, a first-party Expo module at its SDK 57 version. It was already in
+the tree as a dependency of `expo` itself (`~57.0.1`, locked at 57.0.1); 0.2.2
+makes it a direct dependency because the app now calls it. Installing it took
+the newest version in that same range, 57.0.2, and the lockfile change is that
+one entry and the new line in the root's dependencies. No other package was
+added or moved.
+
+| Package | Version | Why | In the APK | What it brought with it |
+|---|---|---|---|---|
+| `expo-keep-awake` | `~57.0.1` (57.0.2 installed) | Keeping the screen on while an open cook's page is in front | **Yes** | Nothing new: no dependencies of its own, and an empty Android manifest. It sets the window's keep-screen-on flag, which needs no permission; it takes no wake lock, so no `WAKE_LOCK`. `__tests__/androidPermissions.test.ts` now says so. |
+
+The merged manifest is still `INTERNET` and `CAMERA` and nothing else.
+
+`npm audit --audit-level=critical` passes (nothing critical). On this date it
+lists `decode-uri-component`, `node-forge` and `uuid` as above, and two names
+that are new to this file, `deepmerge` and `zod`. Neither came with
+`expo-keep-awake` — the package set did not change — so they are advisories
+published since 18 October against packages already in the tree. Both are
+build-time (`@expo/cli` and its config tooling). `braces` and `sprintf-js` no
+longer appear. A full re-triage is left for the next dependency pass.
+
 ## In CI
 
 CI runs `npm audit --audit-level=critical` after installing. A new critical

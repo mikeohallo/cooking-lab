@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import { useFocusRefresh } from '../../../src/state/useFocusRefresh';
 import { ScreenContainer } from '../../../src/components/ScreenContainer';
@@ -14,6 +14,15 @@ export default function CookRoute() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const refreshToken = useFocusRefresh();
+  // Whether this page is the one in front. The screen is kept on only while it
+  // is, and lets go the moment another page is pushed or this one is left.
+  const [inFront, setInFront] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setInFront(true);
+      return () => setInFront(false);
+    }, []),
+  );
 
   const goHome = useCallback(() => {
     if (router.canGoBack()) {
@@ -38,5 +47,13 @@ export default function CookRoute() {
     );
   }
 
-  return <CookScreen cookId={id} onBack={goHome} onReview={goToReview} refreshToken={refreshToken} />;
+  return (
+    <CookScreen
+      cookId={id}
+      onBack={goHome}
+      onReview={goToReview}
+      refreshToken={refreshToken}
+      inFront={inFront}
+    />
+  );
 }

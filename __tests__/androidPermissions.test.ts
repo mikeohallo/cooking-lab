@@ -117,6 +117,19 @@ describe('the permissions the APK will carry', () => {
     expect(merged).toEqual(['android.permission.CAMERA', 'android.permission.INTERNET']);
   });
 
+  it('gains nothing from keeping the screen on (0.2.2)', () => {
+    // `expo-keep-awake` sets the window's keep-screen-on flag, which needs no
+    // permission; a wake lock would, and the module does not take one. If a
+    // later version ever declared one, the line above would fail first.
+    expect(moduleManifests().some((entry) => entry.module === 'expo-keep-awake')).toBe(true);
+    for (const modules of declared.values()) {
+      expect(modules).not.toContain('expo-keep-awake');
+    }
+    expect([...declared.keys()].filter((p) => !blocked.includes(p))).not.toContain(
+      'android.permission.WAKE_LOCK',
+    );
+  });
+
   it('asks for the camera because the app takes photographs', () => {
     // Declared by the module that needs it rather than added by hand here,
     // which is the honest place for it.
