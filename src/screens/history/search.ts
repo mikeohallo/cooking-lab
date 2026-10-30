@@ -24,6 +24,7 @@
  * only half matched is mixed in with what matched completely.
  */
 
+import { ingredientLines } from '../../domain/cookRecord';
 import type { Cook, CookId, Tag } from '../../domain/entities';
 
 /**
@@ -64,6 +65,11 @@ export type SearchHit = {
   readonly title: readonly HighlightedSegment[];
   /** The tag line, split for highlighting, in tag order. */
   readonly tagLine: readonly HighlightedSegment[];
+  /**
+   * The ingredient lines that matched, split for highlighting (0.3.0). Empty
+   * when no term matched an ingredient, so a card says why it is listed.
+   */
+  readonly ingredientLine: readonly HighlightedSegment[];
 };
 
 export type SearchResults = {
@@ -75,10 +81,12 @@ export type SearchResults = {
   readonly some: readonly SearchHit[];
 };
 
-/** A cook and its tags, which is everything a search looks at. */
+/** A cook, its tags and its current ingredients: everything a search looks at. */
 export type SearchableCook = {
   readonly cook: Cook;
   readonly tags: readonly Tag[];
+  /** The ingredients as they now stand, or `null` for none (0.3.0). */
+  readonly ingredients?: string | null;
 };
 
 function normalise(raw: string): string {
@@ -223,11 +231,28 @@ function matchedTerms(
   terms: readonly SearchTerm[],
 ): readonly SearchTerm[] {
   const title = titleOf(entry.cook);
+  const lines = ingredientLines(entry.ingredients ?? '');
   return terms.filter(
     (term) =>
       wordStartMatches(title, term.text).length > 0 ||
-      entry.tags.some((tag) => wordStartMatches(tag.name, term.text).length > 0),
+      entry.tags.some((tag) => wordStartMatches(tag.name, term.text).length > 0) ||
+      lines.some((line) => wordStartMatches(line, term.text).length > 0),
   );
+}
+
+/** How the matched ingredient lines are shown, as one line. */
+export const INGREDIENT_LINE_SEPARATOR = ' · ';
+
+/** The ingredient lines any term matched, at most a few, for the card. */
+function matchedIngredientLine(
+  ingredients: string | null | undefined,
+  terms: readonly SearchTerm[],
+): string {
+  return ingredientLines(ingredients ?? '')
+    .filter((line) => terms.some((term) => wordStartMatches(line, term.text).length > 0))
+    .slice(0, 3)
+    .map((line) => line.trim())
+    .join(INGREDIENT_LINE_SEPARATOR);
 }
 
 /**
@@ -262,6 +287,7 @@ export function searchCooks(
       matched: matched.length,
       title: highlight(titleOf(entry.cook), terms),
       tagLine: highlight(tagLineOf(entry.tags), terms),
+      ingredientLine: highlight(matchedIngredientLine(entry.ingredients, terms), terms),
     });
   }
 
@@ -276,10 +302,15 @@ export function searchCooks(
   };
 }
 
-/** Index the tags of several cooks by cook, for `searchCooks`. */
+/** Index the tags and ingredients of several cooks by cook, for `searchCooks`. */
 export function searchable(
   cooks: readonly Cook[],
   tagsByCook: ReadonlyMap<CookId, readonly Tag[]>,
+  ingredientsByCook: ReadonlyMap<CookId, string> = new Map(),
 ): readonly SearchableCook[] {
-  return cooks.map((cook) => ({ cook, tags: tagsByCook.get(cook.id) ?? [] }));
+  return cooks.map((cook) => ({
+    cook,
+    tags: tagsByCook.get(cook.id) ?? [],
+    ingredients: ingredientsByCook.get(cook.id) ?? null,
+  }));
 }

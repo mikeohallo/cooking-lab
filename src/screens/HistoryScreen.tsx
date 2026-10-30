@@ -3,10 +3,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { usePendingDeletion } from '../state/PendingDeletion';
 import { useCookList } from '../state/useCookList';
+import { useHistoryIndex } from '../state/useHistoryIndex';
 import { useTagIndex } from '../state/useTagIndex';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
+import { MealTypeLabel } from '../components/MealTypeLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StateNotice } from '../components/StateNotice';
@@ -14,6 +16,7 @@ import { StatusChip } from '../components/StatusChip';
 import { TagChip } from '../components/TagChip';
 import { TextField } from '../components/TextField';
 import {
+  CLEAR_FILTERS,
   CLEAR_SEARCH,
   DELETE_COOK,
   EMPTY_HISTORY_BODY,
@@ -23,6 +26,9 @@ import {
   EMPTY_REVIEWED_BODY,
   EMPTY_REVIEWED_TITLE,
   FILTER_ALL,
+  FILTER_MEAL_TYPE,
+  FILTER_NO_RESULTS_BODY,
+  FILTER_NO_RESULTS_TITLE,
   FILTER_OPEN,
   FILTER_REVIEWED,
   HIDE_MY_TAGS,
@@ -36,13 +42,31 @@ import {
   STATUS_OPEN,
   UNSAVED_KEPT,
   UNTITLED_COOK,
+  WHO_AND_STARS,
+  WHO_AND_STARS_PICK,
+  atLeastStars,
 } from '../content/product';
+import { MEAL_TYPE_LABELS } from '../domain/cookRecord';
 import type { Cook, CookId } from '../domain/entities';
-import type { CookStatus } from '../domain/enums';
+import {
+  STAR_VALUES,
+  STORED_MEAL_TYPES,
+  type CookStatus,
+  type Stars,
+  type StoredMealType,
+} from '../domain/enums';
 import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
 import { CookActions } from './CookActions';
 import { CookCard } from './HomeScreen';
+import {
+  applyFilters,
+  filtersActive,
+  peopleToPick,
+  samePick,
+  type CookFilters,
+  type PersonPick,
+} from './history/filters';
 import {
   searchCooks,
   searchable,
@@ -101,6 +125,10 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
   const [pickedTags, setPickedTags] = useState<readonly string[]>([]);
   const [showingTags, setShowingTags] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
+  const [mealFilter, setMealFilter] = useState<readonly StoredMealType[]>([]);
+  const [who, setWho] = useState<CookFilters['who']>(null);
+  const [whoOpen, setWhoOpen] = useState(false);
+  const [whoPerson, setWhoPerson] = useState<PersonPick | null>(null);
   // A cook deleted, or brought back with Undo, changes the list and the tags.
   const { version } = usePendingDeletion();
   const reload = refreshToken + version;
@@ -115,9 +143,45 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
     reload,
   );
 
-  const results = searchCooks(searchable(cooks, tagIndex.byCook), { typed, pickedTags });
+  const index = useHistoryIndex(
+    cooks.map((cook) => cook.id),
+    reload,
+  );
+  const mealTypes = list.status === 'ready' ? list.mealTypes : {};
+  const filters: CookFilters = { mealTypes: mealFilter, who };
+  const filtering = filtersActive(filters);
+  const shown = applyFilters(cooks, { mealTypes, ratingsByCook: index.ratingsByCook }, filters);
+
+  const results = searchCooks(searchable(shown, tagIndex.byCook, index.ingredientsByCook), {
+    typed,
+    pickedTags,
+  });
   const searching = results.terms.length > 0;
   const found = results.all.length + results.some.length;
+  const people = peopleToPick(index.household, index.guestNames);
+  const nameOf = (pick: PersonPick): string =>
+    people.find((person) => samePick(person.pick, pick))?.name ?? (pick.kind === 'guest' ? pick.name : '');
+
+  const toggleMeal = (mealType: StoredMealType) => {
+    setMealFilter((picked) =>
+      picked.includes(mealType) ? picked.filter((value) => value !== mealType) : [...picked, mealType],
+    );
+  };
+
+  const chooseStars = (minStars: Stars) => {
+    if (whoPerson === null) {
+      return;
+    }
+    setWho({ person: whoPerson, minStars });
+    setWhoOpen(false);
+  };
+
+  const clearFilters = () => {
+    setMealFilter([]);
+    setWho(null);
+    setWhoPerson(null);
+    setWhoOpen(false);
+  };
 
   const toggleTag = (name: string) => {
     setPickedTags((picked) =>
@@ -190,6 +254,98 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
         })}
       </View>
 
+      <View style={styles.filterBlock} testID="history-meal-filter">
+        <AppText variant="label" tone="muted">
+          {FILTER_MEAL_TYPE}
+        </AppText>
+        <View style={styles.chips}>
+          {STORED_MEAL_TYPES.map((mealType) => {
+            const selected = mealFilter.includes(mealType);
+            return (
+              <Pressable
+                key={mealType}
+                accessibilityRole="checkbox"
+                accessibilityLabel={MEAL_TYPE_LABELS[mealType]}
+                accessibilityState={{ checked: selected }}
+                onPress={() => toggleMeal(mealType)}
+                style={[styles.filter, selected && styles.filterSelected]}
+                testID={`history-meal-${mealType}`}
+              >
+                <AppText variant="label" tone={selected ? 'onPrimary' : 'primary'}>
+                  {selected ? `✓ ${MEAL_TYPE_LABELS[mealType]}` : MEAL_TYPE_LABELS[mealType]}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.filterBlock} testID="history-who-filter">
+        {who !== null ? (
+          <TagChip
+            name={`${nameOf(who.person)} · ${atLeastStars(who.minStars)}`}
+            variant="removable"
+            onPress={() => setWho(null)}
+            testID="history-who-active"
+          />
+        ) : null}
+        {people.length > 0 ? (
+          <ActionButton
+            label={WHO_AND_STARS}
+            variant="quiet"
+            accessibilityHint="Pick a person and a least number of stars"
+            onPress={() => setWhoOpen((now) => !now)}
+            style={styles.showTags}
+            testID="history-who-toggle"
+          />
+        ) : null}
+        {whoOpen ? (
+          <View style={styles.whoPanel} testID="history-who-panel">
+            <AppText variant="label" tone="muted">
+              {WHO_AND_STARS_PICK}
+            </AppText>
+            <View style={styles.chips}>
+              {people.map((person) => (
+                <TagChip
+                  key={person.key}
+                  name={person.name}
+                  variant={whoPerson !== null && samePick(whoPerson, person.pick) ? 'selected' : 'pick'}
+                  onPress={() => setWhoPerson(person.pick)}
+                  testID={`history-who-${person.key}`}
+                />
+              ))}
+            </View>
+            {whoPerson !== null ? (
+              <View style={styles.chips}>
+                {STAR_VALUES.map((value) => (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="button"
+                    accessibilityLabel={atLeastStars(value)}
+                    onPress={() => chooseStars(value)}
+                    style={styles.filter}
+                    testID={`history-who-stars-${value}`}
+                  >
+                    <AppText variant="label" tone="primary" importantForAccessibility="no">
+                      {`${value}★+`}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        {filtering ? (
+          <ActionButton
+            label={CLEAR_FILTERS}
+            variant="quiet"
+            onPress={clearFilters}
+            style={styles.showTags}
+            testID="history-clear-filters"
+          />
+        ) : null}
+      </View>
+
       {tagIndex.allTags.length > 0 ? (
         <ActionButton
           label={showingTags ? HIDE_MY_TAGS : SHOW_MY_TAGS}
@@ -226,6 +382,14 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
         <StateNotice {...emptyStateFor(filter)} testID="history-empty" />
       ) : null}
 
+      {list.status === 'ready' && !searching && cooks.length > 0 && filtering && shown.length === 0 ? (
+        <StateNotice
+          title={FILTER_NO_RESULTS_TITLE}
+          body={FILTER_NO_RESULTS_BODY}
+          testID="history-filter-empty"
+        />
+      ) : null}
+
       {list.status === 'ready' && searching && found === 0 ? (
         <StateNotice
           title={SEARCH_NO_RESULTS_TITLE}
@@ -236,10 +400,11 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
 
       {list.status === 'ready' && !searching ? (
         <View style={styles.list} testID="history-list">
-          {cooks.map((cook) => (
+          {shown.map((cook) => (
             <CookCard
               key={cook.id}
               cook={cook}
+              mealType={mealTypes[cook.id] ?? null}
               verdict={list.status === 'ready' ? (list.verdicts[cook.id] ?? cook.verdict) : cook.verdict}
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
@@ -253,6 +418,7 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
           <HitGroup
             label={SEARCH_GROUP_ALL}
             hits={results.all}
+            mealTypes={mealTypes}
             onOpenCook={onOpenCook}
             onActions={setActionsFor}
             testID="history-group-all"
@@ -260,6 +426,7 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
           <HitGroup
             label={SEARCH_GROUP_SOME}
             hits={results.some}
+            mealTypes={mealTypes}
             onOpenCook={onOpenCook}
             onActions={setActionsFor}
             testID="history-group-some"
@@ -275,13 +442,14 @@ export function HistoryScreen({ onOpenCook, onBack, refreshToken = 0 }: HistoryS
 type HitGroupProps = {
   label: string;
   hits: readonly SearchHit[];
+  mealTypes: Readonly<Record<CookId, StoredMealType>>;
   onOpenCook: (cookId: CookId) => void;
   onActions: (cook: Cook) => void;
   testID: string;
 };
 
 /** One of the two result groups. An empty group is not drawn at all. */
-function HitGroup({ label, hits, onOpenCook, onActions, testID }: HitGroupProps) {
+function HitGroup({ label, hits, mealTypes, onOpenCook, onActions, testID }: HitGroupProps) {
   if (hits.length === 0) {
     return null;
   }
@@ -292,6 +460,7 @@ function HitGroup({ label, hits, onOpenCook, onActions, testID }: HitGroupProps)
         <HitCard
           key={hit.cook.id}
           hit={hit}
+          mealType={mealTypes[hit.cook.id] ?? null}
           onPress={() => onOpenCook(hit.cook.id)}
           onLongPress={() => onActions(hit.cook)}
         />
@@ -309,10 +478,12 @@ function HitGroup({ label, hits, onOpenCook, onActions, testID }: HitGroupProps)
  */
 function HitCard({
   hit,
+  mealType,
   onPress,
   onLongPress,
 }: {
   hit: SearchHit;
+  mealType: StoredMealType | null;
   onPress: () => void;
   onLongPress: () => void;
 }) {
@@ -328,6 +499,7 @@ function HitCard({
       accessibilityHint={cook.status === 'open' ? 'Continue this cook' : 'Open this cook'}
       testID={`cook-card-${cook.id}`}
     >
+      <MealTypeLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
       <View style={styles.cardRow}>
         <AppText variant="bodyStrong" tone={cook.title ? 'text' : 'muted'} style={styles.cardTitle}>
           {cook.title === null ? UNTITLED_COOK : <Highlighted segments={hit.title} />}
@@ -340,6 +512,11 @@ function HitCard({
       {hit.tags.length > 0 ? (
         <AppText variant="secondary" tone="muted" testID={`cook-tags-line-${cook.id}`}>
           <Highlighted segments={hit.tagLine} />
+        </AppText>
+      ) : null}
+      {hit.ingredientLine.length > 0 ? (
+        <AppText variant="secondary" tone="muted" testID={`cook-ingredients-line-${cook.id}`}>
+          <Highlighted segments={hit.ingredientLine} />
         </AppText>
       ) : null}
     </Card>
@@ -402,6 +579,13 @@ const styles = StyleSheet.create({
   showTags: {
     alignSelf: 'flex-start',
     marginBottom: space.xs,
+  },
+  filterBlock: {
+    gap: space.xs,
+    marginBottom: space.sm,
+  },
+  whoPanel: {
+    gap: space.xs,
   },
   tagList: {
     marginBottom: space.md,
