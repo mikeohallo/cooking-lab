@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ActionButton } from '../../components/ActionButton';
@@ -7,6 +7,7 @@ import { StateNotice } from '../../components/StateNotice';
 import { TextField } from '../../components/TextField';
 import { CANCEL, EDIT, EDITED, EDIT_UNCHANGED, SAVE_EDIT, UNSAVED_KEPT } from '../../content/product';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
+import { useScreenScroll } from '../../layout/ScreenScroll';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../../theme/tokens';
 
 type EditableWordsProps = {
@@ -39,6 +40,16 @@ type EditableWordsProps = {
  * which opens every earlier version with its time. The ⋯ is there so that
  * editing never depends on a long-press, and so the words themselves stay
  * plain text a thumb can scroll past without starting anything.
+ *
+ * Two fixes from the 0.2.2 test run (0.3.0):
+ *
+ *   * the ⋯ sits at the top right of the words, and the menu it opens comes
+ *     up right under it, at the top — so on a long note neither needs a
+ *     scroll to reach;
+ *   * in the editor, Save and Cancel sit above the field, and opening it
+ *     scrolls the editor to the top of the screen. With the keyboard up on
+ *     the cover display the buttons were below the field, under the keyboard
+ *     (N3); above it, they stay in sight however long the field grows.
  */
 export function EditableWords({
   words,
@@ -57,6 +68,14 @@ export function EditableWords({
   const [draft, setDraft] = useState(words);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const editorRef = useRef<View>(null);
+  const { reveal } = useScreenScroll();
+
+  useEffect(() => {
+    if (editing) {
+      reveal(editorRef.current);
+    }
+  }, [editing, reveal]);
 
   const unchanged = draft === words;
   const blank = draft.trim() === '';
@@ -82,15 +101,33 @@ export function EditableWords({
 
   if (editing) {
     return (
-      <View style={styles.block} testID={`${testID}-editor`}>
-        {heading}
+      <View ref={editorRef} style={styles.block} testID={`${testID}-editor`}>
+        <View style={styles.editorTop}>
+          <View style={styles.words}>{heading}</View>
+          <View style={styles.actions} testID={`${testID}-edit-actions`}>
+            <ActionButton
+              label={CANCEL}
+              variant="quiet"
+              onPress={() => setEditing(false)}
+              testID={`${testID}-edit-cancel`}
+            />
+            <ActionButton
+              label={SAVE_EDIT}
+              variant="secondary"
+              disabled={unchanged || blank || tooLong}
+              pending={saving}
+              onPress={() => void save()}
+              testID={`${testID}-edit-save`}
+            />
+          </View>
+        </View>
         <TextField
           value={draft}
           onChangeText={setDraft}
           accessibilityLabel={editLabel}
           multiline
           rows={3}
-          maxRows={8}
+          maxRows={6}
           autoFocus
           invalid={blank || tooLong}
           helper={
@@ -107,28 +144,32 @@ export function EditableWords({
         {problem ? (
           <StateNotice title={problem} body={UNSAVED_KEPT} tone="problem" testID={`${testID}-edit-failed`} />
         ) : null}
-        <View style={styles.actions}>
-          <ActionButton
-            label={CANCEL}
-            variant="quiet"
-            onPress={() => setEditing(false)}
-            testID={`${testID}-edit-cancel`}
-          />
-          <ActionButton
-            label={SAVE_EDIT}
-            variant="secondary"
-            disabled={unchanged || blank || tooLong}
-            pending={saving}
-            onPress={() => void save()}
-            testID={`${testID}-edit-save`}
-          />
-        </View>
       </View>
     );
   }
 
+  const menu = menuOpen ? (
+    <View style={styles.actions} testID={`${testID}-menu`}>
+      <ActionButton
+        label={CANCEL}
+        variant="quiet"
+        onPress={() => setMenuOpen(false)}
+        testID={`${testID}-menu-cancel`}
+      />
+      <ActionButton
+        label={EDIT}
+        variant="secondary"
+        accessibilityHint={`${editLabel}. The earlier words are kept.`}
+        onPress={startEditing}
+        testID={`${testID}-edit`}
+      />
+    </View>
+  ) : null;
+
   return (
     <View style={styles.block}>
+      {/* The menu opens at the top, under the ⋯, not after a long note. */}
+      {menu}
       <View style={styles.row}>
         <View style={styles.words}>
           {heading}
@@ -176,23 +217,6 @@ export function EditableWords({
         </View>
       ) : null}
 
-      {menuOpen ? (
-        <View style={styles.actions} testID={`${testID}-menu`}>
-          <ActionButton
-            label={CANCEL}
-            variant="quiet"
-            onPress={() => setMenuOpen(false)}
-            testID={`${testID}-menu-cancel`}
-          />
-          <ActionButton
-            label={EDIT}
-            variant="secondary"
-            accessibilityHint={`${editLabel}. The earlier words are kept.`}
-            onPress={startEditing}
-            testID={`${testID}-edit`}
-          />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -211,7 +235,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     gap: space.xxs,
   },
+  // Pinned to the top right of the words, however long they are.
   more: {
+    alignSelf: 'flex-start',
     minWidth: MIN_TOUCH_TARGET,
     minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
@@ -219,6 +245,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     marginTop: -space.xs,
     marginRight: -space.xs,
+  },
+  editorTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.xs,
   },
   morePressed: {
     backgroundColor: colors.surfaceMuted,

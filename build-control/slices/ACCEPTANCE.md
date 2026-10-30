@@ -19,7 +19,9 @@ identifiers in the text. Never screenshot the share sheet: it shows contacts.
    work around it. `adb install -r` the APK.
 2. **Read back what is installed**, and put the output in the report:
    - `adb shell dumpsys package com.cookinglab.personal.test | grep -E "versionName|versionCode|lastUpdateTime"`:
-     the version name must be `0.1.0 (<the named commit>)`, with no `-dirty`;
+     the version name must be `<version> (<the named commit>)`, where `<version>`
+     is the `version` in `app.config.ts` at the named commit (`git show <commit>:app.config.ts`),
+     with no `-dirty`;
    - `apksigner verify --print-certs` on the APK: `CN=Android Debug`.
 3. **Inner display** (the Fold open). Launch the TEST app and screenshot Home.
    The title reads *Cooking Lab Test* and the TEST badge and notice are visible.
