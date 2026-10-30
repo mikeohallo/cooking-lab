@@ -89,7 +89,7 @@ export const TAG_FAILED_TITLE = 'That tag was not saved';
 
 // --- Search ---------------------------------------------------------------
 
-export const SEARCH_PLACEHOLDER = 'Search tags or titles';
+export const SEARCH_PLACEHOLDER = 'Search titles, tags or ingredients';
 /**
  * The two result groups: everything that matched every word he typed, then
  * everything that matched part of it.
@@ -103,7 +103,7 @@ export const SEARCH_GROUP_ALL = 'All your words';
 export const SEARCH_GROUP_SOME = 'Some of your words';
 export const SEARCH_NO_RESULTS_TITLE = 'Nothing matched';
 export const SEARCH_NO_RESULTS_BODY =
-  'No cook has those words in its title or its tags. Try one word, or tap a tag below.';
+  'No cook has those words in its title, its tags or its ingredients. Try one word, or tap a tag below.';
 export const CLEAR_SEARCH = 'Clear search';
 
 // --- Review ---------------------------------------------------------------
@@ -195,3 +195,80 @@ export const SCREEN_CAN_SLEEP = 'Screen can sleep';
 
 /** A photo placed at the time it was added, because its own time was missing or out of range. */
 export const PHOTO_ADDED_AT = 'added';
+
+// --- Update 2 (0.3.0) ------------------------------------------------------
+
+/** The meal-type chips, in this order. */
+export const MEAL_TYPE_CHIPS_LABEL = 'Meal type';
+export const MEAL_TYPE_CLEAR_HINT = 'Tap the chosen one again to clear it.';
+
+export const INGREDIENTS_TITLE = 'Ingredients';
+export const INGREDIENTS_PLACEHOLDER = 'Type or paste them here, one per line.';
+export const INGREDIENTS_SAVE = 'Save ingredients';
+export const INGREDIENTS_EDIT = 'Edit';
+export const INGREDIENTS_ADD = 'Add ingredients';
+export const INGREDIENTS_EDIT_LABEL = 'Edit ingredients';
+export const INGREDIENTS_NONE = 'None written down.';
+export const INGREDIENTS_SHOW_LESS = 'Show less';
+/** "Show all 12". */
+export const ingredientsShowAll = (count: number): string => `Show all ${count}`;
+
+export const WHO_ATE_IT = 'Who ate it?';
+export const SOMEONE_ELSE = '+ Someone else';
+export const GUEST_NAME_PLACEHOLDER = 'Their name';
+export const ADD_GUEST = 'Add';
+export const ADD_A_LINE = '+ Add a line';
+export const RATING_LINE_PLACEHOLDER = 'A short line (optional)';
+export const SAVE_LINE = 'Save line';
+export const NOT_EATEN = 'N/A';
+export const NOT_EATEN_LONG = 'Didn’t eat it';
+export const GUEST_MARK = 'guest';
+export const RATING_FAILED_TITLE = 'That rating was not saved';
+/** TalkBack names for the star buttons. */
+export const starsLabel = (stars: number): string => (stars === 1 ? '1 star' : `${stars} stars`);
+export const NO_HOUSEHOLD_YET = 'Nobody is on the list yet.';
+
+export const WHO_USUALLY_EATS = 'Who usually eats?';
+export const WHO_USUALLY_EATS_BODY =
+  'Add the people who usually eat, and each review will have a row for each of them. Kept on this phone. You can change it any time from Home.';
+export const HOUSEHOLD_NAME_PLACEHOLDER = 'A name';
+export const HOUSEHOLD_ADD = 'Add';
+export const HOUSEHOLD_DONE = 'Done';
+export const HOUSEHOLD_SKIP = 'Skip for now';
+export const WHOS_EATING = 'Who’s eating';
+export const WHOS_EATING_HINT = 'The people who usually eat, in order.';
+export const MOVE_UP = 'Move up';
+export const MOVE_DOWN = 'Move down';
+export const RETIRE = 'No longer eats here';
+export const RESTORE = 'Bring back';
+export const RETIRED_HEADING = 'No longer eating here';
+export const RETIRED_BODY = 'Their ratings stay on the cooks they rated.';
+
+export const YOUR_NOTES = 'Your notes';
+export const YOUR_NOTES_PLACEHOLDER = 'How was it? Say it the way you would tell someone at the table.';
+export const EDIT_NOTES = 'Edit your notes';
+export const NOTES_ACTIONS = 'More actions for your notes';
+export const NO_NOTES = 'No notes were written for this cook.';
+export const NEXT_TIME = 'Next time';
+export const NEXT_TIME_HINT = 'Shown before you cook this again';
+export const ADD_NEXT_TIME = '+ Add a next-time line';
+export const SAVE_NEXT_TIME = 'Save';
+export const EDIT_NEXT_TIME = 'Edit next-time line';
+export const NEXT_TIME_ACTIONS = 'More actions for this next-time line';
+
+export const COOK_THIS_AGAIN = 'Cook this again';
+export const COOK_THIS_AGAIN_HINT = 'A new cook with the same title, tags, meal type and ingredients.';
+export const LAST_TIME = 'Last time';
+export const OPEN_LAST_TIME = 'Open';
+export const LAST_TIME_NO_RATINGS = 'Nobody rated it.';
+
+export const FILTER_MEAL_TYPE = 'Meal type';
+export const WHO_AND_STARS = 'Who & stars';
+export const WHO_AND_STARS_ANYONE = 'Anyone';
+export const WHO_AND_STARS_PICK = 'Pick someone';
+/** "at least 4 stars". */
+export const atLeastStars = (stars: number): string =>
+  stars === 1 ? 'at least 1 star' : `at least ${stars} stars`;
+export const CLEAR_FILTERS = 'Clear filters';
+export const FILTER_NO_RESULTS_TITLE = 'Nothing matches';
+export const FILTER_NO_RESULTS_BODY = 'No cook matches those filters. Try fewer of them.';

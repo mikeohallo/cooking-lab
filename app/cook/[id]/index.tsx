@@ -32,6 +32,7 @@ export default function CookRoute() {
     router.replace('/');
   }, [router]);
   const goToReview = useCallback((cookId: CookId) => router.push(`/cook/${cookId}/review`), [router]);
+  const openCook = useCallback((cookId: CookId) => router.push(`/cook/${cookId}`), [router]);
 
   if (!isEntityId(id)) {
     return (
@@ -52,6 +53,7 @@ export default function CookRoute() {
       cookId={id}
       onBack={goHome}
       onReview={goToReview}
+      onOpenCook={openCook}
       refreshToken={refreshToken}
       inFront={inFront}
     />

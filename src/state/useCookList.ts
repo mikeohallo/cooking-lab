@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 
 import type { CookQuery } from '../data/repositories';
 import type { Cook, CookId } from '../domain/entities';
+import type { StoredMealType } from '../domain/enums';
 import { latestWords } from '../domain/evidence';
 import { useStorage } from './StorageProvider';
 
@@ -21,6 +22,8 @@ export type CookListLoad =
       readonly cooks: readonly Cook[];
       /** The newest edit of each edited verdict, by cook. Absent when never edited. */
       readonly verdicts: Readonly<Record<CookId, string | null>>;
+      /** Each listed cook's meal type, by cook. Absent for a cook with none (0.3.0). */
+      readonly mealTypes: Readonly<Record<CookId, StoredMealType>>;
     };
 
 export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
@@ -36,7 +39,15 @@ export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
     data.cooks
       .list(parsed)
       .then(async (cooks) => {
-        const edits = await data.revisions.listVerdictsForCooks(cooks.map((cook) => cook.id));
+        const ids = cooks.map((cook) => cook.id);
+        const [edits, meals] = await Promise.all([
+          data.revisions.listVerdictsForCooks(ids),
+          data.mealTypes.listForCooks(ids),
+        ]);
+        const mealTypes: Record<CookId, StoredMealType> = {};
+        for (const meal of meals) {
+          mealTypes[meal.cookId] = meal.mealType;
+        }
         const verdicts: Record<CookId, string | null> = {};
         for (const cook of cooks) {
           const mine = edits.filter((edit) => edit.cookId === cook.id);
@@ -45,7 +56,7 @@ export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
           }
         }
         if (live) {
-          setLoad({ status: 'ready', cooks, verdicts });
+          setLoad({ status: 'ready', cooks, verdicts, mealTypes });
         }
       })
       .catch((cause: unknown) => {

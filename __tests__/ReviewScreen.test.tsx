@@ -4,7 +4,7 @@ import {
   AI_NOT_CONNECTED_TITLE,
   FINISH_REVIEW,
   RAW_EVIDENCE,
-  REVIEW_PROMPT,
+  YOUR_NOTES,
 } from '../src/content/product';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
@@ -50,7 +50,7 @@ describe('ReviewScreen', () => {
     });
   });
 
-  it('asks one question, says suggestions are not connected, and shows the raw evidence', async () => {
+  it('asks for the notes, says suggestions are not connected, and shows the raw evidence', async () => {
     await startCook();
     const { data, now } = harness.storage;
     await data.capture.addEvent(
@@ -60,7 +60,8 @@ describe('ReviewScreen', () => {
     await renderReview('cook-1');
     await screen.findByTestId('review-screen');
 
-    expect(screen.getByText(REVIEW_PROMPT)).toBeOnTheScreen();
+    // 0.3.0: the verdict field is "Your notes", stored where the verdict always was.
+    expect(screen.getByText(YOUR_NOTES)).toBeOnTheScreen();
     expect(screen.getByText(AI_NOT_CONNECTED_TITLE)).toBeOnTheScreen();
     expect(screen.getByText(RAW_EVIDENCE)).toBeOnTheScreen();
     expect(screen.getByText('Pulled at 54')).toBeOnTheScreen();

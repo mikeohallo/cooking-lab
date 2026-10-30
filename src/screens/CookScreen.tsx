@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
+import { useCookRecord } from '../state/useCookRecord';
 import { useKeepScreenOn, useScreenStaysOn } from '../state/useKeepScreenOn';
 import { useExport } from '../state/useExport';
 import { usePhotoUris } from '../state/usePhotoUris';
@@ -10,6 +11,7 @@ import { useWrite, type WriteState } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
+import { MealTypeLabel } from '../components/MealTypeLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StateNotice } from '../components/StateNotice';
@@ -20,15 +22,19 @@ import {
   CANCEL,
   COOK_NOT_FOUND_BODY,
   COOK_NOT_FOUND_TITLE,
+  COOK_THIS_AGAIN,
+  COOK_THIS_AGAIN_HINT,
   COOK_TITLE_PLACEHOLDER,
+  EDIT_NOTES,
   EDIT_TITLE,
   EMPTY_TIMELINE_BODY,
   EMPTY_TIMELINE_TITLE,
-  EDIT_VERDICT,
   EXPORT_COOK,
   EXPORT_COOK_HINT,
   FINISH_AND_REVIEW,
   MORE_COOK_ACTIONS,
+  NOTES_ACTIONS,
+  NO_NOTES,
   PHOTO_CAMERA_BLOCKED_BODY,
   PHOTO_CAMERA_DENIED_BODY,
   PHOTO_CAMERA_DENIED_TITLE,
@@ -40,11 +46,19 @@ import {
   SCREEN_STAYS_ON,
   STATUS_REVIEWED,
   UNTITLED_COOK,
-  VERDICT_ACTIONS,
+  WHO_ATE_IT,
+  YOUR_NOTES,
 } from '../content/product';
 import type { PhotoOrigin } from '../data/adapters';
-import type { Cook, CookEvent, CookId, JsonObject, Revision } from '../domain/entities';
-import { latestWords } from '../domain/evidence';
+import { timesCookedLine } from '../domain/cookRecord';
+import type { Cook, CookEvent, CookId, JsonObject, Lesson, Revision } from '../domain/entities';
+import type { MealType } from '../domain/enums';
+import {
+  latestWords,
+  type EvidenceDecision,
+  type RatingAnswer,
+  type RatingPerson,
+} from '../domain/evidence';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
@@ -55,12 +69,23 @@ import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsShe
 import { PhotoViewer, type ViewedPhoto } from './cook/PhotoViewer';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { ExportNotice } from './ExportNotice';
+import { IngredientsBox } from './record/IngredientsBox';
+import { LastTimeCard } from './record/LastTimeCard';
+import { MealTypeChips } from './record/MealTypeChips';
+import { NextTimeList } from './record/NextTimeList';
+import { WhoAteIt } from './record/WhoAteIt';
 import { TagEditor } from './tags/TagEditor';
 
 type CookScreenProps = {
   cookId: CookId;
   onBack: () => void;
   onReview: (cookId: CookId) => void;
+  /**
+   * Opens another cook: the earlier one from "Last time", or the new one
+   * "Cook this again" has just started (0.3.0). A test that renders the
+   * screen alone may leave it out.
+   */
+  onOpenCook?: (cookId: CookId) => void;
   /** Bumped by the route when the screen regains focus, to reload. */
   refreshToken?: number;
   /**
@@ -83,11 +108,21 @@ export function CookScreen({
   cookId,
   onBack,
   onReview,
+  onOpenCook = () => {},
   refreshToken = 0,
   inFront = true,
 }: CookScreenProps) {
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
   const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken);
+  const {
+    record,
+    acceptMealType,
+    acceptIngredients,
+    acceptRating,
+    acceptLessonRevision,
+    reload: reloadRecord,
+  } = useCookRecord(cookId, refreshToken);
+  const againWrite = useWrite();
   const eventWrite = useWrite();
   const titleWrite = useWrite();
   const exportOne = useExport();
@@ -170,6 +205,59 @@ export function CookScreen({
       return null;
     } catch (cause: unknown) {
       return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
+
+  /** Every save below resolves with `null`, or with a message to show. */
+  const attempt = async <T,>(
+    write: () => Promise<EvidenceDecision<T>>,
+    accept: (value: T) => void,
+  ): Promise<string | null> => {
+    try {
+      const decision = await write();
+      if (!decision.allowed) {
+        return decision.message;
+      }
+      accept(decision.record);
+      return null;
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
+
+  const saveMealType = (mealType: MealType) =>
+    attempt(() => data.cookRecord.setMealType(cook.id, mealType, 'user', now()), acceptMealType);
+
+  const saveIngredients = (text: string) =>
+    attempt(
+      () => data.cookRecord.saveIngredients(cook.id, text, { id: newId() }, 'user', now()),
+      acceptIngredients,
+    );
+
+  const rate = (person: RatingPerson, answer: RatingAnswer) =>
+    attempt(
+      () => data.cookRecord.rate(cook.id, person, answer, { id: newId() }, 'user', now()),
+      (rating) => acceptRating(rating, person),
+    );
+
+  const reviseNextTime = (lesson: Lesson, text: string) =>
+    attempt(
+      () => data.cookRecord.reviseNextTime(lesson.id, text, { id: newId() }, 'user', now()),
+      acceptLessonRevision,
+    );
+
+  const addNextTime = (text: string) =>
+    attempt(
+      () => data.cookRecord.addNextTime(cook.id, text, { id: newId() }, 'user', now()),
+      () => void reload(),
+    );
+
+  const cookAgain = async () => {
+    const result = await againWrite.run(() =>
+      data.cookRecord.cookAgain(cook.id, { id: newId(), ingredientsId: newId() }, 'user', now()),
+    );
+    if (result.ok) {
+      onOpenCook(result.record.id);
     }
   };
 
@@ -262,6 +350,18 @@ export function CookScreen({
         title={cook.title ?? UNTITLED_COOK}
         subtitle={formatDateTime(cook.startedAt)}
         onBack={onBack}
+        eyebrow={
+          record.status === 'ready' ? (
+            <MealTypeLabel mealType={record.mealType?.mealType ?? null} testID="cook-meal-label" />
+          ) : null
+        }
+        footnote={
+          record.status === 'ready' && timesCookedLine(record.timesCooked) !== null ? (
+            <AppText variant="caption" tone="muted" testID="times-cooked">
+              {timesCookedLine(record.timesCooked)}
+            </AppText>
+          ) : null
+        }
         // The title can be changed on any cook, open or reviewed (0.2.2).
         titleSlot={<EditableTitle cook={cook} onSave={saveTitle} writeState={titleWrite.state} />}
         trailing={
@@ -308,6 +408,52 @@ export function CookScreen({
         </Pressable>
       )}
 
+      {record.status === 'ready' ? (
+        <View style={styles.record}>
+          <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
+          {readOnly ? (
+            <View style={styles.again}>
+              <ActionButton
+                label={COOK_THIS_AGAIN}
+                variant="secondary"
+                accessibilityHint={COOK_THIS_AGAIN_HINT}
+                pending={againWrite.state.status === 'pending'}
+                onPress={() => void cookAgain()}
+                testID="cook-this-again"
+              />
+              {againWrite.state.status === 'failed' ? (
+                <AppText variant="caption" tone="danger" testID="cook-this-again-failed">
+                  {againWrite.state.message}
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
+          {record.lastTime !== null ? (
+            <LastTimeCard
+              lastTime={record.lastTime}
+              household={record.household}
+              folded={events.length > 0}
+              onOpen={onOpenCook}
+            />
+          ) : null}
+          <IngredientsBox
+            versions={record.ingredients}
+            hasTimeline={events.length > 0}
+            open={!readOnly}
+            onSave={saveIngredients}
+            onShowVersions={setVersions}
+          />
+        </View>
+      ) : record.status === 'failed' ? (
+        <StateNotice
+          title="Part of this cook could not be loaded"
+          body={`Nothing was changed. ${record.message}`}
+          tone="problem"
+          action={{ label: RETRY, onPress: () => void reloadRecord() }}
+          testID="cook-record-failed"
+        />
+      ) : null}
+
       <View style={styles.tags}>
         <TagEditor cookId={cook.id} refreshToken={refreshToken} />
       </View>
@@ -320,7 +466,7 @@ export function CookScreen({
             <EditableWords
               heading={
                 <AppText variant="label" tone="muted">
-                  Verdict
+                  {YOUR_NOTES}
                 </AppText>
               }
               words={verdictNow.text}
@@ -332,32 +478,38 @@ export function CookScreen({
                   earlierVersions(cook.verdict, cook.reviewSavedAt ?? cook.startedAt, verdictEdits),
                 )
               }
-              actionsLabel={VERDICT_ACTIONS}
-              editLabel={EDIT_VERDICT}
+              actionsLabel={NOTES_ACTIONS}
+              editLabel={EDIT_NOTES}
               testID="verdict"
             />
           ) : (
             <>
               <AppText variant="label" tone="muted">
-                Verdict
+                {YOUR_NOTES}
               </AppText>
               <AppText variant="body" tone="muted">
-                No verdict was written for this cook.
+                {NO_NOTES}
               </AppText>
             </>
           )}
-          {lessons.length > 0 ? (
-            <View style={styles.lessons}>
-              <AppText variant="label" tone="muted">
-                Next time
-              </AppText>
-              {lessons.map((lesson) => (
-                <AppText key={lesson.id} variant="body" testID={`lesson-${lesson.id}`}>
-                  {lesson.text}
-                </AppText>
-              ))}
-            </View>
+          {record.status === 'ready' ? (
+            <NextTimeList
+              lessons={lessons}
+              edits={record.lessonRevisions}
+              onRevise={reviseNextTime}
+              onAdd={addNextTime}
+              onShowVersions={setVersions}
+            />
           ) : null}
+        </Card>
+      ) : null}
+
+      {readOnly && record.status === 'ready' ? (
+        <Card testID="ratings-card">
+          <AppText variant="label" tone="muted" accessibilityRole="header">
+            {WHO_ATE_IT}
+          </AppText>
+          <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
         </Card>
       ) : null}
 
@@ -612,9 +764,12 @@ const styles = StyleSheet.create({
   exportHint: {
     textAlign: 'center',
   },
-  lessons: {
+  record: {
+    gap: space.sm,
+    marginBottom: space.md,
+  },
+  again: {
     gap: space.xxs,
-    marginTop: space.xs,
   },
   titlePressable: {
     minHeight: MIN_TOUCH_TARGET,

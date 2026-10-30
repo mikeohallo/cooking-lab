@@ -3,11 +3,13 @@ import { StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
 import { useCook } from '../state/useCook';
+import { useCookRecord } from '../state/useCookRecord';
 import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite } from '../state/useWrite';
 import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
+import { MealTypeLabel } from '../components/MealTypeLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StateNotice } from '../components/StateNotice';
@@ -20,24 +22,41 @@ import {
   COOK_NOT_FOUND_BODY,
   COOK_NOT_FOUND_TITLE,
   FINISH_REVIEW,
+  HOUSEHOLD_DONE,
+  HOUSEHOLD_SKIP,
+  NEXT_TIME,
+  NEXT_TIME_HINT,
   RAW_EVIDENCE,
   RETRY,
-  REVIEW_PROMPT,
   REVIEW_TITLE,
   SUGGESTIONS,
-  TAKEAWAY_LABEL,
   TAKEAWAY_PLACEHOLDER,
   UNSAVED_KEPT,
   UNTITLED_COOK,
-  VERDICT_PLACEHOLDER,
+  WHO_ATE_IT,
+  WHO_USUALLY_EATS,
+  WHO_USUALLY_EATS_BODY,
+  YOUR_NOTES,
+  YOUR_NOTES_PLACEHOLDER,
 } from '../content/product';
-import type { CookId } from '../domain/entities';
-import { createUserLesson } from '../domain/evidence';
+import { HOUSEHOLD_ASKED_KEY } from '../data/sqlite/cookRecord';
+import type { CookId, HouseholdMember } from '../domain/entities';
+import type { MealType } from '../domain/enums';
+import {
+  createUserLesson,
+  type EvidenceDecision,
+  type RatingAnswer,
+  type RatingPerson,
+} from '../domain/evidence';
+import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
+import { HouseholdEditor } from './record/HouseholdEditor';
+import { MealTypeChips } from './record/MealTypeChips';
+import { WhoAteIt } from './record/WhoAteIt';
 import { TagEditor } from './tags/TagEditor';
 
 type ReviewScreenProps = {
@@ -69,6 +88,29 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const opened = useRef(false);
   const [versions, setVersions] = useState<readonly Version[] | null>(null);
   const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
+  const { record, acceptMealType, acceptRating, acceptHousehold } = useCookRecord(cookId);
+  // "Who usually eats?" is asked the first time a review opens with nobody on
+  // the list, and never again once answered or skipped.
+  const [askHousehold, setAskHousehold] = useState(false);
+  const asked = useRef(false);
+  const { settings } = data;
+  const householdEmpty =
+    record.status === 'ready' && activeMembers(record.household).length === 0;
+  useEffect(() => {
+    if (!householdEmpty || asked.current) {
+      return;
+    }
+    asked.current = true;
+    settings
+      .get(HOUSEHOLD_ASKED_KEY)
+      .then((value) => setAskHousehold(value === null))
+      .catch(() => setAskHousehold(false));
+  }, [householdEmpty, settings]);
+
+  const finishAsking = () => {
+    setAskHousehold(false);
+    void settings.set(HOUSEHOLD_ASKED_KEY, 'yes').catch(() => {});
+  };
 
   // Record that the review was opened, once per cook, the first time the
   // loaded cook is seen without a `reviewOpenedAt`.
@@ -130,6 +172,31 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const verdictTooLong = verdict.length > MAX_TEXT_LENGTH;
   const takeawayTooLong = takeaway.trim().length > MAX_TEXT_LENGTH;
 
+  const attempt = async <T,>(
+    write: () => Promise<EvidenceDecision<T>>,
+    accept: (value: T) => void,
+  ): Promise<string | null> => {
+    try {
+      const decision = await write();
+      if (!decision.allowed) {
+        return decision.message;
+      }
+      accept(decision.record);
+      return null;
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
+
+  const saveMealType = (mealType: MealType) =>
+    attempt(() => data.cookRecord.setMealType(cook.id, mealType, 'user', now()), acceptMealType);
+
+  const rate = (person: RatingPerson, answer: RatingAnswer) =>
+    attempt(
+      () => data.cookRecord.rate(cook.id, person, answer, { id: newId() }, 'user', now()),
+      (rating) => acceptRating(rating, person),
+    );
+
   const finish = async () => {
     // The verdict goes to the store exactly as typed. An empty field is no
     // verdict, which the model permits: a thin record is still a record.
@@ -183,6 +250,11 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         title={cook.title ?? UNTITLED_COOK}
         subtitle={`${REVIEW_TITLE} · ${formatDateTime(cook.startedAt)}`}
         onBack={onBack}
+        eyebrow={
+          record.status === 'ready' ? (
+            <MealTypeLabel mealType={record.mealType?.mealType ?? null} testID="review-meal-label" />
+          ) : null
+        }
       />
 
       {saveWrite.state.status === 'failed' ? (
@@ -203,13 +275,56 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         />
       ) : null}
 
+      {record.status === 'ready' && askHousehold ? (
+        <Card testID="household-prompt">
+          <AppText variant="sectionTitle" accessibilityRole="header">
+            {WHO_USUALLY_EATS}
+          </AppText>
+          <AppText variant="secondary" tone="muted">
+            {WHO_USUALLY_EATS_BODY}
+          </AppText>
+          <HouseholdEditor
+            members={record.household}
+            onChanged={(members: readonly HouseholdMember[]) => acceptHousehold(members)}
+            testID="household-prompt-editor"
+          />
+          <View style={styles.promptActions}>
+            <ActionButton
+              label={HOUSEHOLD_SKIP}
+              variant="quiet"
+              onPress={finishAsking}
+              testID="household-prompt-skip"
+            />
+            <ActionButton
+              label={HOUSEHOLD_DONE}
+              variant="secondary"
+              onPress={finishAsking}
+              testID="household-prompt-done"
+            />
+          </View>
+        </Card>
+      ) : null}
+
+      {record.status === 'ready' ? (
+        <View style={styles.section}>
+          <AppText variant="sectionTitle">{WHO_ATE_IT}</AppText>
+          <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
+        </View>
+      ) : null}
+
+      {record.status === 'ready' ? (
+        <View style={styles.section}>
+          <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
+        </View>
+      ) : null}
+
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{REVIEW_PROMPT}</AppText>
+        <AppText variant="sectionTitle">{YOUR_NOTES}</AppText>
         <TextField
           value={verdict}
           onChangeText={setVerdictDraft}
-          placeholder={VERDICT_PLACEHOLDER}
-          accessibilityLabel={REVIEW_PROMPT}
+          placeholder={YOUR_NOTES_PLACEHOLDER}
+          accessibilityLabel={YOUR_NOTES}
           multiline
           rows={6}
           invalid={verdictTooLong}
@@ -219,15 +334,17 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       </View>
 
       <View style={styles.section}>
+        <AppText variant="sectionTitle">{NEXT_TIME}</AppText>
         <TextField
-          label={TAKEAWAY_LABEL}
           value={takeaway}
           onChangeText={setTakeaway}
           placeholder={TAKEAWAY_PLACEHOLDER}
+          accessibilityLabel={NEXT_TIME}
+          accessibilityHint={NEXT_TIME_HINT}
           multiline
           rows={2}
           invalid={takeawayTooLong}
-          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : NEXT_TIME_HINT}
           testID="takeaway-input"
         />
       </View>
@@ -308,6 +425,11 @@ const styles = StyleSheet.create({
     marginBottom: space.lg,
   },
   evidence: {
+    gap: space.xs,
+  },
+  promptActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: space.xs,
   },
 });

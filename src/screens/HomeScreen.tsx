@@ -10,6 +10,7 @@ import { ActionButton } from '../components/ActionButton';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
 import { CoreLoop } from '../components/CoreLoop';
+import { MealTypeLabel } from '../components/MealTypeLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ShellHeader } from '../components/ShellHeader';
 import { StateNotice } from '../components/StateNotice';
@@ -29,8 +30,11 @@ import {
   STATUS_OPEN,
   UNSAVED_KEPT,
   UNTITLED_COOK,
+  WHOS_EATING,
+  WHOS_EATING_HINT,
 } from '../content/product';
 import type { Cook, CookId } from '../domain/entities';
+import type { StoredMealType } from '../domain/enums';
 import { formatDateTime } from '../format/dateTime';
 import { space } from '../theme/tokens';
 import { CookActions } from './CookActions';
@@ -41,6 +45,8 @@ const RECENT_LIMIT = 5;
 type HomeScreenProps = {
   onOpenCook: (cookId: CookId) => void;
   onHistory: () => void;
+  /** Opens "Who's eating" (0.3.0). */
+  onHousehold?: () => void;
   /** Bumped by the route when the screen regains focus, to reload. */
   refreshToken?: number;
 };
@@ -52,7 +58,12 @@ type HomeScreenProps = {
  * capture service and goes straight to it; there is no form. The loop and the
  * tagline appear only while there is nothing else to show.
  */
-export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScreenProps) {
+export function HomeScreen({
+  onOpenCook,
+  onHistory,
+  onHousehold = () => {},
+  refreshToken = 0,
+}: HomeScreenProps) {
   const { data, exporter, newId, now } = useStorage();
   // A cook deleted, or brought back with Undo, changes the lists too.
   const { version } = usePendingDeletion();
@@ -125,6 +136,7 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
               key={cook.id}
               cook={cook}
               verdict={open.verdicts[cook.id] ?? cook.verdict}
+              mealType={open.mealTypes[cook.id] ?? null}
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
             />
@@ -140,6 +152,7 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
               key={cook.id}
               cook={cook}
               verdict={recent.verdicts[cook.id] ?? cook.verdict}
+              mealType={recent.mealTypes[cook.id] ?? null}
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
             />
@@ -153,6 +166,15 @@ export function HomeScreen({ onOpenCook, onHistory, refreshToken = 0 }: HomeScre
         variant="secondary"
         testID="see-history"
         style={styles.history}
+      />
+
+      <ActionButton
+        label={WHOS_EATING}
+        accessibilityHint={WHOS_EATING_HINT}
+        onPress={onHousehold}
+        variant="quiet"
+        testID="whos-eating"
+        style={styles.household}
       />
 
       {loaded && !isEmpty ? (
@@ -180,13 +202,15 @@ type CookCardProps = {
   cook: Cook;
   /** The verdict as it now reads — its newest edit, or as first written. */
   verdict?: string | null;
+  /** Its meal type, shown as a small label above the title (0.3.0). */
+  mealType?: StoredMealType | null;
   onPress: () => void;
   /** Opens the cook's actions (Delete cook). */
   onLongPress?: () => void;
 };
 
 /** A cook as a row on Home or in History. Long-press for Delete cook. */
-export function CookCard({ cook, verdict, onPress, onLongPress }: CookCardProps) {
+export function CookCard({ cook, verdict, mealType = null, onPress, onLongPress }: CookCardProps) {
   const title = cook.title ?? UNTITLED_COOK;
   const excerpt = verdictExcerpt(verdict === undefined ? cook.verdict : verdict);
   return (
@@ -198,6 +222,7 @@ export function CookCard({ cook, verdict, onPress, onLongPress }: CookCardProps)
       accessibilityHint={cook.status === 'open' ? 'Continue this cook' : 'Open this cook'}
       testID={`cook-card-${cook.id}`}
     >
+      <MealTypeLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
       <View style={styles.cardRow}>
         <AppText variant="bodyStrong" tone={cook.title ? 'text' : 'muted'} style={styles.cardTitle}>
           {title}
@@ -223,6 +248,10 @@ const styles = StyleSheet.create({
   },
   history: {
     marginTop: space.lg,
+    alignSelf: 'stretch',
+  },
+  household: {
+    marginTop: space.xs,
     alignSelf: 'stretch',
   },
   exportHint: {

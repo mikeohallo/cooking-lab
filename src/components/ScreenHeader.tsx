@@ -13,6 +13,10 @@ type ScreenHeaderProps = {
   trailing?: ReactNode;
   /** Replaces the plain title with the caller's own title element (an inline editor, say). */
   titleSlot?: ReactNode;
+  /** A small line above the title, e.g. a cook's meal type (0.3.0). */
+  eyebrow?: ReactNode;
+  /** A line under the subtitle, e.g. "2nd time cooking this". */
+  footnote?: ReactNode;
 };
 
 /**
@@ -20,7 +24,15 @@ type ScreenHeaderProps = {
  * Home keeps its own compact brand row (`ShellHeader`); this is for everything
  * reached from it.
  */
-export function ScreenHeader({ title, subtitle, onBack, trailing, titleSlot }: ScreenHeaderProps) {
+export function ScreenHeader({
+  title,
+  subtitle,
+  onBack,
+  trailing,
+  titleSlot,
+  eyebrow,
+  footnote,
+}: ScreenHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.row}>
@@ -40,12 +52,14 @@ export function ScreenHeader({ title, subtitle, onBack, trailing, titleSlot }: S
         {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
       </View>
       <View style={styles.titleBlock}>
+        {eyebrow ?? null}
         {titleSlot ?? (
           <AppText variant="screenTitle" accessibilityRole="header">
             {title}
           </AppText>
         )}
         {subtitle ? <AppText variant="secondary" tone="muted">{subtitle}</AppText> : null}
+        {footnote ?? null}
       </View>
     </View>
   );
