@@ -40,6 +40,11 @@ type IngredientsBoxProps = {
    * folds so the timeline stays in reach.
    */
   hasTimeline: boolean;
+  /**
+   * Whether a long list may fold once the timeline starts. Not in the cook's
+   * side pane on the inner display, where it has the room (0.3.0).
+   */
+  foldable?: boolean;
   /** Open cook: the empty box is a field. Reviewed: "Add ingredients". */
   open: boolean;
   /** Saves a new version; resolves with a message when it was not saved. */
@@ -67,7 +72,14 @@ export function earlierIngredientVersions(versions: readonly IngredientVersion[]
  * "Show all N", so it never crowds out the timeline; the composer is pinned
  * below the page anyway and is never pushed off.
  */
-export function IngredientsBox({ versions, hasTimeline, open, onSave, onShowVersions }: IngredientsBoxProps) {
+export function IngredientsBox({
+  versions,
+  hasTimeline,
+  foldable = true,
+  open,
+  onSave,
+  onShowVersions,
+}: IngredientsBoxProps) {
   const current = currentIngredients(versions);
   const startsAsField = open && current === null && !hasTimeline;
   const [editing, setEditing] = useState(false);
@@ -185,7 +197,7 @@ export function IngredientsBox({ versions, hasTimeline, open, onSave, onShowVers
   }
 
   const lines = ingredientLines(current.text);
-  const folds = hasTimeline && lines.length > FOLDED_INGREDIENT_LINES;
+  const folds = foldable && hasTimeline && lines.length > FOLDED_INGREDIENT_LINES;
   const shown = folds && !expanded ? lines.slice(0, FOLDED_INGREDIENT_LINES).join('\n') : current.text;
 
   return (

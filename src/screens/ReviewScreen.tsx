@@ -51,6 +51,8 @@ import {
 import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
+import { REVIEW_RATINGS_PANE_WIDTH } from '../layout/responsive';
+import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { space } from '../theme/tokens';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
@@ -76,6 +78,9 @@ type ReviewScreenProps = {
  * pretending an assistant ran; the cook is complete with a verdict alone.
  */
 export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) {
+  // On the inner display: who ate it on the left, beside your notes and next
+  // time on the right, with Finish review under them (0.3.0).
+  const split = useLayoutMetrics().twoPane;
   const { data, newId, now } = useStorage();
   const { load, reload, acceptCook } = useCook(cookId);
   const openWrite = useWrite();
@@ -231,20 +236,60 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     onFinished(cook.id);
   };
 
+  const finishButton = (
+    <ActionButton
+      label={FINISH_REVIEW}
+      variant="primary"
+      size="hero"
+      onPress={() => void finish()}
+      disabled={verdictTooLong || takeawayTooLong}
+      pending={saveWrite.state.status === 'pending'}
+      testID="finish-review"
+    />
+  );
+
+  const words = (
+    <>
+      {/* Your notes and next time: in the main column, or the right-hand pane. */}
+      <View style={styles.section}>
+        <AppText variant="sectionTitle">{YOUR_NOTES}</AppText>
+        <TextField
+          value={verdict}
+          onChangeText={setVerdictDraft}
+          placeholder={YOUR_NOTES_PLACEHOLDER}
+          accessibilityLabel={YOUR_NOTES}
+          multiline
+          rows={6}
+          invalid={verdictTooLong}
+          helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+          testID="verdict-input"
+        />
+      </View>
+
+      <View style={styles.section}>
+        <AppText variant="sectionTitle">{NEXT_TIME}</AppText>
+        <TextField
+          value={takeaway}
+          onChangeText={setTakeaway}
+          placeholder={TAKEAWAY_PLACEHOLDER}
+          accessibilityLabel={NEXT_TIME}
+          accessibilityHint={NEXT_TIME_HINT}
+          multiline
+          rows={2}
+          invalid={takeawayTooLong}
+          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : NEXT_TIME_HINT}
+          testID="takeaway-input"
+        />
+      </View>
+    </>
+  );
+
   return (
     <ScreenContainer
       testID="review-screen"
-      footer={
-        <ActionButton
-          label={FINISH_REVIEW}
-          variant="primary"
-          size="hero"
-          onPress={() => void finish()}
-          disabled={verdictTooLong || takeawayTooLong}
-          pending={saveWrite.state.status === 'pending'}
-          testID="finish-review"
-        />
-      }
+      footer={split ? undefined : finishButton}
+      side={split ? { children: words, footer: finishButton, testID: 'review-side' } : undefined}
+      fixed={{ pane: 'main', width: REVIEW_RATINGS_PANE_WIDTH }}
     >
       <ScreenHeader
         title={cook.title ?? UNTITLED_COOK}
@@ -318,36 +363,8 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         </View>
       ) : null}
 
-      <View style={styles.section}>
-        <AppText variant="sectionTitle">{YOUR_NOTES}</AppText>
-        <TextField
-          value={verdict}
-          onChangeText={setVerdictDraft}
-          placeholder={YOUR_NOTES_PLACEHOLDER}
-          accessibilityLabel={YOUR_NOTES}
-          multiline
-          rows={6}
-          invalid={verdictTooLong}
-          helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
-          testID="verdict-input"
-        />
-      </View>
-
-      <View style={styles.section}>
-        <AppText variant="sectionTitle">{NEXT_TIME}</AppText>
-        <TextField
-          value={takeaway}
-          onChangeText={setTakeaway}
-          placeholder={TAKEAWAY_PLACEHOLDER}
-          accessibilityLabel={NEXT_TIME}
-          accessibilityHint={NEXT_TIME_HINT}
-          multiline
-          rows={2}
-          invalid={takeawayTooLong}
-          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : NEXT_TIME_HINT}
-          testID="takeaway-input"
-        />
-      </View>
+      {/* On two panes your notes and next time are in the right-hand pane. */}
+      {split ? null : words}
 
       {/*
         Filing the cook is part of sitting down with it, so the same tag

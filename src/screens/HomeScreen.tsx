@@ -40,8 +40,11 @@ import {
 import type { Cook, CookId } from '../domain/entities';
 import type { StoredMealType } from '../domain/enums';
 import { RevealOnChange } from '../layout/RevealOnChange';
+import { HOME_LIST_PANE_WIDTH } from '../layout/responsive';
+import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
 import { CookActions } from './CookActions';
+import { CookScreen } from './CookScreen';
 import { ExportNotice } from './ExportNotice';
 import { applyFilters, filtersActive, type CookFilters } from './history/filters';
 import { searchCooks, searchable, type SearchHit } from './history/search';
@@ -78,6 +81,12 @@ type Entry = {
  * starting at page 1 each time they change. The page and the scroll position
  * live in this screen, which stays mounted under a cook's page, so opening a
  * cook and coming back finds the same page where it was left.
+ *
+ * On the unfolded inner display, all of that is the left-hand pane (about
+ * 380 dp), and the chosen cook's whole page — Cook this again, ratings, notes,
+ * next time, ingredients, the timeline — is the right-hand one. The first cook
+ * on the page is chosen; tapping a card changes the right-hand pane without
+ * leaving Home. An open cook still opens on its own page, with its composer.
  */
 export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
   const { data, exporter, newId, now } = useStorage();
@@ -99,6 +108,8 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const [pageMoves, setPageMoves] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
+  const [selected, setSelected] = useState<CookId | null>(null);
+  const { twoPane } = useLayoutMetrics();
   const create = useWrite();
   const exportAll = useExport();
 
@@ -127,6 +138,13 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       ]
     : shown.map((cook) => ({ cook }));
   const current = pageOf(entries, page);
+  // The cook in the right-hand pane: the one tapped, while it is on this page,
+  // or else the first on the page.
+  const chosen: CookId | null = twoPane
+    ? (current.items.find((entry) => entry.cook.id === selected)?.cook.id ??
+      current.items[0]?.cook.id ??
+      null)
+    : null;
 
   const startCook = async () => {
     const result = await create.run(() =>
@@ -155,7 +173,8 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       verdict={verdicts[entry.cook.id] ?? entry.cook.verdict}
       mealType={mealTypes[entry.cook.id] ?? null}
       ratings={starredRatings(index.ratingsByCook.get(entry.cook.id) ?? [], index.household)}
-      onPress={() => onOpenCook(entry.cook.id)}
+      selected={twoPane ? entry.cook.id === chosen : undefined}
+      onPress={() => (twoPane ? setSelected(entry.cook.id) : onOpenCook(entry.cook.id))}
       onLongPress={() => setActionsFor(entry.cook)}
     />
   );
@@ -176,7 +195,28 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   );
 
   return (
-    <ScreenContainer testID="home-screen">
+    <ScreenContainer
+      testID="home-screen"
+      side={
+        chosen !== null
+          ? {
+              testID: 'home-cook-pane',
+              children: (
+                <CookScreen
+                  key={chosen}
+                  cookId={chosen}
+                  embedded
+                  onBack={() => {}}
+                  onReview={onOpenCook}
+                  onOpenCook={onOpenCook}
+                  refreshToken={reload}
+                />
+              ),
+            }
+          : undefined
+      }
+      fixed={{ pane: 'main', width: HOME_LIST_PANE_WIDTH }}
+    >
       <ShellHeader subtitle={isEmpty ? PRODUCT_TAGLINE : undefined} trailing={more} />
 
       {menuOpen ? (

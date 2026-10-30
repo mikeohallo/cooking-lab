@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Image, Modal, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { ActionButton } from '../../components/ActionButton';
+import { PaneSheet } from '../../layout/panes';
 import { AppText } from '../../components/AppText';
 import { StateNotice } from '../../components/StateNotice';
 import {
@@ -69,7 +69,6 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  const insets = useSafeAreaInsets();
 
   const close = () => {
     setConfirming(false);
@@ -94,97 +93,93 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
   };
 
   return (
-    <Modal
-      visible={photo !== null}
-      animationType="fade"
-      onRequestClose={close}
-      transparent={false}
-      statusBarTranslucent
-      navigationBarTranslucent
-      testID="photo-viewer"
-    >
-      {photo === null ? null : (
-        <View
-          style={[
-            styles.screen,
-            { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
-          ]}
-          testID="photo-viewer-screen"
-        >
-          <Image
-            source={{ uri: photo.uri }}
-            style={styles.photo}
-            resizeMode="contain"
-            accessibilityLabel={PHOTO_ALT}
-            testID="photo-viewer-image"
-          />
-
-          <View
-            style={[styles.bar, { paddingBottom: BAR_BOTTOM_PADDING + insets.bottom }]}
-            testID="photo-viewer-bar"
-          >
-            <AppText variant="caption" tone="muted">
-              {`${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
-            </AppText>
-
-            {problem ? (
-              <StateNotice
-                title="This photo was not removed"
-                body={`Nothing was changed. ${problem}`}
-                tone="problem"
-                testID="photo-remove-failed"
+    <PaneSheet visible={photo !== null} onRequestClose={close} transparent={false} testID="photo-viewer">
+      {(insets) => (
+        <>
+          {photo === null ? null : (
+            <View
+              style={[
+                styles.screen,
+                { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
+              ]}
+              testID="photo-viewer-screen"
+            >
+              <Image
+                source={{ uri: photo.uri }}
+                style={styles.photo}
+                resizeMode="contain"
+                accessibilityLabel={PHOTO_ALT}
+                testID="photo-viewer-image"
               />
-            ) : null}
 
-            {confirming ? (
-              <View style={styles.confirm} testID="photo-remove-confirm">
-                <AppText variant="bodyStrong">{REMOVE_PHOTO_CONFIRM_TITLE}</AppText>
-                <AppText variant="secondary" tone="muted">
-                  {REMOVE_PHOTO_CONFIRM_BODY}
+              <View
+                style={[styles.bar, { paddingBottom: BAR_BOTTOM_PADDING + insets.bottom }]}
+                testID="photo-viewer-bar"
+              >
+                <AppText variant="caption" tone="muted">
+                  {`${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
                 </AppText>
-                <View style={styles.actions}>
-                  <ActionButton
-                    label={REMOVE_PHOTO_KEEP}
-                    variant="secondary"
-                    onPress={() => setConfirming(false)}
-                    testID="photo-remove-keep"
-                  />
-                  <ActionButton
-                    label={REMOVE_PHOTO_CONFIRM}
-                    variant="quiet"
-                    tone="danger"
-                    pending={removing}
-                    onPress={() => void remove()}
-                    testID="photo-remove-confirm-button"
-                  />
-                </View>
-              </View>
-            ) : (
-              <View style={styles.actions}>
-                {canRemove ? (
-                  <ActionButton
-                    label={REMOVE_PHOTO}
-                    variant="quiet"
-                    tone="danger"
-                    onPress={() => {
-                      setProblem(null);
-                      setConfirming(true);
-                    }}
-                    testID="photo-remove"
+
+                {problem ? (
+                  <StateNotice
+                    title="This photo was not removed"
+                    body={`Nothing was changed. ${problem}`}
+                    tone="problem"
+                    testID="photo-remove-failed"
                   />
                 ) : null}
-                <ActionButton
-                  label={CLOSE_PHOTO}
-                  variant="secondary"
-                  onPress={close}
-                  testID="photo-close"
-                />
+
+                {confirming ? (
+                  <View style={styles.confirm} testID="photo-remove-confirm">
+                    <AppText variant="bodyStrong">{REMOVE_PHOTO_CONFIRM_TITLE}</AppText>
+                    <AppText variant="secondary" tone="muted">
+                      {REMOVE_PHOTO_CONFIRM_BODY}
+                    </AppText>
+                    <View style={styles.actions}>
+                      <ActionButton
+                        label={REMOVE_PHOTO_KEEP}
+                        variant="secondary"
+                        onPress={() => setConfirming(false)}
+                        testID="photo-remove-keep"
+                      />
+                      <ActionButton
+                        label={REMOVE_PHOTO_CONFIRM}
+                        variant="quiet"
+                        tone="danger"
+                        pending={removing}
+                        onPress={() => void remove()}
+                        testID="photo-remove-confirm-button"
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.actions}>
+                    {canRemove ? (
+                      <ActionButton
+                        label={REMOVE_PHOTO}
+                        variant="quiet"
+                        tone="danger"
+                        onPress={() => {
+                          setProblem(null);
+                          setConfirming(true);
+                        }}
+                        testID="photo-remove"
+                      />
+                    ) : null}
+                    <ActionButton
+                      label={CLOSE_PHOTO}
+                      variant="secondary"
+                      onPress={close}
+                      testID="photo-close"
+                    />
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        </View>
+            </View>
+          )}
+        </>
       )}
-    </Modal>
+    </PaneSheet>
   );
 }
 

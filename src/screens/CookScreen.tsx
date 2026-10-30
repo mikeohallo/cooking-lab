@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
@@ -60,6 +60,8 @@ import {
   type RatingPerson,
 } from '../domain/evidence';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
+import { COOK_SIDE_PANE_WIDTH } from '../layout/responsive';
+import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDateTime } from '../format/dateTime';
 import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
 import { CookActions } from './CookActions';
@@ -94,7 +96,32 @@ type CookScreenProps = {
    * it at true.
    */
   inFront?: boolean;
+  /**
+   * Drawn inside Home's right-hand pane on the inner display (0.3.0), rather
+   * than as a screen of its own: no Back, one column, no screen container.
+   */
+  embedded?: boolean;
 };
+
+/** Where the page is drawn: a screen of its own, or inside Home's other pane. */
+function Frame({
+  embedded,
+  testID,
+  children,
+  ...screen
+}: { embedded: boolean; testID: string; children: ReactNode } & Omit<
+  ComponentProps<typeof ScreenContainer>,
+  'children' | 'testID'
+>) {
+  if (embedded) {
+    return <View testID={testID}>{children}</View>;
+  }
+  return (
+    <ScreenContainer testID={testID} {...screen}>
+      {children}
+    </ScreenContainer>
+  );
+}
 
 /**
  * The Active Cook screen — and, once a cook is reviewed, the same timeline in
@@ -111,7 +138,13 @@ export function CookScreen({
   onOpenCook = () => {},
   refreshToken = 0,
   inFront = true,
+  embedded = false,
 }: CookScreenProps) {
+  // On the inner display a cook's page has two panes: the timeline and the
+  // composer on the left, Last time and the whole ingredients list on the
+  // right. Inside Home's pane it is one column.
+  const split = useLayoutMetrics().twoPane && !embedded;
+  const back = embedded ? undefined : onBack;
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
   const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken);
   const {
@@ -139,37 +172,37 @@ export function CookScreen({
 
   if (load.status === 'loading') {
     return (
-      <ScreenContainer testID="cook-loading">
-        <ScreenHeader title={UNTITLED_COOK} onBack={onBack} />
-      </ScreenContainer>
+      <Frame embedded={embedded} testID="cook-loading">
+        <ScreenHeader title={UNTITLED_COOK} onBack={back} />
+      </Frame>
     );
   }
 
   if (load.status === 'missing') {
     return (
-      <ScreenContainer testID="cook-missing">
-        <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={onBack} />
+      <Frame embedded={embedded} testID="cook-missing">
+        <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={back} />
         <StateNotice
           title={COOK_NOT_FOUND_TITLE}
           body={COOK_NOT_FOUND_BODY}
           tone="problem"
-          action={{ label: BACK_TO_HOME, onPress: onBack }}
+          action={embedded ? undefined : { label: BACK_TO_HOME, onPress: onBack }}
         />
-      </ScreenContainer>
+      </Frame>
     );
   }
 
   if (load.status === 'failed') {
     return (
-      <ScreenContainer testID="cook-failed">
-        <ScreenHeader title={UNTITLED_COOK} onBack={onBack} />
+      <Frame embedded={embedded} testID="cook-failed">
+        <ScreenHeader title={UNTITLED_COOK} onBack={back} />
         <StateNotice
           title="This cook could not be loaded"
           body={`Nothing was changed. ${load.message}`}
           tone="problem"
           action={{ label: RETRY, onPress: () => void reload() }}
         />
-      </ScreenContainer>
+      </Frame>
     );
   }
 
@@ -331,9 +364,45 @@ export function CookScreen({
     return outcome.message;
   };
 
+  const lastTimeCard = (folded: boolean) =>
+    record.status === 'ready' && record.lastTime !== null ? (
+      <LastTimeCard
+        lastTime={record.lastTime}
+        household={record.household}
+        folded={folded}
+        onOpen={onOpenCook}
+      />
+    ) : null;
+  const ingredientsBox = (foldable: boolean) =>
+    record.status === 'ready' ? (
+      <IngredientsBox
+        versions={record.ingredients}
+        hasTimeline={events.length > 0}
+        foldable={foldable}
+        open={!readOnly}
+        onSave={saveIngredients}
+        onShowVersions={setVersions}
+      />
+    ) : null;
+
   return (
-    <ScreenContainer
+    <Frame
+      embedded={embedded}
       testID={readOnly ? 'cook-detail-screen' : 'cook-screen'}
+      side={
+        split
+          ? {
+              testID: 'cook-side',
+              children: (
+                <View style={styles.record}>
+                  {lastTimeCard(false)}
+                  {ingredientsBox(false)}
+                </View>
+              ),
+            }
+          : undefined
+      }
+      fixed={{ pane: 'side', width: COOK_SIDE_PANE_WIDTH }}
       footer={
         readOnly ? undefined : (
           <Composer
@@ -349,7 +418,7 @@ export function CookScreen({
       <ScreenHeader
         title={cook.title ?? UNTITLED_COOK}
         subtitle={formatDateTime(cook.startedAt)}
-        onBack={onBack}
+        onBack={back}
         eyebrow={
           record.status === 'ready' ? (
             <MealTypeLabel mealType={record.mealType?.mealType ?? null} testID="cook-meal-label" />
@@ -428,21 +497,9 @@ export function CookScreen({
               ) : null}
             </View>
           ) : null}
-          {record.lastTime !== null ? (
-            <LastTimeCard
-              lastTime={record.lastTime}
-              household={record.household}
-              folded={events.length > 0}
-              onOpen={onOpenCook}
-            />
-          ) : null}
-          <IngredientsBox
-            versions={record.ingredients}
-            hasTimeline={events.length > 0}
-            open={!readOnly}
-            onSave={saveIngredients}
-            onShowVersions={setVersions}
-          />
+          {/* On two panes these two are in the right-hand pane instead. */}
+          {split ? null : lastTimeCard(events.length > 0)}
+          {split ? null : ingredientsBox(true)}
         </View>
       ) : record.status === 'failed' ? (
         <StateNotice
@@ -569,8 +626,8 @@ export function CookScreen({
         cook={actionsOpen ? cook : null}
         onClose={() => setActionsOpen(false)}
         // Deleted from its own page: go back, and the Undo is on the screen
-        // the cook lands on.
-        onDeleted={onBack}
+        // the cook lands on. Inside Home's pane, Home simply shows the next.
+        onDeleted={embedded ? undefined : onBack}
       />
 
       {readOnly ? (
@@ -588,7 +645,7 @@ export function CookScreen({
           <ExportNotice state={exportOne.state} testID="export-cook" />
         </View>
       ) : null}
-    </ScreenContainer>
+    </Frame>
   );
 }
 

@@ -1,7 +1,7 @@
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ActionButton } from '../../components/ActionButton';
+import { PaneSheet } from '../../layout/panes';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { CLOSE_VERSIONS, EARLIER_VERSIONS, ORIGINAL_VERSION } from '../../content/product';
@@ -47,52 +47,48 @@ type VersionsSheetProps = {
 
 /** Read-only. Nothing here can change or remove a version. */
 export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
-  const insets = useSafeAreaInsets();
   return (
-    <Modal
-      visible={versions !== null}
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-      navigationBarTranslucent
-      testID="versions-sheet"
-    >
-      <View
-        style={[
-          styles.screen,
-          {
-            paddingTop: insets.top + space.md,
-            paddingBottom: insets.bottom + space.md,
-            paddingLeft: insets.left + space.ml,
-            paddingRight: insets.right + space.ml,
-          },
-        ]}
-      >
-        <AppText variant="sectionTitle" accessibilityRole="header">
-          {EARLIER_VERSIONS}
-        </AppText>
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-          {(versions ?? []).map((version, index) => (
-            <Card key={`${version.at}-${index}`} testID={`version-${index}`}>
-              <AppText variant="body">{version.text}</AppText>
-              <AppText variant="caption" tone="muted">
-                {version.original
-                  ? `${ORIGINAL_VERSION} · ${formatDateTime(version.at)}`
-                  : formatDateTime(version.at)}
-              </AppText>
-            </Card>
-          ))}
-        </ScrollView>
-        <View style={styles.actions}>
-          <ActionButton
-            label={CLOSE_VERSIONS}
-            variant="secondary"
-            onPress={onClose}
-            testID="versions-close"
-          />
-        </View>
-      </View>
-    </Modal>
+    <PaneSheet visible={versions !== null} onRequestClose={onClose} transparent={false} testID="versions-sheet">
+      {(insets) => (
+        <>
+          <View
+            style={[
+              styles.screen,
+              {
+                paddingTop: insets.top + space.md,
+                paddingBottom: insets.bottom + space.md,
+                paddingLeft: insets.left + space.ml,
+                paddingRight: insets.right + space.ml,
+              },
+            ]}
+          >
+            <AppText variant="sectionTitle" accessibilityRole="header">
+              {EARLIER_VERSIONS}
+            </AppText>
+            <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+              {(versions ?? []).map((version, index) => (
+                <Card key={`${version.at}-${index}`} testID={`version-${index}`}>
+                  <AppText variant="body">{version.text}</AppText>
+                  <AppText variant="caption" tone="muted">
+                    {version.original
+                      ? `${ORIGINAL_VERSION} · ${formatDateTime(version.at)}`
+                      : formatDateTime(version.at)}
+                  </AppText>
+                </Card>
+              ))}
+            </ScrollView>
+            <View style={styles.actions}>
+              <ActionButton
+                label={CLOSE_VERSIONS}
+                variant="secondary"
+                onPress={onClose}
+                testID="versions-close"
+              />
+            </View>
+          </View>
+        </>
+      )}
+    </PaneSheet>
   );
 }
 

@@ -7,6 +7,6 @@ import { computeLayoutMetrics, type LayoutMetrics } from './responsive';
  * the shell react to folding, unfolding, rotation and multi-window.
  */
 export function useLayoutMetrics(): LayoutMetrics {
-  const { width } = useWindowDimensions();
-  return computeLayoutMetrics(width);
+  const { width, height } = useWindowDimensions();
+  return computeLayoutMetrics(width, height);
 }

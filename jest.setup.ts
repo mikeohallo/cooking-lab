@@ -17,3 +17,20 @@ import { configure } from '@testing-library/react-native';
  * establish on a slow machine.
  */
 configure({ asyncUtilTimeout: 5_000 });
+
+/**
+ * The window every screen test sees, unless a test says otherwise: as wide as
+ * the Fold's cover display (about 369 dp).
+ *
+ * React Native's test window is 750 dp wide, which since 0.3.0 counts as the
+ * unfolded inner display and gives a screen two panes. Most tests are about
+ * one column, the cover display, so that is the default; a test of two panes
+ * mocks this module itself with the inner display's figures.
+ */
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => {
+  const actual = jest.requireActual('react-native/Libraries/Utilities/useWindowDimensions');
+  return {
+    __esModule: true,
+    default: () => ({ ...actual.default(), width: 369 }),
+  };
+});

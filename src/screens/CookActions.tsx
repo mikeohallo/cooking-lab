@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ActionButton } from '../components/ActionButton';
+import { PaneSheet } from '../layout/panes';
 import { AppText } from '../components/AppText';
 import { StateNotice } from '../components/StateNotice';
 import {
@@ -39,7 +39,6 @@ type CookActionsProps = {
  */
 export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
   const { requestDelete } = usePendingDeletion();
-  const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -69,85 +68,81 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
   };
 
   return (
-    <Modal
-      visible={cook !== null}
-      transparent
-      animationType="fade"
-      onRequestClose={close}
-      statusBarTranslucent
-      navigationBarTranslucent
-      testID="cook-actions"
-    >
-      <Pressable
-        style={styles.scrim}
-        onPress={close}
-        accessibilityLabel={COOK_ACTIONS_CANCEL}
-        testID="cook-actions-scrim"
-      />
-      {cook === null ? null : (
-        <View
-          style={[styles.sheet, { paddingBottom: space.lg + insets.bottom }]}
-          testID="cook-actions-sheet"
-        >
-          <AppText variant="bodyStrong" numberOfLines={2}>
-            {cook.title ?? UNTITLED_COOK}
-          </AppText>
-
-          {problem ? (
-            <StateNotice
-              title={DELETE_FAILED_TITLE}
-              body={`Nothing was changed. ${problem}`}
-              tone="problem"
-              testID="delete-cook-failed"
-            />
-          ) : null}
-
-          {confirming ? (
-            <View style={styles.confirm} testID="delete-cook-confirm">
-              <AppText variant="bodyStrong">{DELETE_COOK_CONFIRM_TITLE}</AppText>
-              <AppText variant="secondary" tone="muted">
-                {DELETE_COOK_CONFIRM_BODY}
+    <PaneSheet visible={cook !== null} onRequestClose={close} testID="cook-actions">
+      {(insets) => (
+        <>
+          <Pressable
+            style={styles.scrim}
+            onPress={close}
+            accessibilityLabel={COOK_ACTIONS_CANCEL}
+            testID="cook-actions-scrim"
+          />
+          {cook === null ? null : (
+            <View
+              style={[styles.sheet, { paddingBottom: space.lg + insets.bottom }]}
+              testID="cook-actions-sheet"
+            >
+              <AppText variant="bodyStrong" numberOfLines={2}>
+                {cook.title ?? UNTITLED_COOK}
               </AppText>
-              <View style={styles.actions}>
-                <ActionButton
-                  label={DELETE_COOK_KEEP}
-                  variant="secondary"
-                  onPress={close}
-                  testID="delete-cook-keep"
+
+              {problem ? (
+                <StateNotice
+                  title={DELETE_FAILED_TITLE}
+                  body={`Nothing was changed. ${problem}`}
+                  tone="problem"
+                  testID="delete-cook-failed"
                 />
-                <ActionButton
-                  label={DELETE_COOK_CONFIRM}
-                  variant="quiet"
-                  tone="danger"
-                  pending={deleting}
-                  onPress={() => void confirmDelete()}
-                  testID="delete-cook-confirm-button"
-                />
-              </View>
-            </View>
-          ) : (
-            <View style={styles.actions}>
-              <ActionButton
-                label={COOK_ACTIONS_CANCEL}
-                variant="secondary"
-                onPress={close}
-                testID="cook-actions-cancel"
-              />
-              <ActionButton
-                label={DELETE_COOK}
-                variant="quiet"
-                tone="danger"
-                onPress={() => {
-                  setProblem(null);
-                  setConfirming(true);
-                }}
-                testID="delete-cook"
-              />
+              ) : null}
+
+              {confirming ? (
+                <View style={styles.confirm} testID="delete-cook-confirm">
+                  <AppText variant="bodyStrong">{DELETE_COOK_CONFIRM_TITLE}</AppText>
+                  <AppText variant="secondary" tone="muted">
+                    {DELETE_COOK_CONFIRM_BODY}
+                  </AppText>
+                  <View style={styles.actions}>
+                    <ActionButton
+                      label={DELETE_COOK_KEEP}
+                      variant="secondary"
+                      onPress={close}
+                      testID="delete-cook-keep"
+                    />
+                    <ActionButton
+                      label={DELETE_COOK_CONFIRM}
+                      variant="quiet"
+                      tone="danger"
+                      pending={deleting}
+                      onPress={() => void confirmDelete()}
+                      testID="delete-cook-confirm-button"
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.actions}>
+                  <ActionButton
+                    label={COOK_ACTIONS_CANCEL}
+                    variant="secondary"
+                    onPress={close}
+                    testID="cook-actions-cancel"
+                  />
+                  <ActionButton
+                    label={DELETE_COOK}
+                    variant="quiet"
+                    tone="danger"
+                    onPress={() => {
+                      setProblem(null);
+                      setConfirming(true);
+                    }}
+                    testID="delete-cook"
+                  />
+                </View>
+              )}
             </View>
           )}
-        </View>
+        </>
       )}
-    </Modal>
+    </PaneSheet>
   );
 }
 

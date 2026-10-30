@@ -43,6 +43,12 @@ export type PendingDeletion = {
   /** Hide the cook and show Undo. Resolves with a message if it was not deleted. */
   requestDelete(cookId: CookId): Promise<string | null>;
   undo(): Promise<void>;
+  /**
+   * A pane that will draw the Undo bar itself (0.3.0): on two panes the bar
+   * sits inside Home's list pane, where the deleted cook was, rather than
+   * across the whole display. Returns the release.
+   */
+  claimBar(): () => void;
 };
 
 const INERT: PendingDeletion = {
@@ -50,6 +56,7 @@ const INERT: PendingDeletion = {
   version: 0,
   requestDelete: async () => 'Deleting is not available here.',
   undo: async () => {},
+  claimBar: () => () => {},
 };
 
 const PendingDeletionContext = createContext<PendingDeletion>(INERT);
@@ -63,6 +70,7 @@ export function PendingDeletionProvider({ children }: { children: ReactNode }) {
   const deletions = state.status === 'ready' ? state.storage.deletions : null;
   const [pending, setPending] = useState<CookId | null>(null);
   const [version, setVersion] = useState(0);
+  const [claims, setClaims] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const current = useRef<CookId | null>(null);
 
@@ -131,27 +139,49 @@ export function PendingDeletionProvider({ children }: { children: ReactNode }) {
   // still pending is finished at the next start, as the cook asked.
   useEffect(() => () => clearTimer(), []);
 
+  const claimBar = useCallback(() => {
+    setClaims((count) => count + 1);
+    let released = false;
+    return () => {
+      if (!released) {
+        released = true;
+        setClaims((count) => count - 1);
+      }
+    };
+  }, []);
+
   const value = useMemo<PendingDeletion>(
-    () => ({ pending, version, requestDelete, undo }),
-    [pending, version, requestDelete, undo],
+    () => ({ pending, version, requestDelete, undo, claimBar }),
+    [pending, version, requestDelete, undo, claimBar],
   );
 
   return (
     <PendingDeletionContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        {pending !== null ? <UndoBar onUndo={() => void undo()} /> : null}
+        {pending !== null && claims === 0 ? <UndoBar onUndo={() => void undo()} /> : null}
       </View>
     </PendingDeletionContext.Provider>
   );
 }
 
-/** "Cook deleted · Undo", over the bottom of whatever screen is showing. */
-function UndoBar({ onUndo }: { onUndo: () => void }) {
+/**
+ * The Undo bar inside a pane (0.3.0). `ScreenContainer` puts one in the main
+ * pane on two panes; while it is there, the bar across the whole display is
+ * not drawn.
+ */
+export function UndoSlot() {
+  const { pending, undo, claimBar } = usePendingDeletion();
+  useEffect(() => claimBar(), [claimBar]);
+  return pending !== null ? <UndoBar onUndo={() => void undo()} inPane /> : null;
+}
+
+/** "Cook deleted · Undo", over the bottom of whatever screen or pane is showing. */
+function UndoBar({ onUndo, inPane = false }: { onUndo: () => void; inPane?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
     <View
-      style={[styles.bar, { bottom: insets.bottom + space.md }]}
+      style={[styles.bar, { bottom: (inPane ? 0 : insets.bottom) + space.md }]}
       accessibilityLiveRegion="polite"
       testID="undo-bar"
     >
