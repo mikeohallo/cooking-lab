@@ -87,7 +87,7 @@ describe('renderCookAsText', () => {
   });
 
   it('keeps the verdict exactly as stored, whitespace and all', () => {
-    expect(text).toContain('Verdict\n  Great crust.\n\nApple and cabbage needed acid.  \n');
+    expect(text).toContain('Your notes\n  Great crust.\n\nApple and cabbage needed acid.  \n');
   });
 
   it('lists approved lessons under Next time', () => {
@@ -127,7 +127,7 @@ describe('renderCookAsText', () => {
       exportedAt: EXPORTED_AT,
     });
     expect(bare.startsWith('Cooking Lab — Untitled cook\n')).toBe(true);
-    expect(bare).toContain('Verdict\nNo verdict was written for this cook.\n');
+    expect(bare).toContain('Your notes\nNo notes were written for this cook.\n');
     expect(bare).toContain('Timeline\nNothing was noted during this cook.\n');
     expect(bare).not.toContain('Next time');
   });
@@ -142,7 +142,7 @@ describe('renderCookAsText', () => {
       exportedAt: EXPORTED_AT,
     });
     expect(open).toContain('Status: still open — not yet reviewed\n');
-    expect(open).toContain('Verdict\nNot reviewed yet.\n');
+    expect(open).toContain('Your notes\nNot reviewed yet.\n');
   });
 });
 

@@ -159,12 +159,12 @@ describe('exportCook', () => {
     expect(outcome).toEqual({
       ok: true,
       fileName: 'cooking-lab-cook-2026-10-16-pork-chops.txt',
-      summary: '2 timeline entries and the verdict in cooking-lab-cook-2026-10-16-pork-chops.txt.',
+      summary: '2 timeline entries and your notes in cooking-lab-cook-2026-10-16-pork-chops.txt.',
     });
     const file = sink.shared[0]!;
     expect(file.mimeType).toBe('text/plain');
     expect(file.text).toContain('Cooking Lab — Pork chops\n');
-    expect(file.text).toContain('Verdict\nGreat crust. Needed acid.\n');
+    expect(file.text).toContain('Your notes\nGreat crust. Needed acid.\n');
     expect(file.text).toContain('Next time\n- More acid.\n');
     expect(file.text).toContain('Dry brined overnight.');
     expect(file.text).toContain('58°C — thickest part');

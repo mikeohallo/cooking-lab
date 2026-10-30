@@ -18,9 +18,34 @@
  * A note or a verdict the cook has edited (0.2.2) is printed as it now reads —
  * its newest version, exactly as typed — and marked "(edited)", so a reader
  * knows there were earlier words. Every version is in *Export everything*.
+ *
+ * From 0.3.0 the file also carries the cook's meal type, its ingredients as
+ * they now stand (marked "(edited)" when there were earlier versions), who
+ * ate it and what they thought — N/A as "didn't eat it", a guest marked as a
+ * guest — and the next-time lines as they now read. The verdict is "Your
+ * notes", as it is on screen.
  */
 
-import type { Cook, CookEvent, Lesson, Revision, Tag } from '../../domain/entities';
+import {
+  currentIngredients,
+  mealTypeLabel,
+  nextTimeWords,
+  orderRatings,
+  raterName,
+  ratingAnswerText,
+} from '../../domain/cookRecord';
+import type {
+  Cook,
+  CookEvent,
+  HouseholdMember,
+  IngredientVersion,
+  Lesson,
+  LessonRevision,
+  Rating,
+  Revision,
+  Tag,
+} from '../../domain/entities';
+import type { StoredMealType } from '../../domain/enums';
 import { latestWords } from '../../domain/evidence';
 import { photoPlacedWhenAdded } from '../../domain/photoTime';
 import type { AppVariant } from '../../config/variants';
@@ -37,6 +62,16 @@ export type CookTextInput = {
   readonly tags: readonly Tag[];
   /** Every edit of this cook's notes and verdict. Empty when there are none. */
   readonly revisions?: readonly Revision[];
+  /** Its meal type, or none (0.3.0). */
+  readonly mealType?: StoredMealType | null;
+  /** Every version of its ingredients, oldest first (0.3.0). */
+  readonly ingredients?: readonly IngredientVersion[];
+  /** Who ate it and what they thought (0.3.0). */
+  readonly ratings?: readonly Rating[];
+  /** The household, to name the people who rated it (0.3.0). */
+  readonly household?: readonly HouseholdMember[];
+  /** Edits of the next-time lines (0.3.0). */
+  readonly lessonRevisions?: readonly LessonRevision[];
   readonly variant: AppVariant;
   /** When the file was made. */
   readonly exportedAt: string;
@@ -46,6 +81,12 @@ export const UNTITLED_COOK_EXPORT = 'Untitled cook';
 
 /** Printed after words the cook has edited since they were first written. */
 export const EDITED_MARK = '(edited)';
+
+/** The heading the verdict is printed under, as on screen from 0.3.0. */
+export const NOTES_HEADING = 'Your notes';
+
+/** Marks a guest's name in the ratings. */
+export const GUEST_EXPORT_MARK = '(guest)';
 
 /** The line a TEST-build file carries so it can never pass for real history. */
 export const TEST_EXPORT_NOTICE =
@@ -129,6 +170,12 @@ export function renderEventLine(event: CookEvent, edits: readonly Revision[] = [
 export function renderCookAsText(input: CookTextInput): string {
   const { cook, events, lessons, tags, variant, exportedAt } = input;
   const revisions = input.revisions ?? [];
+  const ingredientVersions = input.ingredients ?? [];
+  const ingredients = currentIngredients(ingredientVersions);
+  const household = input.household ?? [];
+  const ratings = orderRatings(input.ratings ?? [], household);
+  const lessonRevisions = input.lessonRevisions ?? [];
+  const meal = mealTypeLabel(input.mealType ?? null);
   const verdict = latestWords(
     cook.verdict,
     revisions.filter((revision) => revision.field === 'verdict'),
@@ -137,6 +184,9 @@ export function renderCookAsText(input: CookTextInput): string {
   const lines: string[] = [];
 
   lines.push(`Cooking Lab — ${title}`);
+  if (meal !== null) {
+    lines.push(`Meal: ${meal}`);
+  }
   lines.push(`Started: ${formatDateTimeWithYear(cook.startedAt)}`);
   if (cook.status === 'reviewed') {
     lines.push(
@@ -157,18 +207,43 @@ export function renderCookAsText(input: CookTextInput): string {
     lines.push('');
   }
 
-  lines.push(verdict.edited ? `Verdict ${EDITED_MARK}` : 'Verdict');
+  if (ingredients !== null) {
+    lines.push(ingredientVersions.length > 1 ? `Ingredients ${EDITED_MARK}` : 'Ingredients');
+    lines.push(ingredients.text);
+    lines.push('');
+  }
+
+  lines.push(verdict.edited ? `${NOTES_HEADING} ${EDITED_MARK}` : NOTES_HEADING);
   if (verdict.text !== null && verdict.text.trim() !== '') {
     lines.push(verdict.text);
   } else {
-    lines.push(cook.status === 'reviewed' ? 'No verdict was written for this cook.' : 'Not reviewed yet.');
+    lines.push(cook.status === 'reviewed' ? 'No notes were written for this cook.' : 'Not reviewed yet.');
   }
   lines.push('');
+
+  const rated = ratings
+    .map((rating) => {
+      const answer = ratingAnswerText(rating);
+      const name =
+        rating.guestName !== null
+          ? `${rating.guestName} ${GUEST_EXPORT_MARK}`
+          : raterName(rating, household);
+      const parts = [answer, rating.line === null ? null : `“${rating.line}”`].filter(
+        (part): part is string => part !== null,
+      );
+      return `- ${name}: ${parts.join(' — ')}`;
+    });
+  if (rated.length > 0) {
+    lines.push('Who ate it');
+    lines.push(...rated);
+    lines.push('');
+  }
 
   if (lessons.length > 0) {
     lines.push('Next time');
     for (const lesson of lessons) {
-      lines.push(`- ${lesson.text}`);
+      const shown = nextTimeWords(lesson, lessonRevisions);
+      lines.push(shown.edited ? `- ${shown.text} ${EDITED_MARK}` : `- ${shown.text}`);
     }
     lines.push('');
   }
@@ -205,8 +280,12 @@ export function renderCookAsText(input: CookTextInput): string {
     lines.push('');
   }
 
+  const anyEdits =
+    revisions.length > 0 ||
+    ingredientVersions.length > 1 ||
+    lessonRevisions.some((edit) => lessons.some((lesson) => lesson.id === edit.lessonId));
   lines.push(
-    revisions.length > 0
+    anyEdits
       ? `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record; words marked ${EDITED_MARK} are shown as the cook last wrote them, and every earlier version is kept in the app.`
       : `Exported from Cooking Lab on ${formatDateTimeWithYear(exportedAt)}. Everything above is the cook's own record, unchanged.`,
   );

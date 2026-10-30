@@ -100,7 +100,7 @@ describe('Export this cook, on a reviewed cook', () => {
     expect(harness.sink.shared).toHaveLength(1);
     const file = harness.sink.shared[0]!;
     expect(file.fileName).toMatch(/^cooking-lab-TEST-cook-\d{4}-\d{2}-\d{2}-roast-chicken\.txt$/);
-    expect(file.text).toContain('Verdict\nSkin perfect, breast a touch dry.\n');
+    expect(file.text).toContain('Your notes\nSkin perfect, breast a touch dry.\n');
     expect(file.text).toContain('Salted the night before.');
   });
 

@@ -133,11 +133,26 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
         if (cook === null) {
           return { ok: false, message: COOK_NOT_FOUND };
         }
-        const [events, lessons, tags, revisions] = await Promise.all([
+        const [
+          events,
+          lessons,
+          tags,
+          revisions,
+          mealType,
+          ingredients,
+          ratings,
+          household,
+          lessonRevisions,
+        ] = await Promise.all([
           data.cookEvents.listForCook({ cookId, sort: 'oldest_first' }),
           data.lessons.list({ cookId, status: 'approved', sort: 'oldest_first' }),
           data.cookTags.listForCook(cookId),
           data.revisions.listForCook(cookId),
+          data.mealTypes.findForCook(cookId),
+          data.ingredients.listForCook(cookId),
+          data.ratings.listForCook(cookId),
+          data.household.list(),
+          data.lessonRevisions.listForCook(cookId),
         ]);
         const at = now();
         const fileName = cookExportFileName(cook, formatFileDate(at), variant);
@@ -147,6 +162,11 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           lessons,
           tags,
           revisions,
+          mealType: mealType?.mealType ?? null,
+          ingredients,
+          ratings,
+          household,
+          lessonRevisions,
           variant,
           exportedAt: at,
         });
@@ -154,7 +174,7 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
         return {
           ok: true,
           fileName,
-          summary: `${plural(events.length, 'timeline entry', 'timeline entries')} and the verdict in ${fileName}.`,
+          summary: `${plural(events.length, 'timeline entry', 'timeline entries')} and your notes in ${fileName}.`,
         };
       } catch (cause: unknown) {
         return failure(cause);

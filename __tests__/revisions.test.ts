@@ -232,7 +232,7 @@ describe('Export this cook, after edits', () => {
     expect(text).not.toContain('Salted at 8.');
     expect(text).toContain('Out at 62.');
     expect(text).not.toContain(`Out at 62. ${EDITED_MARK}`);
-    expect(text).toContain(`Verdict ${EDITED_MARK}\nGood. Needed acid.`);
+    expect(text).toContain(`Your notes ${EDITED_MARK}\nGood. Needed acid.`);
   });
 
   it('prints exactly what it always did for a cook with no edits', () => {
