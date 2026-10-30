@@ -55,6 +55,7 @@ a report checks, before anyone else sees it:
 | 2a | Portable export: *Export everything* (the validated backup file) and *Export this cook* (plain text), via the share sheet | **Built** — `SLICE_2_EXPORT.md` |
 | 2b | Production signing: Cooking Lab's own release key, the production build signed with it and installed on the Fold beside the TEST app | **Done** 16 Oct — `reports/2026-10-16-slice2b-production-signing.md`; first live cooks are next |
 | 3 | Photos in the timeline — and, with them, oven/internal readings, tags and tag search, which turned out to be the same question: what else is worth writing down while the pan is on, and how is it found again | **Built** — `SLICE_3_PHOTOS_READINGS_TAGS.md` |
+| 0.2.2 | Fixes from cooking with 0.2.1: the cook screen scrolls, tag suggestions above the keyboard, delete a cook with Undo, edit notes and the verdict with every earlier version kept, the screen stays on during a cook, Gallery photos at the time they were taken | **Built** 30 Oct, not yet on a device — `RELEASE_0.2.2_FIXES.md` |
 | 4 | Real AI: extraction and proposals via the Anthropic API from the device, API key in the secure store | Planned |
 | 5 | Cook Again briefings | Planned |
 
