@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, type StyleProp, type TextProps, type TextStyle } from 'react-native';
 
+import { fontStyleFor, useFontsReady } from '../theme/fonts';
 import { colors, type, type TypeStyle } from '../theme/tokens';
 
 /**
@@ -31,8 +32,13 @@ const toneColor: Record<Tone, string> = {
  * respected because nothing here fixes a height.
  */
 export function AppText({ children, variant = 'body', tone = 'text', style, ...rest }: AppTextProps) {
+  const fontsReady = useFontsReady();
+  const drawn: StyleProp<TextStyle>[] = [styles.base, type[variant], { color: toneColor[tone] }, style];
+  // Plus Jakarta Sans once it has loaded, at the weight the style asks for;
+  // otherwise the system sans at that weight. Font scaling applies either way.
+  const face = fontsReady ? fontStyleFor(StyleSheet.flatten(drawn).fontWeight) : null;
   return (
-    <Text {...rest} style={[styles.base, type[variant], { color: toneColor[tone] }, style]}>
+    <Text {...rest} style={[...drawn, face]}>
       {children}
     </Text>
   );
@@ -40,7 +46,6 @@ export function AppText({ children, variant = 'body', tone = 'text', style, ...r
 
 const styles = StyleSheet.create({
   base: {
-    // The platform sans. No custom family is loaded, by design.
     includeFontPadding: false,
   },
 });

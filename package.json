@@ -15,10 +15,12 @@
     "prepare": "git config core.hooksPath scripts/hooks || exit 0"
   },
   "dependencies": {
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "expo": "^57.0.19",
     "expo-constants": "~57.0.17",
     "expo-crypto": "~57.0.2",
     "expo-file-system": "~57.0.6",
+    "expo-font": "~57.0.3",
     "expo-image-manipulator": "~57.0.21",
     "expo-image-picker": "~57.0.20",
     "expo-keep-awake": "~57.0.1",

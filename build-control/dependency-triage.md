@@ -95,6 +95,30 @@ published since 18 October against packages already in the tree. Both are
 build-time (`@expo/cli` and its config tooling). `braces` and `sprintf-js` no
 longer appear. A full re-triage is left for the next dependency pass.
 
+## Added in 0.3.0, 30 October 2026
+
+Two packages for the typeface, Plus Jakarta Sans (Design Baseline v2).
+
+| Package | Version | Why | In the APK | What it brought with it |
+|---|---|---|---|---|
+| `expo-font` | `~57.0.3` (57.0.4 installed) | Loading the bundled font files before the first screen | **Yes** | Nothing new. It was already in the tree under `expo` and `expo-router` at 57.0.3; installing it directly took 57.0.4, the newest in the SDK 57 range, and every copy is now that one. Its Android manifest is empty: no permissions. |
+| `@expo-google-fonts/plus-jakarta-sans` | `^0.4.2` | The font files | **Yes**, five of its fourteen files (400, 500, 600, 700 and 800), each `require`d on its own in `src/theme/fonts.ts` | Nothing: no dependencies, no install scripts, no native code. Font files and a few lines of JavaScript that `require` them. |
+
+**Licence.** The font files are under the **SIL Open Font License 1.1**
+(`LICENSE_FONT` in the package; copyright the Plus Jakarta Sans Project
+Authors); the package's own JavaScript is MIT. The OFL lets the font be
+bundled in an app and shipped; it may not be sold on its own, and a modified
+version may not use the reserved name. Neither applies here.
+
+**Never fetched.** Each file is a `require` of a file in the package, so
+Metro bundles it into the APK as an asset and `expo-font` loads it from
+there. Nothing is downloaded at run time; the app still makes no network calls.
+
+The merged manifest is still `INTERNET` and `CAMERA` and nothing else.
+`npm audit --audit-level=critical` passes. On this date it lists
+`decode-uri-component`, `deepmerge`, `node-forge`, `uuid` and `zod`, as
+in 0.2.2; neither new package adds one.
+
 ## In CI
 
 CI runs `npm audit --audit-level=critical` after installing. A new critical

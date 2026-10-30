@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { FontGate } from '../src/state/FontGate';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { StartupGate } from '../src/state/StartupGate';
 import { StorageProvider } from '../src/state/StorageProvider';
@@ -20,9 +21,18 @@ function logStartup(result: StorageStartupResult): void {
   console.log(describeStartup(result));
 }
 
-/** Every screen waits, inside its own route, for the store to open. */
+/**
+ * Every screen waits, inside its own route, for the bundled fonts (a moment
+ * at most, and only the first time) and for the store to open. Inside the
+ * route rather than around the navigator, which stays mounted from the first
+ * frame so the router can match the launch URL.
+ */
 function gated({ children }: { children: ReactNode }) {
-  return <StartupGate>{children}</StartupGate>;
+  return (
+    <FontGate>
+      <StartupGate>{children}</StartupGate>
+    </FontGate>
+  );
 }
 
 /**

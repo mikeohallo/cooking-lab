@@ -248,6 +248,17 @@ for each one, whether it ships in the app, whether hostile input can reach it,
 and the fix or a dated reason to accept it. CI fails on any critical advisory;
 lower ones are tracked there, so a green badge doesn't mean there are none.
 
+## Typeface
+
+The app is set in **Plus Jakarta Sans** (400, 500, 600, 700 and 800), bundled
+in the APK from `@expo-google-fonts/plus-jakarta-sans` and loaded with
+`expo-font`; it is never fetched at run time. A plain screen shows until it
+has loaded; if it cannot be loaded, the system font is used. Android font
+scaling applies either way. The font is licensed under the
+[SIL Open Font License 1.1](https://openfontlicense.org) (copyright the Plus
+Jakarta Sans Project Authors); see `LICENSE_FONT` in that package and
+[`build-control/dependency-triage.md`](./build-control/dependency-triage.md).
+
 ## Responsive foundations
 
 The Samsung Fold cover display is a first-class target. Layout decisions come

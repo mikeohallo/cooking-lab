@@ -3,6 +3,7 @@ import { StyleSheet, TextInput, View, useWindowDimensions, type TextInputProps }
 
 import { maxTextBoxHeight } from '../layout/footerLimit';
 
+import { fontStyleFor, useFontsReady } from '../theme/fonts';
 import { MIN_TOUCH_TARGET, colors, radius, space, type } from '../theme/tokens';
 import { AppText } from './AppText';
 
@@ -34,6 +35,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   ref,
 ) {
   const { fontScale } = useWindowDimensions();
+  const fontsReady = useFontsReady();
   const lineHeight = type.body.lineHeight ?? 23;
   const minHeight = multiline ? lineHeight * rows + space.md * 2 : MIN_TOUCH_TARGET;
   const capped = multiline && maxRows !== undefined;
@@ -60,6 +62,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         scrollEnabled={capped ? true : input.scrollEnabled}
         style={[
           styles.input,
+          fontsReady ? fontStyleFor(type.body.fontWeight) : null,
           { minHeight },
           maxHeight !== undefined ? { maxHeight } : null,
           invalid && styles.inputInvalid,
