@@ -63,15 +63,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'cooking-lab',
     scheme: 'cookinglab',
     icon,
-    // Slice 3: photos, oven and internal readings, tags and tag search.
+    // 0.2.2: fixes from cooking with 0.2.1 — the cook screen scrolls, edits
+    // keep their history, a cook can be deleted, the screen stays on.
     // Bump `versionCode` with every production build that follows; Android will
     // not update an installed app to the same code.
-    version: '0.2.1',
+    version: '0.2.2',
     orientation: 'default',
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 4,
+      versionCode: 5,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
         // The app's sage, from src/theme/tokens.ts.
