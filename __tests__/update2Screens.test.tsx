@@ -371,6 +371,7 @@ describe('a reviewed cook, and cooking it again', () => {
     expect(within(card).getByText('Alex: 5 stars')).toBeOnTheScreen();
     expect(within(card).getByText('Sam: N/A (didn’t eat it)')).toBeOnTheScreen();
     expect(within(card).getByText('• Half the apricots.')).toBeOnTheScreen();
+    expect(within(card).getByTestId('last-time-meal')).toHaveTextContent('Lunch/Dinner');
     expect(screen.getByTestId('times-cooked')).toHaveTextContent('2nd time cooking this');
     expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Lunch/Dinner');
     await fireEvent.press(within(card).getByTestId('last-time-open'));

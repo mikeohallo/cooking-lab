@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ActionButton } from '../../components/ActionButton';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
+import { MealTypeLabel } from '../../components/MealTypeLabel';
 import {
   INGREDIENTS_SHOW_LESS,
   LAST_TIME,
@@ -107,6 +108,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
       <View style={styles.block}>
         <View style={styles.row}>
           <View style={styles.title}>
+            <MealTypeLabel mealType={lastTime.mealType?.mealType ?? null} testID="last-time-meal" />
             <AppText variant="label" tone="muted" accessibilityRole="header">
               {LAST_TIME}
             </AppText>

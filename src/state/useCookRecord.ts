@@ -35,6 +35,8 @@ export type LastTime = {
   readonly lessonRevisions: readonly LessonRevision[];
   /** Its notes as they now read (the verdict's newest words). */
   readonly notes: string | null;
+  /** Its meal type, for the label above it. */
+  readonly mealType: CookMealType | null;
 };
 
 export type CookRecord = {
@@ -88,12 +90,14 @@ async function loadRecord(data: DataLayer, cookId: CookId): Promise<CookRecordLo
     let lastTime: LastTime | null = null;
     const parent = cook.parentCookId === null ? null : (chain.get(cook.parentCookId) ?? null);
     if (parent !== null) {
-      const [parentRatings, parentLessons, parentLessonEdits, parentRevisions] = await Promise.all([
-        data.ratings.listForCook(parent.id),
-        data.lessons.list({ cookId: parent.id, status: 'approved', sort: 'oldest_first' }),
-        data.lessonRevisions.listForCook(parent.id),
-        data.revisions.listForCook(parent.id),
-      ]);
+      const [parentRatings, parentLessons, parentLessonEdits, parentRevisions, parentMeal] =
+        await Promise.all([
+          data.ratings.listForCook(parent.id),
+          data.lessons.list({ cookId: parent.id, status: 'approved', sort: 'oldest_first' }),
+          data.lessonRevisions.listForCook(parent.id),
+          data.revisions.listForCook(parent.id),
+          data.mealTypes.findForCook(parent.id),
+        ]);
       lastTime = {
         cook: parent,
         ratings: parentRatings,
@@ -103,6 +107,7 @@ async function loadRecord(data: DataLayer, cookId: CookId): Promise<CookRecordLo
           parent.verdict,
           parentRevisions.filter((revision) => revision.field === 'verdict'),
         ).text,
+        mealType: parentMeal,
       };
     }
 
