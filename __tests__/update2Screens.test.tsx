@@ -157,6 +157,16 @@ describe('the Ingredients box', () => {
     expect(screen.getByTestId('screen-footer')).toBeOnTheScreen();
   });
 
+  it('keeps a list typed but not saved when the first note goes in', async () => {
+    await startCook('cook-1', 'Soup');
+    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+    await fireEvent.changeText(await screen.findByTestId('ingredients-input'), 'leeks, potatoes');
+    await fireEvent.changeText(screen.getByTestId('note-input'), 'Leeks sweating.');
+    await fireEvent.press(screen.getByTestId('note-send'));
+    await waitFor(() => expect(screen.getByText('Leeks sweating.')).toBeOnTheScreen());
+    expect(screen.getByTestId('ingredients-input').props.value).toBe('leeks, potatoes');
+  });
+
   it('keeps the earlier list when edited: "edited" opens it', async () => {
     await startCook('cook-1', 'Dal');
     granted(await harness.storage.data.cookRecord.saveIngredients('cook-1', 'red lentils', { id: 'ing-1' }, 'user', harness.tick()));

@@ -78,7 +78,9 @@ export function IngredientsBox({ versions, hasTimeline, open, onSave, onShowVers
   const editorRef = useRef<View>(null);
   const { reveal } = useScreenScroll();
 
-  const showingField = editing || startsAsField;
+  // A list typed but not yet saved stays in its field when the first note
+  // arrives, rather than disappearing with the empty box.
+  const showingField = editing || startsAsField || (open && current === null && draft !== '');
 
   useEffect(() => {
     if (editing) {
