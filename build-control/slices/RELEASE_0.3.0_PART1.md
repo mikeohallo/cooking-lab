@@ -207,7 +207,7 @@ No new packages. No change to `app.config.ts`, the plugins or permissions.
 ## Verification
 
 On the desktop, at the last code commit: `check:secrets`, `typecheck`, `lint`
-and the test suite pass — **65 suites, 1060 tests**, up from 57 and 987 (73
+and the test suite pass — **65 suites, 1061 tests**, up from 57 and 987 (74
 added, 8 new suites). The merged-manifest test (`androidPermissions`) still
 gives `INTERNET` and `CAMERA` and nothing else. CI has not run on these commits
 yet: they had not been pushed when this was written.
@@ -217,7 +217,7 @@ yet: they had not been pushed when this was written.
 | `schemaV4.test.ts` | 8 | 3 → 4 on a notebook with cooks, notes, readings, photos, tags, lessons, edits and a pending deletion: same counts and rows, foreign keys intact, six empty tables, the new rules in SQL, rollback to 3 with nothing lost |
 | `cookRecord.test.ts` | 19 | Rule 13 in the domain; meal type, ingredient versions, ratings, the household, next-time edits and Cook this again on real SQLite; delete and Undo with all of it |
 | `backupV4.test.ts` | 14 | Round trip with all five collections; 1, 2 and 3 still read; the version checks; dangling people and lessons, stars on N/A, duplicates |
-| `update2Screens.test.tsx` | 13 | Chips and labels, the Ingredients box and its folding, the review's order, the household prompt, star buttons, N/A, lines, guests, a reviewed cook's ratings and next time, Cook this again and *Last time*, Who's eating |
+| `update2Screens.test.tsx` | 14 | Chips and labels, the Ingredients box, its folding and an unsaved list kept, the review's order, the household prompt, star buttons, N/A, lines, guests, a reviewed cook's ratings and next time, Cook this again and *Last time*, Who's eating |
 | `historyFilters.test.ts` | 10 | Meal type, Who & stars (N/A never), the people offered, search over ingredients |
 | `historyFiltersScreen.test.tsx` | 3 | The same on History: ingredients found, meal-type chips, Who & stars with search |
 | `exportUpdate2.test.tsx` | 1 | The text export's meal type, ingredients, ratings (N/A, guest) and next time |
