@@ -200,3 +200,91 @@ export function containsBytes(haystack: Uint8Array, needle: readonly number[]): 
 
 /** The `APP0` marker, for a test that wants to name it. */
 export const JFIF_MARKER = APP0;
+
+/**
+ * An EXIF `APP1` payload with when the picture was taken *and* where (0.2.2).
+ *
+ * The same invented London coordinates as above, plus an EXIF directory with
+ * `DateTimeOriginal` and, when given, `OffsetTimeOriginal`. Laid out so the
+ * GPS block comes after the time, which a reader would have to walk past if it
+ * went looking for a place — `src/data/photos/takenTime.ts` never does.
+ *
+ *   0   TIFF header
+ *   8   IFD0 — the EXIF pointer (0x8769) and the GPS pointer (0x8825)
+ *   38  EXIF IFD — the taken time, and its offset when there is one
+ *   …   the two strings, then the GPS IFD and its values
+ */
+function exifWithTakenTimeAndGps(dateTime: string, offset: string | null): number[] {
+  const ifd0Offset = 8;
+  const ifd0Size = 2 + 2 * 12 + 4;
+  const exifIfdOffset = ifd0Offset + ifd0Size;
+  const exifEntries = offset === null ? 1 : 2;
+  const exifIfdSize = 2 + exifEntries * 12 + 4;
+  const dateTimeOffset = exifIfdOffset + exifIfdSize;
+  const dateTimeBytes = ascii(`${dateTime}\u0000`);
+  const offsetOffset = dateTimeOffset + dateTimeBytes.length;
+  const offsetBytes = offset === null ? [] : ascii(`${offset}\u0000`);
+  const gpsIfdOffset = offsetOffset + offsetBytes.length;
+  const gpsIfdSize = 2 + 4 * 12 + 4;
+  const latitudeOffset = gpsIfdOffset + gpsIfdSize;
+  const longitudeOffset = latitudeOffset + 24;
+
+  const header = [...ascii('II'), ...u16(42), ...u32(ifd0Offset)];
+  const ifd0 = [
+    ...u16(2),
+    ...ifdEntry(0x8769, TIFF_TYPE_LONG, 1, u32(exifIfdOffset)),
+    ...ifdEntry(0x8825, TIFF_TYPE_LONG, 1, u32(gpsIfdOffset)),
+    ...u32(0),
+  ];
+  const exifIfd = [
+    ...u16(exifEntries),
+    // 0x9003 DateTimeOriginal, 0x9011 OffsetTimeOriginal.
+    ...ifdEntry(0x9003, TIFF_TYPE_ASCII, dateTimeBytes.length, u32(dateTimeOffset)),
+    ...(offset === null
+      ? []
+      : ifdEntry(0x9011, TIFF_TYPE_ASCII, offsetBytes.length, u32(offsetOffset))),
+    ...u32(0),
+  ];
+  const gpsIfd = [
+    ...u16(4),
+    ...ifdEntry(0x0001, TIFF_TYPE_ASCII, 2, ascii('N\u0000')),
+    ...ifdEntry(0x0002, TIFF_TYPE_RATIONAL, 3, u32(latitudeOffset)),
+    ...ifdEntry(0x0003, TIFF_TYPE_ASCII, 2, ascii('W\u0000')),
+    ...ifdEntry(0x0004, TIFF_TYPE_RATIONAL, 3, u32(longitudeOffset)),
+    ...u32(0),
+  ];
+  const latitude = [
+    ...rational(FIXTURE_LATITUDE_DEGREES, 1),
+    ...rational(FIXTURE_LATITUDE_MINUTES, 1),
+    ...rational(0, 1),
+  ];
+  const longitude = [...rational(0, 1), ...rational(FIXTURE_LONGITUDE_MINUTES, 1), ...rational(0, 1)];
+
+  return [
+    ...ascii('Exif\u0000\u0000'),
+    ...header,
+    ...ifd0,
+    ...exifIfd,
+    ...dateTimeBytes,
+    ...offsetBytes,
+    ...gpsIfd,
+    ...latitude,
+    ...longitude,
+  ];
+}
+
+/**
+ * The same picture, carrying when it was taken and where.
+ *
+ * `dateTime` is written as a camera writes it, `YYYY:MM:DD HH:MM:SS`, and
+ * `offset` as `+HH:MM`, or left out.
+ */
+export function jpegWithTakenTimeAndGps(dateTime: string, offset: string | null): Uint8Array {
+  const clean = sageSquareJpeg();
+  const inserted = segment(APP1, exifWithTakenTimeAndGps(dateTime, offset));
+  const out = new Uint8Array(clean.length + inserted.length);
+  out.set(clean.subarray(0, 2), 0);
+  out.set(inserted, 2);
+  out.set(clean.subarray(2), 2 + inserted.length);
+  return out;
+}

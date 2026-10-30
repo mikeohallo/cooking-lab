@@ -218,6 +218,15 @@ export type PhotoSourceOutcome =
 export type PhotoSource = {
   takePhoto(): Promise<PhotoSourceOutcome>;
   choosePhoto(): Promise<PhotoSourceOutcome>;
+  /**
+   * The original bytes of a picture chosen from the Gallery, before anything
+   * has re-encoded or stripped them, or `null` if they cannot be read (0.2.2).
+   *
+   * Read for one purpose: when the picture was taken (`../photos/takenTime.ts`
+   * reads the date and time and nothing else). The bytes are dropped as soon
+   * as that is done and are never stored.
+   */
+  readOriginal?(image: CapturedImage): Promise<Uint8Array | null>;
 };
 
 /** A JPEG as bytes, with the size it came out at. */

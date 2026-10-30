@@ -30,6 +30,7 @@
  * Nothing is written to the Gallery from here. There is no call that could.
  */
 
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 
 import type { CapturedImage, PhotoSource, PhotoSourceOutcome } from '../adapters';
@@ -99,6 +100,24 @@ export const expoPhotoSource: PhotoSource = {
       return firstImage(await ImagePicker.launchImageLibraryAsync(PICK_ONE_IMAGE));
     } catch (cause: unknown) {
       return failure(cause);
+    }
+  },
+
+  /**
+   * The picked file's own bytes, so `../photos/takenTime.ts` can read when it
+   * was taken before the re-encode strips it (0.2.2).
+   *
+   * `exif: false` above still holds: the picker hands JavaScript no EXIF
+   * dictionary, and so no coordinates. These bytes are the file the picker
+   * already handed over, read once, searched for a date and a time, and
+   * dropped. Reading them needs no permission — the picker's copy is the app's
+   * to read. If they cannot be read the photo simply goes in at the time added.
+   */
+  async readOriginal(image: CapturedImage): Promise<Uint8Array | null> {
+    try {
+      return await new File(image.uri).bytes();
+    } catch {
+      return null;
     }
   },
 };

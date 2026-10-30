@@ -15,6 +15,13 @@
  *   5. Write the file.
  *   6. Write the timeline entry, through the capture service, as the cook.
  *
+ * Between 1 and 2, for a picture from the Gallery only (0.2.2): read when it
+ * was taken, from its own EXIF, before step 2 or 3 can strip it — the date and
+ * time, never the place (`./takenTime.ts`). Step 6 then puts the entry at that
+ * time if it is believable for this cook, and at the time added otherwise
+ * (`src/domain/photoTime.ts`). A camera photograph is taken as it is added and
+ * goes in exactly as before.
+ *
  * Steps 5 and 6 are in that order because the entry is what makes the photo
  * part of the cook. If the file cannot be written there is no entry and the
  * timeline is untouched; if the entry cannot be written the file is deleted
@@ -31,16 +38,19 @@
  */
 
 import type {
+  CapturedImage,
   PhotoEncoder,
   PhotoOrigin,
   PhotoSource,
   PrivateFileStore,
 } from '../adapters';
-import type { CookEvent, CookEventId, CookId, IsoTimestamp } from '../../domain/entities';
+import type { CookEvent, CookEventId, CookId, IsoTimestamp, JsonObject } from '../../domain/entities';
 import type { DataLayer } from '../repositories';
 import { PrivateFileError } from '../files/privateFileStore';
 import { buildPhotoLogicalPath, MAX_PHOTO_SEQUENCE } from './photoPaths';
 import { looksLikeJpeg, stripJpegMetadata } from './jpeg';
+import { readJpegTakenTime, takenTimeToInstant } from './takenTime';
+import { placeGalleryPhoto } from '../../domain/photoTime';
 
 /**
  * The longest edge a stored photograph may have.
@@ -122,6 +132,26 @@ export function createPhotoService(deps: PhotoServiceDependencies): PhotoService
     throw new Error('there are already too many photos stored for this moment');
   }
 
+  /**
+   * When a Gallery picture was taken, as an instant, or `null`. Never throws:
+   * a picture whose time cannot be read simply goes in at the time added.
+   */
+  async function takenAtOf(image: CapturedImage): Promise<IsoTimestamp | null> {
+    if (source.readOriginal === undefined) {
+      return null;
+    }
+    try {
+      const original = await source.readOriginal(image);
+      if (original === null) {
+        return null;
+      }
+      const taken = readJpegTakenTime(original);
+      return taken === null ? null : takenTimeToInstant(taken);
+    } catch {
+      return null;
+    }
+  }
+
   return {
     async add(cookId: CookId, origin: PhotoOrigin): Promise<PhotoAddOutcome> {
       let storedPath: string | null = null;
@@ -131,6 +161,9 @@ export function createPhotoService(deps: PhotoServiceDependencies): PhotoService
         if (picked.status !== 'captured') {
           return picked;
         }
+
+        // Before anything re-encodes or strips it: when it was taken.
+        const takenAt = origin === 'library' ? await takenAtOf(picked.image) : null;
 
         const encoded = await encoder.encodeJpeg(picked.image, MAX_PHOTO_LONG_EDGE);
         if (!looksLikeJpeg(encoded.bytes)) {
@@ -146,13 +179,28 @@ export function createPhotoService(deps: PhotoServiceDependencies): PhotoService
 
         const eventId = newId();
         const at = now();
+
+        // Where it goes in the timeline. A Gallery picture may go in at the
+        // time it was taken; a camera picture goes in now, as it always has.
+        let ts = at;
+        let meta: JsonObject | null = null;
+        if (origin === 'library') {
+          const cook = await data.cooks.findById(cookId);
+          if (cook === null) {
+            return { status: 'failed', message: 'that cook is not here any more, so nothing was saved' };
+          }
+          const placement = placeGalleryPhoto(takenAt, at, cook.startedAt);
+          ts = placement.ts;
+          meta = placement.meta;
+        }
+
         const logicalPath = await freePathFor(cookId, eventId, at);
 
         await photos.write(logicalPath, cleaned.bytes);
         storedPath = logicalPath;
 
         const decision = await data.capture.addEvent(
-          { id: eventId, cookId, ts: at, kind: 'photo', photoPath: logicalPath },
+          { id: eventId, cookId, ts, kind: 'photo', photoPath: logicalPath, meta },
           'user',
         );
         if (!decision.allowed) {
