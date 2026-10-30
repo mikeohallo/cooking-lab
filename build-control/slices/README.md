@@ -56,6 +56,8 @@ a report checks, before anyone else sees it:
 | 2b | Production signing: Cooking Lab's own release key, the production build signed with it and installed on the Fold beside the TEST app | **Done** 16 Oct — `reports/2026-10-16-slice2b-production-signing.md`; first live cooks are next |
 | 3 | Photos in the timeline — and, with them, oven/internal readings, tags and tag search, which turned out to be the same question: what else is worth writing down while the pan is on, and how is it found again | **Built** — `SLICE_3_PHOTOS_READINGS_TAGS.md` |
 | 0.2.2 | Fixes from cooking with 0.2.1: the cook screen scrolls, tag suggestions above the keyboard, delete a cook with Undo, edit notes and the verdict with every earlier version kept, the screen stays on during a cook, Gallery photos at the time they were taken | **Built** 30 Oct, not yet on a device — `RELEASE_0.2.2_FIXES.md` |
+| 0.3.0 part 1 | Update 2's data and behaviour: schema 4 (meal type, ingredients with every version kept, the household, ratings with N/A and guests), the review's "Who ate it?", Cook this again with *Last time*, History's ingredient search and meal-type and Who & stars filters, N3 and the ⋯ fix, backup format 4 | **Built** 30 Oct, not yet on a device, version unchanged until part 2 — `RELEASE_0.3.0_PART1.md` |
+| 0.3.0 part 2 | Update 2's look: Home as History with pages, two panes on the inner display, the meal-type colours; version 0.3.0, `versionCode` 6 | Planned |
 | 4 | Real AI: extraction and proposals via the Anthropic API from the device, API key in the secure store | Planned |
 | 5 | Cook Again briefings | Planned |
 
