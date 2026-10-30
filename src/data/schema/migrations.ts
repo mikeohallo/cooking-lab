@@ -354,6 +354,133 @@ INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
 
+// ---------------------------------------------------------------------------
+// Version 4 — meal type, ingredients, the household and their ratings (0.3.0)
+// ---------------------------------------------------------------------------
+//
+// Six new tables and nothing else, for the same reason as version 3: no
+// existing table is rebuilt, altered or written to, so every row already on
+// the phone is byte for byte what it was. Every cook starts with no meal type,
+// no ingredients and no ratings, which is the truth; nothing is guessed.
+//
+// `cook_meal_types` holds a cook's meal type when it has one. A cook with none
+// has no row — `none` is never written down, as a reading's kind is not.
+//
+// `ingredient_versions` is append-only: a saved change to a cook's ingredients
+// is a new row, and the newest is the list as it now stands.
+//
+// `household_members` is who usually eats, in order. A member is retired, not
+// deleted, so a rating keeps the person it came from: `ratings.member_id` is
+// ON DELETE RESTRICT, and nothing deletes a member.
+//
+// `ratings` is one person's answer about one cook: whole stars, or "didn't eat
+// it" (`not_eaten`), and an optional line. The person is a member or a guest
+// named for that cook only, never both. A row always says something.
+//
+// `lesson_revisions` holds edits of a next-time line, as `revisions` holds
+// edits of a note; `revisions.field` is frozen with version 3.
+//
+// `app_settings` is the app's own memory of small things — whether the
+// household question has been asked. It is not the cook's record and is not
+// in a backup.
+//
+// Every table that belongs to a cook cascades from `cooks`, so deleting a cook
+// (0.2.2's purge) takes its meal type, ingredients, ratings and next-time
+// edits with it, and Undo — which touches nothing — restores them exactly.
+
+const V4_CREATE_COOK_MEAL_TYPES = `
+CREATE TABLE cook_meal_types (
+  cook_id   TEXT PRIMARY KEY NOT NULL
+            REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  meal_type TEXT NOT NULL CHECK (meal_type IN ('breakfast','lunch_dinner','dessert','snack')),
+  set_at    TEXT NOT NULL
+)`.trim();
+
+const V4_CREATE_INGREDIENT_VERSIONS = `
+CREATE TABLE ingredient_versions (
+  id       TEXT PRIMARY KEY NOT NULL,
+  cook_id  TEXT NOT NULL
+           REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  text     TEXT NOT NULL,
+  saved_at TEXT NOT NULL
+)`.trim();
+
+const V4_INDEX_INGREDIENT_VERSIONS =
+  'CREATE INDEX ix_ingredient_versions_cook ON ingredient_versions (cook_id, saved_at)';
+
+const V4_CREATE_HOUSEHOLD_MEMBERS = `
+CREATE TABLE household_members (
+  id         TEXT PRIMARY KEY NOT NULL,
+  name       TEXT NOT NULL,
+  position   INTEGER NOT NULL CHECK (position >= 0),
+  retired_at TEXT,
+  created_at TEXT NOT NULL
+)`.trim();
+
+// Two people who eat here now cannot share a name, or a filter by person
+// could not tell them apart. A retired name may come back.
+const V4_INDEX_HOUSEHOLD_NAME = `
+CREATE UNIQUE INDEX ux_household_members_name ON household_members (name COLLATE NOCASE)
+WHERE retired_at IS NULL`.trim();
+
+const V4_CREATE_RATINGS = `
+CREATE TABLE ratings (
+  id         TEXT PRIMARY KEY NOT NULL,
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  member_id  TEXT
+             REFERENCES household_members(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  guest_name TEXT,
+  stars      INTEGER CHECK (stars IS NULL OR stars IN (1,2,3,4,5)),
+  not_eaten  INTEGER NOT NULL CHECK (not_eaten IN (0,1)),
+  line       TEXT,
+  rated_at   TEXT NOT NULL,
+  CHECK ((member_id IS NULL AND guest_name IS NOT NULL)
+      OR (member_id IS NOT NULL AND guest_name IS NULL)),
+  CHECK (not_eaten = 0 OR stars IS NULL),
+  CHECK (stars IS NOT NULL OR not_eaten = 1 OR line IS NOT NULL)
+)`.trim();
+
+const V4_INDEX_RATINGS_MEMBER_UNIQUE = `
+CREATE UNIQUE INDEX ux_ratings_cook_member ON ratings (cook_id, member_id)
+WHERE member_id IS NOT NULL`.trim();
+
+const V4_INDEX_RATINGS_GUEST_UNIQUE = `
+CREATE UNIQUE INDEX ux_ratings_cook_guest ON ratings (cook_id, guest_name COLLATE NOCASE)
+WHERE guest_name IS NOT NULL`.trim();
+
+const V4_INDEX_RATINGS_MEMBER = 'CREATE INDEX ix_ratings_member ON ratings (member_id)';
+
+const V4_CREATE_LESSON_REVISIONS = `
+CREATE TABLE lesson_revisions (
+  id         TEXT PRIMARY KEY NOT NULL,
+  lesson_id  TEXT NOT NULL
+             REFERENCES lessons(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  cook_id    TEXT NOT NULL
+             REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  text       TEXT NOT NULL,
+  revised_at TEXT NOT NULL
+)`.trim();
+
+const V4_INDEX_LESSON_REVISIONS =
+  'CREATE INDEX ix_lesson_revisions_lesson ON lesson_revisions (lesson_id, revised_at)';
+
+const V4_CREATE_APP_SETTINGS = `
+CREATE TABLE app_settings (
+  key   TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL
+)`.trim();
+
+const V4_STAMP_SCHEMA_VERSION = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '4')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
+const V4_STAMP_APPLIED_AT = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
 const V2_STAMP_SCHEMA_VERSION = `
 INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_VERSION_KEY}', '2')
@@ -394,6 +521,10 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
  * Version 3 adds `revisions`, where an edited note or verdict keeps every
  * version of its words, and `cook_deletions`, which holds a deleted cook for
  * its undo window. It changes no existing table.
+ *
+ * Version 4 adds a cook's meal type, its ingredients (every version kept), the
+ * household, their ratings, edits of a next-time line and the app's own
+ * settings. It changes no existing table either.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -450,6 +581,26 @@ export const MIGRATIONS: readonly Migration[] = [
       V3_STAMP_APPLIED_AT,
     ],
   },
+  {
+    version: 4,
+    name: 'meal_type_ingredients_household_ratings',
+    statements: [
+      V4_CREATE_COOK_MEAL_TYPES,
+      V4_CREATE_INGREDIENT_VERSIONS,
+      V4_INDEX_INGREDIENT_VERSIONS,
+      V4_CREATE_HOUSEHOLD_MEMBERS,
+      V4_INDEX_HOUSEHOLD_NAME,
+      V4_CREATE_RATINGS,
+      V4_INDEX_RATINGS_MEMBER_UNIQUE,
+      V4_INDEX_RATINGS_GUEST_UNIQUE,
+      V4_INDEX_RATINGS_MEMBER,
+      V4_CREATE_LESSON_REVISIONS,
+      V4_INDEX_LESSON_REVISIONS,
+      V4_CREATE_APP_SETTINGS,
+      V4_STAMP_SCHEMA_VERSION,
+      V4_STAMP_APPLIED_AT,
+    ],
+  },
 ];
 
 /** The version a fully migrated database reports. */
@@ -473,6 +624,12 @@ export const SCHEMA_TABLES: readonly string[] = [
   'import_batches',
   'revisions',
   'cook_deletions',
+  'cook_meal_types',
+  'ingredient_versions',
+  'household_members',
+  'ratings',
+  'lesson_revisions',
+  'app_settings',
 ];
 
 export type MigrationDefect = {

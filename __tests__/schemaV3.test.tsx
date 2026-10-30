@@ -34,8 +34,20 @@ import { StorageProvider } from '../src/state/StorageProvider';
 import { createNodeSqliteHarness } from './support/nodeSqlite';
 
 const UP_TO_V2: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 2);
+// Version 4 (0.3.0) follows on in a real start; this file is about 2 → 3, and
+// `schemaV4.test.ts` covers 3 → 4.
+const UP_TO_V3: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 3);
+const V4_TABLES: readonly string[] = [
+  'cook_meal_types',
+  'ingredient_versions',
+  'household_members',
+  'ratings',
+  'lesson_revisions',
+  'app_settings',
+];
+const V3_TABLES = SCHEMA_TABLES.filter((table) => !V4_TABLES.includes(table));
 const V3 = MIGRATIONS.find((entry) => entry.version === 3);
-const V2_TABLES = SCHEMA_TABLES.filter(
+const V2_TABLES = V3_TABLES.filter(
   (table) => table !== 'revisions' && table !== 'cook_deletions',
 );
 const AT = '2026-10-29T18:00:00.000Z';
@@ -141,18 +153,20 @@ describe('version 2 to version 3, with a notebook in it', () => {
   });
 
   it('applies version 3 only, and lands at the latest version', async () => {
-    const result = await runMigrations(opened.adapter);
+    const result = await runMigrations(opened.adapter, UP_TO_V3);
 
     expect(result.applied).toEqual([3]);
-    expect(LATEST_SCHEMA_VERSION).toBe(3);
     expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(3);
+    // And a real start carries straight on to the latest.
+    expect((await runMigrations(opened.adapter)).applied).toEqual([4]);
+    expect(LATEST_SCHEMA_VERSION).toBe(4);
   });
 
   it('keeps the same row counts and the same content, byte for byte', async () => {
     const countsBefore = await census(opened.adapter);
     const rowsBefore = await everything(opened.adapter);
 
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V3);
 
     expect(await census(opened.adapter)).toEqual(countsBefore);
     expect(await everything(opened.adapter)).toEqual(rowsBefore);
@@ -164,9 +178,9 @@ describe('version 2 to version 3, with a notebook in it', () => {
   });
 
   it('adds its two tables, empty, and nothing else', async () => {
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V3);
 
-    expect([...(await listTables(opened.adapter))].sort()).toEqual([...SCHEMA_TABLES].sort());
+    expect([...(await listTables(opened.adapter))].sort()).toEqual([...V3_TABLES].sort());
     for (const table of ['revisions', 'cook_deletions']) {
       const [row] = await opened.adapter.select({ sql: `SELECT count(*) AS total FROM ${table}` });
       expect(Number(row?.total)).toBe(0);
@@ -174,7 +188,7 @@ describe('version 2 to version 3, with a notebook in it', () => {
   });
 
   it('leaves every foreign key intact', async () => {
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V3);
 
     expect(await opened.adapter.select({ sql: 'PRAGMA foreign_key_check' })).toEqual([]);
     // And the new tables are tied in: an edit of a note that is not there is refused.

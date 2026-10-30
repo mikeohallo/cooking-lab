@@ -22,14 +22,19 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookMealType,
   CookTag,
   EntityId,
   Finding,
   FindingSource,
+  HouseholdMember,
   ImportBatch,
+  IngredientVersion,
   IsoTimestamp,
   JsonValue,
   Lesson,
+  LessonRevision,
+  Rating,
   Revision,
   SchemaMeta,
   Tag,
@@ -47,6 +52,8 @@ import {
   isProposalStatus,
   isProvenance,
   isRevisedField,
+  isStars,
+  isStoredMealType,
   isStoredReadingKind,
   isTagKind,
 } from './enums';
@@ -69,6 +76,10 @@ export const MAX_TAG_NAME_LENGTH = 60;
 export const MAX_TAG_ENTRY_LENGTH = 40;
 /** Longest permitted file name on an import batch. */
 export const MAX_FILENAME_LENGTH = 255;
+/** Longest name for someone who eats: a household member or a guest (0.3.0). */
+export const MAX_PERSON_NAME_LENGTH = 40;
+/** Longest "add a line" under a rating: a short line, not a review (0.3.0). */
+export const MAX_RATING_LINE_LENGTH = 200;
 
 export type ValidationCode =
   | 'invalid_id'
@@ -624,5 +635,79 @@ export function validateSchemaMeta(meta: SchemaMeta): readonly ValidationIssue[]
   checkRequiredText('key', meta.key, MAX_TITLE_LENGTH, issues);
   checkRequiredText('value', meta.value, MAX_TEXT_LENGTH, issues);
 
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// Update 2 (schema version 4)
+// ---------------------------------------------------------------------------
+
+export function validateCookMealType(row: CookMealType): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('cookId', row.cookId, issues);
+  checkEnum('mealType', row.mealType, isStoredMealType, issues);
+  checkTimestamp('setAt', row.setAt, issues);
+  return issues;
+}
+
+export function validateIngredientVersion(version: IngredientVersion): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('id', version.id, issues);
+  checkId('cookId', version.cookId, issues);
+  checkRequiredText('text', version.text, MAX_TEXT_LENGTH, issues);
+  checkTimestamp('savedAt', version.savedAt, issues);
+  return issues;
+}
+
+export function validateHouseholdMember(member: HouseholdMember): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('id', member.id, issues);
+  checkRequiredText('name', member.name, MAX_PERSON_NAME_LENGTH, issues);
+  if (!Number.isInteger(member.position) || member.position < 0) {
+    issues.push(issue('position', 'invalid_number', 'position must be a non-negative integer'));
+  }
+  checkOptionalTimestamp('retiredAt', member.retiredAt, issues);
+  checkTimestamp('createdAt', member.createdAt, issues);
+  return issues;
+}
+
+export function validateRating(rating: Rating): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('id', rating.id, issues);
+  checkId('cookId', rating.cookId, issues);
+  checkOptionalId('memberId', rating.memberId, issues);
+  checkOptionalText('guestName', rating.guestName, MAX_PERSON_NAME_LENGTH, issues);
+  if ((rating.memberId === null) === (rating.guestName === null)) {
+    issues.push(
+      issue('memberId', 'inconsistent_state', 'a rating is from a household member or a guest, not both'),
+    );
+  }
+  if (typeof rating.guestName === 'string' && rating.guestName.trim() === '') {
+    issues.push(issue('guestName', 'required', 'a guest must be named'));
+  }
+  if (rating.stars !== null && !isStars(rating.stars)) {
+    issues.push(issue('stars', 'invalid_number', 'stars must be a whole number from 1 to 5, or null'));
+  }
+  if (typeof rating.notEaten !== 'boolean') {
+    issues.push(issue('notEaten', 'required', 'notEaten must be true or false'));
+  }
+  if (rating.notEaten === true && rating.stars !== null) {
+    issues.push(issue('stars', 'inconsistent_state', 'someone who did not eat it gives no stars'));
+  }
+  checkOptionalText('line', rating.line, MAX_RATING_LINE_LENGTH, issues);
+  if (rating.stars === null && rating.notEaten !== true && rating.line === null) {
+    issues.push(issue('stars', 'required', 'a rating must say something'));
+  }
+  checkTimestamp('ratedAt', rating.ratedAt, issues);
+  return issues;
+}
+
+export function validateLessonRevision(revision: LessonRevision): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('id', revision.id, issues);
+  checkId('lessonId', revision.lessonId, issues);
+  checkId('cookId', revision.cookId, issues);
+  checkRequiredText('text', revision.text, MAX_TEXT_LENGTH, issues);
+  checkTimestamp('revisedAt', revision.revisedAt, issues);
   return issues;
 }

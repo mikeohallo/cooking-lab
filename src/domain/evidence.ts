@@ -46,6 +46,12 @@
  *      screen and offered back for a few seconds with Undo; it is not a
  *      relaxation of rule 10, which still governs a cook that is being kept.
  *      The assistant may delete nothing.
+ *  13. The cook's own judgements are the cook's (0.3.0). A cook's meal type,
+ *      its ingredients, who ate it and what they thought, the next-time line
+ *      and starting it again are all written by the cook and never by the
+ *      assistant. Ingredients and next-time lines keep every earlier version,
+ *      as rule 11 keeps a note's. A rating is a current answer, changed in
+ *      place, and "didn't eat it" is never a number.
  *
  * `provenance` never appears in any of this. It records whether a row came from
  * live cooking or an import, and it is not a way of saying who wrote something.
@@ -60,14 +66,20 @@ import type {
   CookEvent,
   CookEventId,
   CookId,
+  CookMealType,
   Finding,
   FindingId,
   FindingSource,
+  HouseholdMemberId,
+  IngredientVersion,
   IsoTimestamp,
   JsonValue,
   Lesson,
   LessonId,
+  LessonRevision,
   PhotoLogicalPath,
+  Rating,
+  RatingId,
   Revision,
   RevisionId,
 } from './entities';
@@ -76,10 +88,18 @@ import type {
   CookEventKind,
   CreatedBy,
   FindingClass,
+  MealType,
   ProposalStatus,
   Provenance,
+  Stars,
 } from './enums';
-import { isEntityId } from './invariants';
+import { isStars, isStoredMealType } from './enums';
+import {
+  MAX_PERSON_NAME_LENGTH,
+  MAX_RATING_LINE_LENGTH,
+  MAX_TEXT_LENGTH,
+  isEntityId,
+} from './invariants';
 
 /** Who is attempting the operation. There are only ever two actors. */
 export type Actor = CreatedBy;
@@ -118,7 +138,15 @@ export type EvidenceDenialCode =
   /** Rule 11: an edit with no words in it. */
   | 'revision_needs_words'
   /** Rule 12: the assistant tried to delete a cook. */
-  | 'ai_cannot_delete_a_cook';
+  | 'ai_cannot_delete_a_cook'
+  /** Rule 13: a save that would change nothing. */
+  | 'nothing_changed'
+  /** Rule 13: a rating that is not one person's whole stars or N/A. */
+  | 'rating_not_valid'
+  /** Rule 13: only a next-time line the cook approved can be edited by them. */
+  | 'only_an_approved_lesson_may_be_reworded'
+  /** The household: a name that is blank, too long or already on the list. */
+  | 'name_not_valid';
 
 export type EvidenceDenial = {
   readonly allowed: false;
@@ -517,6 +545,197 @@ export function deleteCook(cook: Cook, actor: Actor): EvidenceDecision<Cook> {
     return deny('ai_cannot_delete_a_cook', 'the assistant cannot delete a cook');
   }
   return allow(cook);
+}
+
+// ---------------------------------------------------------------------------
+// Rule 13 — meal type, ingredients, ratings, next time and cooking it again
+// ---------------------------------------------------------------------------
+
+/**
+ * Set or clear a cook's meal type.
+ *
+ * `none` clears it: the decision is `null`, and the caller removes the row.
+ * Any cook, open or reviewed.
+ */
+export function setMealType(
+  cook: Cook,
+  mealType: MealType,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<CookMealType | null> {
+  const denial = denyIfNotUser(actor, 'a meal type');
+  if (denial) {
+    return denial;
+  }
+  if (mealType === 'none') {
+    return allow(null);
+  }
+  if (!isStoredMealType(mealType)) {
+    return deny('nothing_changed', 'that is not a meal type');
+  }
+  return allow({ cookId: cook.id, mealType, setAt: at });
+}
+
+export type IngredientIdentity = { readonly id: string };
+
+/**
+ * Save a cook's ingredients as a new version.
+ *
+ * Never an overwrite: the earlier versions stay, and the newest is the list.
+ * Stored exactly as typed or pasted. A save needs words, and a save that is
+ * the same as the list already there is refused as changing nothing.
+ */
+export function saveIngredients(
+  cook: Cook,
+  text: string,
+  current: string | null,
+  identity: IngredientIdentity,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<IngredientVersion> {
+  const denial = denyIfNotUser(actor, 'ingredients');
+  if (denial) {
+    return denial;
+  }
+  const empty = deniedWords(text);
+  if (empty) {
+    return empty;
+  }
+  if (text.length > MAX_TEXT_LENGTH) {
+    return deny('revision_needs_words', `keep the ingredients under ${MAX_TEXT_LENGTH} characters`);
+  }
+  if (current !== null && text === current) {
+    return deny('nothing_changed', 'the ingredients are already exactly this');
+  }
+  return allow({ id: identity.id, cookId: cook.id, text, savedAt: at });
+}
+
+/** Who a rating is from: a household member, or a guest named for this cook. */
+export type RatingPerson =
+  | { readonly memberId: HouseholdMemberId; readonly guestName?: undefined }
+  | { readonly memberId?: undefined; readonly guestName: string };
+
+export type RatingAnswer = {
+  readonly stars: number | null;
+  readonly notEaten: boolean;
+  readonly line: string | null;
+};
+
+/**
+ * One person's answer about a cook: whole stars, or N/A, and a line.
+ *
+ * Returns `null` when the answer says nothing at all — no stars, not N/A, no
+ * line — which the caller takes as "remove this person's rating". A guest's
+ * name and a line are trimmed of the spaces around them; a blank line is no
+ * line. N/A and stars together are refused: a person who did not eat it gave
+ * it no stars, and N/A is never counted as one.
+ */
+export function rateCook(
+  cook: Cook,
+  person: RatingPerson,
+  answer: RatingAnswer,
+  identity: { readonly id: RatingId },
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<Rating | null> {
+  const denial = denyIfNotUser(actor, 'a rating');
+  if (denial) {
+    return denial;
+  }
+  const memberId = person.memberId ?? null;
+  const guestName = person.guestName === undefined ? null : person.guestName.trim();
+  if ((memberId === null) === (guestName === null) || guestName === '') {
+    return deny(
+      'rating_not_valid',
+      'a rating is from one person: someone in the household, or a named guest',
+    );
+  }
+  if (guestName !== null && guestName.length > MAX_PERSON_NAME_LENGTH) {
+    return deny('rating_not_valid', `keep a name under ${MAX_PERSON_NAME_LENGTH} characters`);
+  }
+  if (answer.stars !== null && !isStars(answer.stars)) {
+    return deny('rating_not_valid', 'a rating is one to five whole stars');
+  }
+  if (answer.notEaten && answer.stars !== null) {
+    return deny('rating_not_valid', 'someone who did not eat it gives it no stars');
+  }
+  const line = answer.line === null || answer.line.trim() === '' ? null : answer.line.trim();
+  if (line !== null && line.length > MAX_RATING_LINE_LENGTH) {
+    return deny('rating_not_valid', `keep the line under ${MAX_RATING_LINE_LENGTH} characters`);
+  }
+  if (answer.stars === null && !answer.notEaten && line === null) {
+    return allow(null);
+  }
+  return allow({
+    id: identity.id,
+    cookId: cook.id,
+    memberId,
+    guestName,
+    stars: answer.stars as Stars | null,
+    notEaten: answer.notEaten,
+    line,
+    ratedAt: at,
+  });
+}
+
+/**
+ * Reword a next-time line: a new version beside it, as for a note.
+ *
+ * Only a lesson the cook has approved — which is every next-time line they
+ * wrote. A proposal is the assistant's and is decided, not reworded here.
+ */
+export function reviseLesson(
+  lesson: Lesson,
+  text: string,
+  identity: { readonly id: string },
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<LessonRevision> {
+  const denial = denyIfNotUser(actor, 'a next-time line');
+  if (denial) {
+    return denial;
+  }
+  if (lesson.status !== 'approved') {
+    return deny(
+      'only_an_approved_lesson_may_be_reworded',
+      'only a next-time line you wrote or approved can be edited',
+    );
+  }
+  const empty = deniedWords(text);
+  if (empty) {
+    return empty;
+  }
+  return allow({
+    id: identity.id,
+    lessonId: lesson.id,
+    cookId: lesson.cookId,
+    text,
+    revisedAt: at,
+  });
+}
+
+/**
+ * Start a new open cook from an earlier one ("Cook this again").
+ *
+ * The new cook has the same title and points back at the earlier one; the
+ * caller copies the tags, the meal type and the current ingredients. Nothing
+ * about the earlier cook changes.
+ */
+export function cookAgain(
+  source: Cook,
+  identity: { readonly id: CookId },
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<Cook> {
+  const denial = denyIfNotUser(actor, 'a cook');
+  if (denial) {
+    return denial;
+  }
+  return createCook(
+    { id: identity.id, title: source.title, parentCookId: source.id, startedAt: at },
+    actor,
+    at,
+  );
 }
 
 // ---------------------------------------------------------------------------

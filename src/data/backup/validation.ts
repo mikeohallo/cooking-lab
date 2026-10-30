@@ -23,13 +23,18 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookMealType,
   CookTag,
   DatabaseSnapshot,
   Finding,
   FindingSource,
+  HouseholdMember,
   ImportBatch,
+  IngredientVersion,
   IsoTimestamp,
   Lesson,
+  LessonRevision,
+  Rating,
   Revision,
   SnapshotEntityKey,
   Tag,
@@ -42,11 +47,16 @@ import {
   validateBriefingSource,
   validateCook,
   validateCookEvent,
+  validateCookMealType,
   validateCookTag,
   validateFinding,
   validateFindingSource,
+  validateHouseholdMember,
   validateImportBatch,
+  validateIngredientVersion,
   validateLesson,
+  validateLessonRevision,
+  validateRating,
   validateRevision,
   validateTag,
 } from '../../domain/invariants';
@@ -57,8 +67,10 @@ import {
   BACKUP_FORMAT_VERSION,
   FIRST_REVISIONS_FORMAT_VERSION,
   FIRST_UNTYPED_TAG_FORMAT_VERSION,
+  FIRST_UPDATE_2_FORMAT_VERSION,
   SHA256_HEX_PATTERN,
   SUPPORTED_BACKUP_FORMAT_VERSIONS,
+  UPDATE_2_COLLECTIONS,
 } from './contract';
 
 export type BackupIssueCode =
@@ -143,7 +155,16 @@ const RECORD_VALIDATORS: Readonly<Record<SnapshotEntityKey, RecordValidator>> = 
   briefingSources: (row) => validateBriefingSource(row as unknown as BriefingSource),
   importBatches: (row) => validateImportBatch(row as unknown as ImportBatch),
   revisions: (row) => validateRevision(row as unknown as Revision),
+  cookMealTypes: (row) => validateCookMealType(row as unknown as CookMealType),
+  ingredientVersions: (row) => validateIngredientVersion(row as unknown as IngredientVersion),
+  householdMembers: (row) => validateHouseholdMember(row as unknown as HouseholdMember),
+  ratings: (row) => validateRating(row as unknown as Rating),
+  lessonRevisions: (row) => validateLessonRevision(row as unknown as LessonRevision),
 };
+
+function isUpdate2Collection(key: SnapshotEntityKey): boolean {
+  return (UPDATE_2_COLLECTIONS as readonly string[]).includes(key);
+}
 
 /** The natural key of a row, used for duplicate detection and for sorting. */
 function collectionKey(collection: SnapshotEntityKey, row: unknown): string {
@@ -163,6 +184,9 @@ function collectionKey(collection: SnapshotEntityKey, row: unknown): string {
       const link = row as unknown as CookTag;
       return [link.cookId, link.tagId].join('|');
     }
+    case 'cookMealTypes':
+      // One meal type per cook: the cook is the key.
+      return String((row as { cookId?: unknown }).cookId ?? '');
     case 'tags': {
       const tag = row as unknown as Tag;
       // Sorted and de-duplicated by id, but `(name, kind)` uniqueness is what
@@ -257,6 +281,15 @@ export function validateBackup(candidate: unknown): BackupValidation {
       key === 'revisions' &&
       rows === undefined &&
       declaredVersion < FIRST_REVISIONS_FORMAT_VERSION
+    ) {
+      collections.set(key, []);
+      continue;
+    }
+    // Likewise update 2's collections before format 4.
+    if (
+      isUpdate2Collection(key) &&
+      rows === undefined &&
+      declaredVersion < FIRST_UPDATE_2_FORMAT_VERSION
     ) {
       collections.set(key, []);
       continue;
@@ -381,6 +414,86 @@ export function validateBackup(candidate: unknown): BackupValidation {
           ),
         );
       }
+    }
+  });
+
+  // --- update 2, as format 4 carries it -------------------------------------
+  for (const key of UPDATE_2_COLLECTIONS) {
+    if (formatVersion < FIRST_UPDATE_2_FORMAT_VERSION && (collections.get(key) ?? []).length > 0) {
+      issues.push(
+        problem(
+          `entities.${key}`,
+          'record_needs_a_later_format',
+          `${key} needs backup format ${FIRST_UPDATE_2_FORMAT_VERSION} or later`,
+        ),
+      );
+    }
+  }
+  const memberIds = collectIds(collections.get('householdMembers') ?? []);
+  const lessonsById = new Map<string, Lesson>();
+  for (const row of collections.get('lessons') ?? []) {
+    if (isRecordObject(row) && typeof row.id === 'string') {
+      lessonsById.set(row.id, row as unknown as Lesson);
+    }
+  }
+  for (const key of ['cookMealTypes', 'ingredientVersions', 'ratings', 'lessonRevisions'] as const) {
+    (collections.get(key) ?? []).forEach((row, index) => {
+      const cookId = isRecordObject(row) && typeof row.cookId === 'string' ? row.cookId : null;
+      checkReference(`entities.${key}[${index}].cookId`, cookId, cookIds, 'cook', issues);
+    });
+  }
+  const activeNames = new Set<string>();
+  (collections.get('householdMembers') ?? []).forEach((row, index) => {
+    const member = row as HouseholdMember;
+    if (member.retiredAt === null && typeof member.name === 'string') {
+      const key = member.name.trim().toLowerCase();
+      if (activeNames.has(key)) {
+        issues.push(
+          problem(
+            `entities.householdMembers[${index}].name`,
+            'duplicate_key',
+            `two people who eat here now are both called ${member.name}`,
+          ),
+        );
+      }
+      activeNames.add(key);
+    }
+  });
+  const ratingKeys = new Set<string>();
+  (collections.get('ratings') ?? []).forEach((row, index) => {
+    const rating = row as Rating;
+    const at = `entities.ratings[${index}]`;
+    checkReference(
+      `${at}.memberId`,
+      typeof rating.memberId === 'string' ? rating.memberId : null,
+      memberIds,
+      'household member',
+      issues,
+    );
+    const person =
+      typeof rating.memberId === 'string'
+        ? `member:${rating.memberId}`
+        : `guest:${String(rating.guestName).trim().toLowerCase()}`;
+    const key = `${String(rating.cookId)}|${person}`;
+    if (ratingKeys.has(key)) {
+      issues.push(problem(at, 'duplicate_key', 'one person has two ratings on the same cook'));
+    }
+    ratingKeys.add(key);
+  });
+  (collections.get('lessonRevisions') ?? []).forEach((row, index) => {
+    const revision = row as LessonRevision;
+    const at = `entities.lessonRevisions[${index}].lessonId`;
+    const lesson = typeof revision.lessonId === 'string' ? lessonsById.get(revision.lessonId) : undefined;
+    if (lesson === undefined) {
+      checkReference(
+        at,
+        typeof revision.lessonId === 'string' ? revision.lessonId : null,
+        new Set(),
+        'lesson',
+        issues,
+      );
+    } else if (lesson.cookId !== revision.cookId) {
+      issues.push(problem(at, 'invalid_record', 'an edit of a next-time line must name a line on the same cook'));
     }
   });
 
@@ -572,6 +685,11 @@ export function canonicaliseBackup(envelope: BackupEnvelope): BackupEnvelope {
     briefingSources: [...source.briefingSources].sort(byKey('briefingSources')),
     importBatches: [...source.importBatches].sort(byKey('importBatches')),
     revisions: [...(source.revisions ?? [])].sort(byKey('revisions')),
+    cookMealTypes: [...(source.cookMealTypes ?? [])].sort(byKey('cookMealTypes')),
+    ingredientVersions: [...(source.ingredientVersions ?? [])].sort(byKey('ingredientVersions')),
+    householdMembers: [...(source.householdMembers ?? [])].sort(byKey('householdMembers')),
+    ratings: [...(source.ratings ?? [])].sort(byKey('ratings')),
+    lessonRevisions: [...(source.lessonRevisions ?? [])].sort(byKey('lessonRevisions')),
   };
 
   return {
@@ -661,10 +779,18 @@ export function deserialiseBackup(text: string): BackupParseResult {
     return { ok: false, issues: validation.issues };
   }
   const envelope = parsed as BackupEnvelope;
-  // A file from before format 3 carries no edits; read it as carrying none, so
-  // every reader sees the same shape whatever version the file was.
-  if ((envelope.entities as Partial<DatabaseSnapshot>).revisions === undefined) {
-    return { ok: true, envelope: { ...envelope, entities: { ...envelope.entities, revisions: [] } } };
-  }
-  return { ok: true, envelope };
+  // A file from before format 3 carries no edits, and one from before format
+  // 4 none of update 2's records; read each as carrying none, so every reader
+  // sees the same shape whatever version the file was.
+  const given = envelope.entities as Partial<DatabaseSnapshot>;
+  const entities: DatabaseSnapshot = {
+    ...envelope.entities,
+    revisions: given.revisions ?? [],
+    cookMealTypes: given.cookMealTypes ?? [],
+    ingredientVersions: given.ingredientVersions ?? [],
+    householdMembers: given.householdMembers ?? [],
+    ratings: given.ratings ?? [],
+    lessonRevisions: given.lessonRevisions ?? [],
+  };
+  return { ok: true, envelope: { ...envelope, entities } };
 }

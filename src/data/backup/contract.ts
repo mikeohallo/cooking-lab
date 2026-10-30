@@ -71,7 +71,21 @@
  * place in the timeline was decided (`meta.photoTime`, see
  * `src/domain/photoTime.ts`).
  *
- * This build writes version 3 and reads 1, 2 and 3.
+ * WHAT CHANGED IN FORMAT VERSION 4 (0.3.0)
+ * ----------------------------------------
+ * Five new collections, for schema version 4: `cookMealTypes` (a cook's meal
+ * type, when it has one), `ingredientVersions` (every saved version of a
+ * cook's ingredients), `householdMembers` (who usually eats, retired people
+ * included), `ratings` (one person's stars or N/A and line, per cook, a
+ * guest named on the rating itself) and `lessonRevisions` (edits of a
+ * next-time line). A version 4 file must carry all five, even empty; an
+ * earlier file has none and is read as having none, and an earlier file that
+ * carries one is wrong about itself and is reported.
+ *
+ * The app's own settings (`app_settings`) are not in a backup: they are not
+ * the cook's record.
+ *
+ * This build writes version 4 and reads 1, 2, 3 and 4.
  */
 
 import type {
@@ -86,10 +100,10 @@ import type {
 export const BACKUP_FORMAT = 'cooking-lab.backup';
 
 /** The envelope version this build writes. */
-export const BACKUP_FORMAT_VERSION = 3;
+export const BACKUP_FORMAT_VERSION = 4;
 
 /** Envelope versions this build can read. */
-export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3];
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 /**
  * The first version that carries `entities.revisions`.
@@ -98,6 +112,22 @@ export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3];
  * collection is required, and an earlier file that carries one is refused.
  */
 export const FIRST_REVISIONS_FORMAT_VERSION = 3;
+
+/**
+ * The first version that carries update 2's five collections (0.3.0): meal
+ * types, ingredients, the household, ratings and next-time edits. Absent and
+ * read as empty before it; required from it on.
+ */
+export const FIRST_UPDATE_2_FORMAT_VERSION = 4;
+
+/** The collections format 4 added, in snapshot order. */
+export const UPDATE_2_COLLECTIONS = [
+  'cookMealTypes',
+  'ingredientVersions',
+  'householdMembers',
+  'ratings',
+  'lessonRevisions',
+] as const;
 
 /**
  * The first version in which a tag may have no kind.

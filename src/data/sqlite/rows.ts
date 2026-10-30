@@ -25,15 +25,21 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookMealType,
   CookTag,
   Finding,
   FindingSource,
+  HouseholdMember,
   ImportBatch,
+  IngredientVersion,
   JsonValue,
   Lesson,
+  LessonRevision,
+  Rating,
   Revision,
   Tag,
 } from '../../domain/entities';
+import type { Stars } from '../../domain/enums';
 import {
   isConfidenceLevel,
   isCookEventKind,
@@ -44,6 +50,8 @@ import {
   isProposalStatus,
   isProvenance,
   isRevisedField,
+  isStars,
+  isStoredMealType,
   isTagKind,
 } from '../../domain/enums';
 import { isJsonValue } from '../../domain/invariants';
@@ -433,4 +441,130 @@ export function importBatchParams(batch: ImportBatch): readonly SqlValue[] {
 /** `?, ?, ?` for a column list of the given length. */
 export function placeholders(count: number): string {
   return Array.from({ length: count }, () => '?').join(', ');
+}
+
+// ---------------------------------------------------------------------------
+// Update 2 (schema version 4)
+// ---------------------------------------------------------------------------
+
+function optionalStars(table: string, row: SqlRow, column: string): Stars | null {
+  const value = row[column];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (!isStars(value)) {
+    throw new RowMappingError(table, column, 'expected 1 to 5 or NULL');
+  }
+  return value;
+}
+
+function requiredBoolean(table: string, row: SqlRow, column: string): boolean {
+  const value = optionalBoolean(table, row, column);
+  if (value === null) {
+    throw new RowMappingError(table, column, 'expected 0 or 1');
+  }
+  return value;
+}
+
+function requiredCount(table: string, row: SqlRow, column: string): number {
+  const value = optionalCount(table, row, column);
+  if (value === null) {
+    throw new RowMappingError(table, column, 'expected an integer');
+  }
+  return value;
+}
+
+export const COOK_MEAL_TYPE_COLUMNS = 'cook_id, meal_type, set_at';
+
+export function toCookMealType(row: SqlRow): CookMealType {
+  const table = 'cook_meal_types';
+  return {
+    cookId: requiredText(table, row, 'cook_id'),
+    mealType: requiredEnum(table, row, 'meal_type', isStoredMealType),
+    setAt: requiredText(table, row, 'set_at'),
+  };
+}
+
+export function cookMealTypeParams(row: CookMealType): readonly SqlValue[] {
+  return [row.cookId, row.mealType, row.setAt];
+}
+
+export const INGREDIENT_VERSION_COLUMNS = 'id, cook_id, text, saved_at';
+
+export function toIngredientVersion(row: SqlRow): IngredientVersion {
+  const table = 'ingredient_versions';
+  return {
+    id: requiredText(table, row, 'id'),
+    cookId: requiredText(table, row, 'cook_id'),
+    // Exactly as typed or pasted.
+    text: requiredText(table, row, 'text'),
+    savedAt: requiredText(table, row, 'saved_at'),
+  };
+}
+
+export function ingredientVersionParams(version: IngredientVersion): readonly SqlValue[] {
+  return [version.id, version.cookId, version.text, version.savedAt];
+}
+
+export const HOUSEHOLD_MEMBER_COLUMNS = 'id, name, position, retired_at, created_at';
+
+export function toHouseholdMember(row: SqlRow): HouseholdMember {
+  const table = 'household_members';
+  return {
+    id: requiredText(table, row, 'id'),
+    name: requiredText(table, row, 'name'),
+    position: requiredCount(table, row, 'position'),
+    retiredAt: optionalText(table, row, 'retired_at'),
+    createdAt: requiredText(table, row, 'created_at'),
+  };
+}
+
+export function householdMemberParams(member: HouseholdMember): readonly SqlValue[] {
+  return [member.id, member.name, member.position, member.retiredAt, member.createdAt];
+}
+
+export const RATING_COLUMNS = 'id, cook_id, member_id, guest_name, stars, not_eaten, line, rated_at';
+
+export function toRating(row: SqlRow): Rating {
+  const table = 'ratings';
+  return {
+    id: requiredText(table, row, 'id'),
+    cookId: requiredText(table, row, 'cook_id'),
+    memberId: optionalText(table, row, 'member_id'),
+    guestName: optionalText(table, row, 'guest_name'),
+    stars: optionalStars(table, row, 'stars'),
+    notEaten: requiredBoolean(table, row, 'not_eaten'),
+    line: optionalText(table, row, 'line'),
+    ratedAt: requiredText(table, row, 'rated_at'),
+  };
+}
+
+export function ratingParams(rating: Rating): readonly SqlValue[] {
+  return [
+    rating.id,
+    rating.cookId,
+    rating.memberId,
+    rating.guestName,
+    rating.stars,
+    writeBoolean(rating.notEaten),
+    rating.line,
+    rating.ratedAt,
+  ];
+}
+
+export const LESSON_REVISION_COLUMNS = 'id, lesson_id, cook_id, text, revised_at';
+
+export function toLessonRevision(row: SqlRow): LessonRevision {
+  const table = 'lesson_revisions';
+  return {
+    id: requiredText(table, row, 'id'),
+    lessonId: requiredText(table, row, 'lesson_id'),
+    cookId: requiredText(table, row, 'cook_id'),
+    text: requiredText(table, row, 'text'),
+    revisedAt: requiredText(table, row, 'revised_at'),
+  };
+}
+
+export function lessonRevisionParams(revision: LessonRevision): readonly SqlValue[] {
+  return [revision.id, revision.lessonId, revision.cookId, revision.text, revision.revisedAt];
 }

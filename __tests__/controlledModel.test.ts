@@ -240,7 +240,7 @@ describe('the entity shapes', () => {
     expect(lesson).not.toHaveProperty('createdBy');
   });
 
-  it('keeps the snapshot to the tables of the model, edits last (format 3)', () => {
+  it('keeps the snapshot to the tables of the model, edits then update 2 last (format 4)', () => {
     expect(Object.keys(emptySnapshot())).toEqual([
       'cooks',
       'cookEvents',
@@ -253,6 +253,11 @@ describe('the entity shapes', () => {
       'briefingSources',
       'importBatches',
       'revisions',
+      'cookMealTypes',
+      'ingredientVersions',
+      'householdMembers',
+      'ratings',
+      'lessonRevisions',
     ]);
   });
 

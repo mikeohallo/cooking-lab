@@ -126,11 +126,12 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 3 now, and it still reads 1 and 2', () => {
-    // 0.2.2 moved the format on to 3 (edits); this file still pins that 1 and
-    // 2 are read. `backupV3.test.ts` covers what version 3 adds.
-    expect(BACKUP_FORMAT_VERSION).toBe(3);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3]);
+  it('is 4 now, and it still reads 1 and 2', () => {
+    // 0.2.2 moved the format on to 3 (edits) and 0.3.0 to 4 (update 2); this
+    // file still pins that 1 and 2 are read. `backupV3.test.ts` and
+    // `backupV4.test.ts` cover what 3 and 4 add.
+    expect(BACKUP_FORMAT_VERSION).toBe(4);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4]);
   });
 
   it('stamps the format, the envelope version and the schema version', async () => {
@@ -138,9 +139,9 @@ describe('the version this build writes', () => {
     const envelope = await assemble();
 
     expect(envelope.format).toBe(BACKUP_FORMAT);
-    expect(envelope.formatVersion).toBe(3);
+    expect(envelope.formatVersion).toBe(4);
     expect(envelope.schemaVersion).toBe(LATEST_SCHEMA_VERSION);
-    expect(envelope.schemaVersion).toBe(3);
+    expect(envelope.schemaVersion).toBe(4);
   });
 });
 
@@ -253,7 +254,15 @@ describe('reading a version 1 backup', () => {
   function asVersionOne(): unknown {
     const envelope = syntheticBackupEnvelope();
     // A version 1 file has no collection for edits at all.
-    const { revisions: _none, ...withoutEdits } = envelope.entities;
+    const {
+      revisions: _none,
+      cookMealTypes: _mealTypes,
+      ingredientVersions: _ingredients,
+      householdMembers: _household,
+      ratings: _ratings,
+      lessonRevisions: _lessonEdits,
+      ...withoutEdits
+    } = envelope.entities;
     return {
       ...envelope,
       formatVersion: 1,

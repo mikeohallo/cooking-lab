@@ -32,6 +32,8 @@ import type {
   ProposalStatus,
   Provenance,
   RevisedField,
+  Stars,
+  StoredMealType,
   TagKind,
 } from './enums';
 
@@ -50,6 +52,10 @@ export type TagId = EntityId;
 export type BriefingId = EntityId;
 export type ImportBatchId = EntityId;
 export type RevisionId = EntityId;
+export type IngredientVersionId = EntityId;
+export type HouseholdMemberId = EntityId;
+export type RatingId = EntityId;
+export type LessonRevisionId = EntityId;
 
 /** An ISO-8601 instant in UTC, e.g. `2026-09-05T18:31:00.000Z`. */
 export type IsoTimestamp = string;
@@ -128,6 +134,85 @@ export type Revision = {
   readonly cookEventId: CookEventId | null;
   readonly field: RevisedField;
   /** The words as they were changed to, stored exactly as typed. */
+  readonly text: string;
+  readonly revisedAt: IsoTimestamp;
+};
+
+// ---------------------------------------------------------------------------
+// Update 2 (schema version 4): meal type, ingredients, household, ratings
+// ---------------------------------------------------------------------------
+
+/**
+ * A cook's meal type, when it has one. A cook with none has no row: `none` is
+ * an absence, never a value written down (see `MEAL_TYPES`).
+ */
+export type CookMealType = {
+  readonly cookId: CookId;
+  readonly mealType: StoredMealType;
+  readonly setAt: IsoTimestamp;
+};
+
+/**
+ * One saved version of a cook's ingredients: plain text, one item per line.
+ *
+ * Append-only, like an edit of a note. The newest version is the list as it
+ * now stands; every earlier one can still be read. A cook with no versions
+ * has no ingredients written down.
+ */
+export type IngredientVersion = {
+  readonly id: IngredientVersionId;
+  readonly cookId: CookId;
+  /** Stored exactly as typed or pasted. */
+  readonly text: string;
+  readonly savedAt: IsoTimestamp;
+};
+
+/**
+ * Someone who usually eats, kept on this phone.
+ *
+ * Retired rather than deleted: a person who no longer eats here keeps every
+ * rating they ever gave, and the cooks they rated still say so.
+ */
+export type HouseholdMember = {
+  readonly id: HouseholdMemberId;
+  readonly name: string;
+  /** Order on screen, from 0. */
+  readonly position: number;
+  readonly retiredAt: IsoTimestamp | null;
+  readonly createdAt: IsoTimestamp;
+};
+
+/**
+ * One person's answer about one cook.
+ *
+ * The person is a household member or a guest named for this cook only —
+ * exactly one of `memberId` and `guestName`. The answer is whole stars, or
+ * "didn't eat it" (`notEaten`), and either way an optional short line. A
+ * person who did not eat it has no stars, and counts in no average and
+ * matches no filter.
+ */
+export type Rating = {
+  readonly id: RatingId;
+  readonly cookId: CookId;
+  readonly memberId: HouseholdMemberId | null;
+  readonly guestName: string | null;
+  readonly stars: Stars | null;
+  readonly notEaten: boolean;
+  readonly line: string | null;
+  readonly ratedAt: IsoTimestamp;
+};
+
+/**
+ * One edit of a next-time line (a lesson the cook wrote), schema version 4.
+ *
+ * Rule 11 extended to the next-time line: the lesson's own row keeps its first
+ * words and each edit is one of these. `revisions` could not take it, because
+ * its `field` list is frozen in a migration that has run on the phones.
+ */
+export type LessonRevision = {
+  readonly id: LessonRevisionId;
+  readonly lessonId: LessonId;
+  readonly cookId: CookId;
   readonly text: string;
   readonly revisedAt: IsoTimestamp;
 };
@@ -270,6 +355,12 @@ export type DatabaseSnapshot = {
   readonly importBatches: readonly ImportBatch[];
   /** Every edit of a note or a verdict. Backup format 3 and later. */
   readonly revisions: readonly Revision[];
+  /** Backup format 4 and later, as are the four below. */
+  readonly cookMealTypes: readonly CookMealType[];
+  readonly ingredientVersions: readonly IngredientVersion[];
+  readonly householdMembers: readonly HouseholdMember[];
+  readonly ratings: readonly Rating[];
+  readonly lessonRevisions: readonly LessonRevision[];
 };
 
 /** The keys of `DatabaseSnapshot`, in a fixed order, for deterministic output. */
@@ -285,6 +376,11 @@ export const SNAPSHOT_ENTITY_KEYS = [
   'briefingSources',
   'importBatches',
   'revisions',
+  'cookMealTypes',
+  'ingredientVersions',
+  'householdMembers',
+  'ratings',
+  'lessonRevisions',
 ] as const;
 export type SnapshotEntityKey = (typeof SNAPSHOT_ENTITY_KEYS)[number];
 
@@ -302,5 +398,10 @@ export function emptySnapshot(): DatabaseSnapshot {
     briefingSources: [],
     importBatches: [],
     revisions: [],
+    cookMealTypes: [],
+    ingredientVersions: [],
+    householdMembers: [],
+    ratings: [],
+    lessonRevisions: [],
   };
 }

@@ -29,8 +29,13 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookMealType,
   CookTag,
   DatabaseSnapshot,
+  HouseholdMember,
+  IngredientVersion,
+  LessonRevision,
+  Rating,
   Revision,
   Finding,
   FindingSource,
@@ -442,6 +447,96 @@ const SYNTHETIC_PHOTO_MANIFEST: readonly BackupPhotoManifestEntry[] = [
   },
 ];
 
+// Update 2 (schema version 4). Made-up people: Alex and Sam eat here, Jo did
+// once and has since been retired, and a guest is named on one rating only.
+const MEMBER_ALEX = 'synthetic-member-alex';
+const MEMBER_SAM = 'synthetic-member-sam';
+const MEMBER_JO = 'synthetic-member-jo';
+
+const SYNTHETIC_COOK_MEAL_TYPES: readonly CookMealType[] = [
+  { cookId: COOK_BAKE, mealType: 'lunch_dinner', setAt: '2026-08-14T19:46:00.000Z' },
+];
+
+const SYNTHETIC_INGREDIENT_VERSIONS: readonly IngredientVersion[] = [
+  {
+    id: 'synthetic-ingredients-1',
+    cookId: COOK_BAKE,
+    text: '500 g strong white flour\n375 g water\n100 g levain\n10 g salt',
+    savedAt: '2026-08-14T14:55:00.000Z',
+  },
+  {
+    id: 'synthetic-ingredients-2',
+    cookId: COOK_BAKE,
+    text: '500 g strong white flour\n360 g water\n100 g levain\n10 g salt',
+    savedAt: '2026-08-14T19:50:00.000Z',
+  },
+];
+
+const SYNTHETIC_HOUSEHOLD: readonly HouseholdMember[] = [
+  { id: MEMBER_ALEX, name: 'Alex', position: 0, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
+  { id: MEMBER_SAM, name: 'Sam', position: 1, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
+  {
+    id: MEMBER_JO,
+    name: 'Jo',
+    position: 2,
+    retiredAt: '2026-08-20T10:00:00.000Z',
+    createdAt: '2026-08-01T10:00:00.000Z',
+  },
+];
+
+const SYNTHETIC_RATINGS: readonly Rating[] = [
+  {
+    id: 'synthetic-rating-alex',
+    cookId: COOK_BAKE,
+    memberId: MEMBER_ALEX,
+    guestName: null,
+    stars: 4,
+    notEaten: false,
+    line: 'Base still pale.',
+    ratedAt: '2026-08-14T19:46:00.000Z',
+  },
+  {
+    id: 'synthetic-rating-sam',
+    cookId: COOK_BAKE,
+    memberId: MEMBER_SAM,
+    guestName: null,
+    stars: null,
+    notEaten: true,
+    line: null,
+    ratedAt: '2026-08-14T19:46:00.000Z',
+  },
+  {
+    id: 'synthetic-rating-jo',
+    cookId: COOK_IMPORTED,
+    memberId: MEMBER_JO,
+    guestName: null,
+    stars: 2,
+    notEaten: false,
+    line: null,
+    ratedAt: '2026-07-02T20:05:00.000Z',
+  },
+  {
+    id: 'synthetic-rating-guest',
+    cookId: COOK_BAKE,
+    memberId: null,
+    guestName: 'A neighbour',
+    stars: 5,
+    notEaten: false,
+    line: null,
+    ratedAt: '2026-08-14T19:47:00.000Z',
+  },
+];
+
+const SYNTHETIC_LESSON_REVISIONS: readonly LessonRevision[] = [
+  {
+    id: 'synthetic-lesson-revision-1',
+    lessonId: LESSON_APPROVED,
+    cookId: COOK_BAKE,
+    text: 'Give the base twelve more minutes on the stone.',
+    revisedAt: '2026-08-16T09:00:00.000Z',
+  },
+];
+
 /** The whole synthetic database, consistent and referentially complete. */
 export function syntheticSnapshot(): DatabaseSnapshot {
   return {
@@ -456,6 +551,11 @@ export function syntheticSnapshot(): DatabaseSnapshot {
     briefingSources: SYNTHETIC_BRIEFING_SOURCES,
     importBatches: SYNTHETIC_IMPORT_BATCHES,
     revisions: SYNTHETIC_REVISIONS,
+    cookMealTypes: SYNTHETIC_COOK_MEAL_TYPES,
+    ingredientVersions: SYNTHETIC_INGREDIENT_VERSIONS,
+    householdMembers: SYNTHETIC_HOUSEHOLD,
+    ratings: SYNTHETIC_RATINGS,
+    lessonRevisions: SYNTHETIC_LESSON_REVISIONS,
   };
 }
 
@@ -484,5 +584,9 @@ export function syntheticIds(): readonly string[] {
     ...snapshot.tags.map((tag) => tag.id),
     ...snapshot.briefings.map((briefing) => briefing.id),
     ...snapshot.importBatches.map((batch) => batch.id),
+    ...snapshot.ingredientVersions.map((version) => version.id),
+    ...snapshot.householdMembers.map((member) => member.id),
+    ...snapshot.ratings.map((rating) => rating.id),
+    ...snapshot.lessonRevisions.map((revision) => revision.id),
   ];
 }

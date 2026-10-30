@@ -40,6 +40,8 @@ const V3_STATEMENTS = statementsOf(3);
 
 /** The tables version 3 adds; every other table is version 1's. */
 const V3_TABLES: readonly string[] = ['revisions', 'cook_deletions'];
+const V4_TABLES: readonly string[] = ['cook_meal_types', 'ingredient_versions', 'household_members', 'ratings', 'lesson_revisions', 'app_settings'];
+const V4_STATEMENTS = statementsOf(4);
 
 /**
  * A `CREATE TABLE` for a table, out of one migration's statements.
@@ -105,6 +107,13 @@ const FROZEN_V1_STATEMENT_COUNT = 28;
 const FROZEN_V2_DIGEST = '3ae75e32f4a3b7c682cdcc976edc39c245a362a04910ebf487e30b88f74c52d0';
 const FROZEN_V2_STATEMENT_COUNT = 15;
 
+/**
+ * Version 3's text, pinned the same way (0.3.0). It shipped with 0.2.2, so it
+ * is history now too.
+ */
+const FROZEN_V3_DIGEST = '50046d51b4cacd200a5898f2891c079844a62497581bd4b124badbba7a4c00d2';
+const FROZEN_V3_STATEMENT_COUNT = 6;
+
 const migration = (version: number, statements: readonly string[] = ['CREATE TABLE t (a TEXT)']): Migration => ({
   version,
   name: `m${version}`,
@@ -123,13 +132,36 @@ describe('migration list', () => {
     expect(LATEST_SCHEMA_VERSION).toBe(MIGRATIONS.length);
   });
 
-  it('is the three versions this build knows, in order and named', () => {
+  it('is the four versions this build knows, in order and named', () => {
     expect(MIGRATIONS.map((migration) => [migration.version, migration.name])).toEqual([
       [1, 'local_foundation'],
       [2, 'tags_without_a_kind'],
       [3, 'revisions_and_cook_deletions'],
+      [4, 'meal_type_ingredients_household_ratings'],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(3);
+    expect(LATEST_SCHEMA_VERSION).toBe(4);
+  });
+
+  it('makes version 4 six new tables and nothing else: no existing table is altered, dropped or written', () => {
+    const created = V4_STATEMENTS.filter((sql) => sql.startsWith('CREATE TABLE ')).map(
+      (sql) => /^CREATE TABLE (\w+)/.exec(sql)?.[1],
+    );
+    expect(created).toEqual([...V4_TABLES]);
+    const sql = V4_STATEMENTS.join(' ');
+    for (const forbidden of ['ALTER TABLE', 'DROP TABLE', 'DELETE FROM', 'PRAGMA']) {
+      expect(sql).not.toContain(forbidden);
+    }
+    expect(V4_STATEMENTS.filter((statement) => statement.startsWith('UPDATE'))).toEqual([]);
+    const inserts = V4_STATEMENTS.filter((statement) => statement.startsWith('INSERT'));
+    expect(inserts.every((statement) => statement.startsWith('INSERT INTO schema_meta'))).toBe(true);
+    expect(sql).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '4')`);
+  });
+
+  it('has not edited version 3, which shipped with 0.2.2', () => {
+    const digest = createHash('sha256').update(V3_STATEMENTS.join('\n')).digest('hex');
+
+    expect(digest).toBe(FROZEN_V3_DIGEST);
+    expect(V3_STATEMENTS).toHaveLength(FROZEN_V3_STATEMENT_COUNT);
   });
 
   it('has not edited version 2, which has run on a device', () => {
@@ -197,8 +229,10 @@ describe('pendingMigrations', () => {
 });
 
 describe('schema v1 columns', () => {
-  it('creates every table the app expects but version 3’s two, and no others', () => {
-    const v1Tables = SCHEMA_TABLES.filter((table) => !V3_TABLES.includes(table));
+  it('creates every table the app expects but those of versions 3 and 4, and no others', () => {
+    const v1Tables = SCHEMA_TABLES.filter(
+      (table) => !V3_TABLES.includes(table) && !V4_TABLES.includes(table),
+    );
     for (const table of v1Tables) {
       expect(() => createStatementFor(table)).not.toThrow();
     }

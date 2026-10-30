@@ -34,11 +34,14 @@ import type {
   FindingCandidate,
   FindingIdentity,
   FindingPatch,
+  IngredientIdentity,
   LessonCandidate,
   LessonIdentity,
   LessonPatch,
   NewCook,
   NewCookEvent,
+  RatingAnswer,
+  RatingPerson,
   ReviewDecision,
   RevisionIdentity,
 } from '../domain/evidence';
@@ -50,16 +53,23 @@ import type {
   CookEvent,
   CookEventId,
   CookId,
+  CookMealType,
   CookTag,
   DatabaseSnapshot,
   Finding,
   FindingId,
   FindingSource,
+  HouseholdMember,
+  HouseholdMemberId,
   ImportBatch,
   ImportBatchId,
+  IngredientVersion,
   IsoTimestamp,
   Lesson,
   LessonId,
+  LessonRevision,
+  Rating,
+  RatingId,
   Revision,
   SchemaState,
   Tag,
@@ -70,6 +80,7 @@ import type {
   CookStatus,
   FindingClass,
   ImportBatchStatus,
+  MealType,
   ProposalStatus,
   Provenance,
   TagKind,
@@ -439,6 +450,137 @@ export type SnapshotService = {
   readSnapshot(): Promise<DatabaseSnapshot>;
 };
 
+// ---------------------------------------------------------------------------
+// Update 2 (schema version 4)
+// ---------------------------------------------------------------------------
+
+/** A cook's meal type. A cook with none has no row. */
+export type MealTypeRepository = {
+  /** Set it, replacing any meal type the cook had. */
+  set(row: CookMealType): Promise<CookMealType>;
+  /** Back to none. */
+  clear(cookId: CookId): Promise<void>;
+  findForCook(cookId: CookId): Promise<CookMealType | null>;
+  listForCooks(cookIds: readonly CookId[]): Promise<readonly CookMealType[]>;
+};
+
+/** A cook's ingredients, every saved version. Append-only, like revisions. */
+export type IngredientRepository = {
+  create(version: IngredientVersion): Promise<IngredientVersion>;
+  /** Every version, oldest first; the last is the list as it now stands. */
+  listForCook(cookId: CookId): Promise<readonly IngredientVersion[]>;
+  /** The newest version for each of these cooks that has one. */
+  currentForCooks(cookIds: readonly CookId[]): Promise<readonly IngredientVersion[]>;
+};
+
+/** Who usually eats. Nothing here deletes a member. */
+export type HouseholdRepository = {
+  /** Everyone, retired too, in order. */
+  list(): Promise<readonly HouseholdMember[]>;
+  findById(id: HouseholdMemberId): Promise<HouseholdMember | null>;
+  create(member: HouseholdMember): Promise<HouseholdMember>;
+  save(member: HouseholdMember): Promise<HouseholdMember>;
+  /** Number these members 0, 1, 2… in the order given. One transaction. */
+  reorder(ids: readonly HouseholdMemberId[]): Promise<void>;
+};
+
+/** The person a rating belongs to, for finding or removing it. */
+export type RatingKey =
+  | { readonly memberId: HouseholdMemberId }
+  | { readonly guestName: string };
+
+export type RatingRepository = {
+  /**
+   * Store this person's answer about this cook, replacing any they gave
+   * before. An existing row keeps its id.
+   */
+  put(rating: Rating): Promise<Rating>;
+  remove(cookId: CookId, person: RatingKey): Promise<void>;
+  listForCook(cookId: CookId): Promise<readonly Rating[]>;
+  listForCooks(cookIds: readonly CookId[]): Promise<readonly Rating[]>;
+  /** Every guest name used on a cook still kept, each once, alphabetically. */
+  listGuestNames(): Promise<readonly string[]>;
+};
+
+/** Edits of next-time lines. Append-only. */
+export type LessonRevisionRepository = {
+  create(revision: LessonRevision): Promise<LessonRevision>;
+  listForCook(cookId: CookId): Promise<readonly LessonRevision[]>;
+  listForCooks(cookIds: readonly CookId[]): Promise<readonly LessonRevision[]>;
+};
+
+/** The app's own small memory, not the cook's record and not in a backup. */
+export type SettingsRepository = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+};
+
+/** What "Cook this again" writes, all at once. */
+export type CookAgainPlan = {
+  readonly cook: Cook;
+  readonly tagIds: readonly TagId[];
+  readonly mealType: CookMealType | null;
+  readonly ingredients: IngredientVersion | null;
+};
+
+/**
+ * The cook's own record beyond the timeline (0.3.0): meal type, ingredients,
+ * ratings, next-time lines and starting a cook again. Rule 13 decides each.
+ */
+export type CookRecordService = {
+  setMealType(
+    cookId: CookId,
+    mealType: MealType,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<CookMealType | null>>;
+  saveIngredients(
+    cookId: CookId,
+    text: string,
+    identity: IngredientIdentity,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<IngredientVersion>>;
+  /** `null` back means this person's rating was removed: it said nothing. */
+  rate(
+    cookId: CookId,
+    person: RatingPerson,
+    answer: RatingAnswer,
+    identity: { readonly id: RatingId },
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Rating | null>>;
+  /** A next-time line written after the review, on the reviewed cook's page. */
+  addNextTime(
+    cookId: CookId,
+    text: string,
+    identity: LessonIdentity,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Lesson>>;
+  reviseNextTime(
+    lessonId: LessonId,
+    text: string,
+    identity: { readonly id: string },
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<LessonRevision>>;
+  /** A new open cook from this one: title, tags, meal type, ingredients. */
+  cookAgain(
+    sourceId: CookId,
+    identity: { readonly id: CookId; readonly ingredientsId: string },
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Cook>>;
+};
+
+export type HouseholdService = {
+  add(name: string, identity: { readonly id: HouseholdMemberId }, at: IsoTimestamp): Promise<EvidenceDecision<HouseholdMember>>;
+  retire(id: HouseholdMemberId, at: IsoTimestamp): Promise<EvidenceDecision<HouseholdMember>>;
+  restore(id: HouseholdMemberId): Promise<EvidenceDecision<HouseholdMember>>;
+  move(id: HouseholdMemberId, direction: 'up' | 'down'): Promise<readonly HouseholdMember[]>;
+};
+
 /**
  * Everything the app needs from storage, assembled in one place.
  *
@@ -456,9 +598,17 @@ export type DataLayer = {
   readonly importBatches: ImportBatchRepository;
   readonly revisions: RevisionRepository;
   readonly cookDeletions: CookDeletionRepository;
+  readonly mealTypes: MealTypeRepository;
+  readonly ingredients: IngredientRepository;
+  readonly household: HouseholdRepository;
+  readonly ratings: RatingRepository;
+  readonly lessonRevisions: LessonRevisionRepository;
+  readonly settings: SettingsRepository;
   readonly schemaState: SchemaStateRepository;
   readonly review: ReviewService;
   readonly capture: CookCaptureService;
   readonly briefingWorkflow: BriefingService;
+  readonly cookRecord: CookRecordService;
+  readonly householdWorkflow: HouseholdService;
   readonly snapshots: SnapshotService;
 };

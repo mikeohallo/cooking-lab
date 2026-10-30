@@ -71,10 +71,10 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 3, and it reads 1, 2 and 3', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(3);
+  it('is 4 now (0.3.0), edits arrived with 3, and it reads 1 to 4', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(4);
     expect(FIRST_REVISIONS_FORMAT_VERSION).toBe(3);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3]);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4]);
   });
 });
 
@@ -90,7 +90,7 @@ describe('a round trip with edits in it', () => {
     if (!parsed.ok) {
       return;
     }
-    expect(parsed.envelope.formatVersion).toBe(3);
+    expect(parsed.envelope.formatVersion).toBe(4);
     expect(parsed.envelope.entities).toEqual(snapshot);
 
     const { entities } = parsed.envelope;
@@ -116,7 +116,15 @@ describe('a round trip with edits in it', () => {
 describe('reading versions 1 and 2', () => {
   function asVersion(version: 1 | 2): Record<string, unknown> {
     const envelope = syntheticBackupEnvelope();
-    const { revisions: _none, ...withoutEdits } = envelope.entities;
+    const {
+      revisions: _none,
+      cookMealTypes: _mealTypes,
+      ingredientVersions: _ingredients,
+      householdMembers: _household,
+      ratings: _ratings,
+      lessonRevisions: _lessonEdits,
+      ...withoutEdits
+    } = envelope.entities;
     return {
       ...envelope,
       formatVersion: version,

@@ -34,12 +34,16 @@ import { createNodeSqliteHarness, type NodeSqliteHarness } from './support/nodeS
 const V1_ONLY: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version === 1);
 
 /**
- * The tables version 2 knows. Version 3 (0.2.2) added two more, which do not
- * exist yet in a version 1 notebook; they are counted in `schemaV3.test.ts`.
+ * The tables version 2 knows. Version 3 (0.2.2) added two more and version 4
+ * (0.3.0) six, which do not exist yet in a version 1 notebook; they are
+ * counted in `schemaV3.test.tsx` and `schemaV4.test.ts`.
  */
-const V2_TABLES: readonly string[] = SCHEMA_TABLES.filter(
-  (table) => table !== 'revisions' && table !== 'cook_deletions',
-);
+const LATER_TABLES: readonly string[] = [
+  'revisions',
+  'cook_deletions',
+  'cook_meal_types', 'ingredient_versions', 'household_members', 'ratings', 'lesson_revisions', 'app_settings',
+];
+const V2_TABLES: readonly string[] = SCHEMA_TABLES.filter((table) => !LATER_TABLES.includes(table));
 
 const AT = '2026-10-18T17:00:00.000Z';
 
@@ -168,9 +172,9 @@ describe('version 1 to version 2, with a notebook in it', () => {
 
     const result = await runMigrations(opened.adapter);
 
-    // Version 3 (0.2.2) follows straight on; it adds two tables and touches
-    // none of these rows, which is what the rest of this test checks.
-    expect(result.applied).toEqual([2, 3]);
+    // Versions 3 (0.2.2) and 4 (0.3.0) follow straight on; they add tables
+    // and touch none of these rows, which is what the rest of this test checks.
+    expect(result.applied).toEqual([2, 3, 4]);
     expect(result.versionAfter).toBe(LATEST_SCHEMA_VERSION);
 
     expect(await census(opened.adapter)).toEqual(before);

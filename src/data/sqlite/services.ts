@@ -90,15 +90,25 @@ import type {
 } from '../repositories';
 import { RecordNotFoundError } from './repositories';
 import {
+  COOK_MEAL_TYPE_COLUMNS,
+  HOUSEHOLD_MEMBER_COLUMNS,
+  INGREDIENT_VERSION_COLUMNS,
+  LESSON_REVISION_COLUMNS,
+  RATING_COLUMNS,
   toBriefing as toBriefingRecord,
   toBriefingSource,
   toCook as toCookRecord,
   toCookEvent as toCookEventRecord,
+  toCookMealType,
   toCookTag,
   toFinding as toFindingRecord,
   toFindingSource,
+  toHouseholdMember,
   toImportBatch,
+  toIngredientVersion,
   toLesson as toLessonRecord,
+  toLessonRevision,
+  toRating,
   toRevision as toRevisionRecord,
   toTag,
 } from './rows';
@@ -480,6 +490,11 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         briefingSources,
         importBatches,
         revisions,
+        cookMealTypes,
+        ingredientVersions,
+        householdMembers,
+        ratings,
+        lessonRevisions,
       ] = await Promise.all([
         rowsOf(`SELECT ${cookColumns} FROM cooks WHERE ${KEPT('id')} ORDER BY id ASC`),
         rowsOf(`SELECT ${eventColumns} FROM cook_events WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
@@ -503,6 +518,18 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         ),
         rowsOf(`SELECT ${importColumns} FROM import_batches ORDER BY id ASC`),
         rowsOf(`SELECT ${revisionColumns} FROM revisions WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
+        rowsOf(
+          `SELECT ${COOK_MEAL_TYPE_COLUMNS} FROM cook_meal_types WHERE ${KEPT('cook_id')} ORDER BY cook_id ASC`,
+        ),
+        rowsOf(
+          `SELECT ${INGREDIENT_VERSION_COLUMNS} FROM ingredient_versions WHERE ${KEPT('cook_id')} ORDER BY id ASC`,
+        ),
+        // The household is not any one cook's, so a pending deletion hides none of it.
+        rowsOf(`SELECT ${HOUSEHOLD_MEMBER_COLUMNS} FROM household_members ORDER BY id ASC`),
+        rowsOf(`SELECT ${RATING_COLUMNS} FROM ratings WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
+        rowsOf(
+          `SELECT ${LESSON_REVISION_COLUMNS} FROM lesson_revisions WHERE ${KEPT('cook_id')} ORDER BY id ASC`,
+        ),
       ]);
 
       return {
@@ -517,6 +544,11 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         briefingSources: briefingSources.map(toBriefingSource),
         importBatches: importBatches.map(toImportBatch),
         revisions: revisions.map(toRevisionRecord),
+        cookMealTypes: cookMealTypes.map(toCookMealType),
+        ingredientVersions: ingredientVersions.map(toIngredientVersion),
+        householdMembers: householdMembers.map(toHouseholdMember),
+        ratings: ratings.map(toRating),
+        lessonRevisions: lessonRevisions.map(toLessonRevision),
       };
     },
   };

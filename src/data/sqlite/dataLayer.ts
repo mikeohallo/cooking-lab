@@ -29,6 +29,17 @@ import {
   type IdSource,
 } from './repositories';
 import {
+  createCookAgainWriter,
+  createCookRecordService,
+  createHouseholdRepository,
+  createHouseholdService,
+  createIngredientRepository,
+  createLessonRevisionRepository,
+  createMealTypeRepository,
+  createRatingRepository,
+  createSettingsRepository,
+} from './cookRecord';
+import {
   createBriefingService,
   createCookCaptureService,
   createReviewService,
@@ -56,6 +67,12 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
   const revisions = createRevisionRepository(adapter);
   const cookDeletions = createCookDeletionRepository(adapter);
   const schemaState = createSchemaStateRepository(adapter);
+  const mealTypes = createMealTypeRepository(adapter);
+  const ingredients = createIngredientRepository(adapter);
+  const household = createHouseholdRepository(adapter);
+  const ratings = createRatingRepository(adapter);
+  const lessonRevisions = createLessonRevisionRepository(adapter);
+  const settings = createSettingsRepository(adapter);
 
   return {
     cooks,
@@ -68,10 +85,27 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
     importBatches,
     revisions,
     cookDeletions,
+    mealTypes,
+    ingredients,
+    household,
+    ratings,
+    lessonRevisions,
+    settings,
     schemaState,
     review: createReviewService(findings, lessons),
     capture: createCookCaptureService(cooks, cookEvents, revisions, cookDeletions),
     briefingWorkflow: createBriefingService(briefings),
+    cookRecord: createCookRecordService({
+      cooks,
+      cookTags,
+      lessons,
+      mealTypes,
+      ingredients,
+      ratings,
+      lessonRevisions,
+      cookAgainWriter: createCookAgainWriter(adapter),
+    }),
+    householdWorkflow: createHouseholdService(household),
     snapshots: createSnapshotService(adapter),
   };
 }

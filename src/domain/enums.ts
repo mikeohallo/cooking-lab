@@ -145,6 +145,30 @@ export type TagKind = (typeof TAG_KINDS)[number];
 export const REVISED_FIELDS = ['note', 'verdict'] as const;
 export type RevisedField = (typeof REVISED_FIELDS)[number];
 
+/**
+ * What kind of meal a cook was (schema version 4).
+ *
+ * Four kinds, and `none`. Like a reading's kind, `none` is the *absence* of a
+ * stored value, not a value stored: every cook from before version 4 has none,
+ * and nothing is guessed for it. Only the four are ever written down
+ * (`cook_meal_types`), and clearing a meal type removes its row.
+ */
+export const MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack', 'none'] as const;
+export type MealType = (typeof MEAL_TYPES)[number];
+
+/** The meal types that are written down. `none` is never one of them. */
+export const STORED_MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack'] as const;
+export type StoredMealType = (typeof STORED_MEAL_TYPES)[number];
+
+/**
+ * A rating is whole stars, one to five (schema version 4).
+ *
+ * A person who did not eat it is not a rating of zero: that is `notEaten`, and
+ * it counts nowhere — in no average and no filter.
+ */
+export const STAR_VALUES = [1, 2, 3, 4, 5] as const;
+export type Stars = (typeof STAR_VALUES)[number];
+
 /** How far an import has got. `failed` batches are retained. */
 export const IMPORT_BATCH_STATUSES = ['processing', 'ready', 'done', 'failed'] as const;
 export type ImportBatchStatus = (typeof IMPORT_BATCH_STATUSES)[number];
@@ -179,5 +203,10 @@ export const isReadingKind = (v: unknown): v is ReadingKind => isOneOf(READING_K
 export const isStoredReadingKind = (v: unknown): v is StoredReadingKind =>
   isOneOf(STORED_READING_KINDS, v);
 export const isRevisedField = (v: unknown): v is RevisedField => isOneOf(REVISED_FIELDS, v);
+export const isMealType = (v: unknown): v is MealType => isOneOf(MEAL_TYPES, v);
+export const isStoredMealType = (v: unknown): v is StoredMealType =>
+  isOneOf(STORED_MEAL_TYPES, v);
+export const isStars = (v: unknown): v is Stars =>
+  typeof v === 'number' && (STAR_VALUES as readonly number[]).includes(v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>
   isOneOf(IMPORT_BATCH_STATUSES, v);
