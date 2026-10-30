@@ -30,18 +30,17 @@ identifiers in the text. Never screenshot the share sheet: it shows contacts.
 5. **Relaunch.** `adb shell am force-stop com.cookinglab.personal.test`,
    launch again, open History. The cook is there, reviewed, with its note,
    reading and verdict. Screenshot.
-6. **Export, and open it where it lands.** This step leaves Cooking Lab (the
-   share sheet and a files app), so do it only if Mike has said the Fold is
-   signed in to no personal account. Otherwise write "export: not checked, the
-   Fold still has personal accounts" and go on to step 7.
-   On that cook, *Export this cook*.
-   In the share sheet, choose a target that saves the file to the phone's own
-   storage (a files app's save option). Never a messaging, mail or cloud app,
-   or anything signed in to an account; if no such target is offered, stop
-   this step and say so. Then find the file (`adb shell ls -t /sdcard/Download /sdcard/Documents`),
-   `adb pull` it to the PC, open it, and check it against the cook on screen:
-   title, note, reading, verdict and the TEST notice. Put the file's text in
-   the report.
+6. **Export — checked as a file, not on the Fold.** Exporting hands the file
+   to the share sheet, which leaves Cooking Lab, and nothing on the bench
+   leaves Cooking Lab (`CLAUDE.md`, 0.2.2). So the export is not run on the
+   Fold. The file it would hand over is checked on the PC instead: the export
+   tests (`__tests__/exportService.test.ts`, `exportScreens.test.tsx`,
+   `revisions.test.ts`) build the exact file from a real database and read it
+   back. On the Fold, *Export this cook* is not tapped at all: the share sheet
+   is another app's screen. Write "export: checked as a file by the test
+   suite; not run on the Fold, left to Mike on his own phone". Up to 0.2.1
+   this step saved the file through a files app on a Fold signed in to
+   nothing; that route is retired.
 7. **Cover display.** Ask Mike to close the Fold, launch the app and
    screenshot Home on the cover display. If he isn't there, write "cover
    display: not checked" rather than skipping it silently.

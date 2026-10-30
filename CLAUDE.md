@@ -39,11 +39,19 @@ instead. Mike is often away from the PC and the Fold; assume he is.
   list is in `build-control/slices/README.md` → "Checking evidence".
 - **Never sign the Fold in to anything.** Claude Code never signs the Fold in
   to any account (Google, Samsung, banking, messaging or any other), never
-  opens anything on it but Cooking Lab (the one exception is the export check
-  in `build-control/slices/ACCEPTANCE.md`, and only on a Fold signed in to
-  nothing), and never captures anything else. If
+  opens anything on it but Cooking Lab, and never captures anything else. If
   anything else is on screen when you capture, don't keep the image: recapture
   or crop, and say so in the report.
+- **Never answer a prompt on the Fold.** Claude Code does not tap through any
+  dialog the system or another app puts up on the bench — a permission
+  request, Play Protect, an installer, an account or setup prompt. If one is
+  on screen, stop and say so in the report; Mike answers it or decides.
+- **Nothing on the Fold leaves Cooking Lab.** A step that would leave the app
+  — an export into another app, the share sheet, a files app — is checked as a
+  file without opening another app (the exact file an export hands over is
+  produced and read by the test suite on the PC), or it is left to Mike on his
+  own phone and the report says "not checked on the Fold". This replaces the
+  old exception for the export check in `build-control/slices/ACCEPTANCE.md`.
 - **Never write a device identifier into any file** — not the serial `adb`
   prints, not an IMEI, not a display id, not an account name. The repo is
   public. Say "the Fold", "the cover display", "the inner display", and write
@@ -109,6 +117,10 @@ yourself.
 - After `npx expo prebuild`, add `android.cmakeVersion=3.31.6` to the
   generated `android/gradle.properties`, so Gradle uses that CMake rather than
   the SDK's older one. The `android/` folder is generated and never committed.
+- Every Gradle build passes `-PreactNativeArchitectures=arm64-v8a` —
+  production builds the same as test builds, as the commands in the top-level
+  `README.md` show. Both Folds are arm64; building the other three ABIs only
+  makes the APK bigger and the build longer.
 
 ## Portfolio rules
 
