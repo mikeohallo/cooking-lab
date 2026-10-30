@@ -3,7 +3,11 @@ import { StyleSheet, Text, type StyleProp, type TextProps, type TextStyle } from
 
 import { colors, type, type TypeStyle } from '../theme/tokens';
 
-type Tone = 'text' | 'muted' | 'onPrimary' | 'danger' | 'primary';
+/**
+ * `primary` is the ink of a control's own label (a chip, a toggle); `accent`
+ * is paprika, for links and small actions (scheme A).
+ */
+type Tone = 'text' | 'muted' | 'onPrimary' | 'danger' | 'primary' | 'accent';
 
 type AppTextProps = Omit<TextProps, 'style'> & {
   children: ReactNode;
@@ -18,6 +22,7 @@ const toneColor: Record<Tone, string> = {
   onPrimary: colors.onPrimary,
   danger: colors.danger,
   primary: colors.primary,
+  accent: colors.accent,
 };
 
 /**

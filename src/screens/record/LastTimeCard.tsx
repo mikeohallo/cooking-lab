@@ -81,7 +81,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
   if (folded && !unfolded) {
     const summary = nextTime[0] ?? notes?.split('\n')[0] ?? ratingLines[0] ?? '';
     return (
-      <Card variant="muted" testID="last-time">
+      <Card variant="panel" testID="last-time">
         <View style={styles.row}>
           <Pressable
             accessibilityRole="button"
@@ -104,7 +104,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
   }
 
   return (
-    <Card variant="muted" testID="last-time">
+    <Card variant="panel" testID="last-time">
       <View style={styles.block}>
         <View style={styles.row}>
           <View style={styles.title}>
@@ -157,7 +157,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
             style={styles.fold}
             testID="last-time-fold"
           >
-            <AppText variant="label" tone="primary">
+            <AppText variant="label" tone="accent">
               {INGREDIENTS_SHOW_LESS}
             </AppText>
           </Pressable>

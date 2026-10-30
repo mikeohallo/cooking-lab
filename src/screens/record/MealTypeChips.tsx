@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../components/AppText';
+import { MealTypeDot } from '../../components/MealTypeLabel';
 import { MEAL_TYPE_CHIPS_LABEL, MEAL_TYPE_CLEAR_HINT } from '../../content/product';
 import { MEAL_TYPE_LABELS } from '../../domain/cookRecord';
 import { STORED_MEAL_TYPES, type MealType, type StoredMealType } from '../../domain/enums';
@@ -55,9 +56,12 @@ export function MealTypeChips({ value, onChange, testID = 'meal-type' }: MealTyp
               ]}
               testID={`${testID}-${mealType}`}
             >
-              <AppText variant="label" tone={selected ? 'onPrimary' : 'primary'}>
-                {selected ? `✓ ${label}` : label}
-              </AppText>
+              <View style={styles.chipRow}>
+                <MealTypeDot mealType={mealType} />
+                <AppText variant="label" tone={selected ? 'onPrimary' : 'primary'}>
+                  {selected ? `✓ ${label}` : label}
+                </AppText>
+              </View>
             </Pressable>
           );
         })}
@@ -92,6 +96,11 @@ const styles = StyleSheet.create({
   chipSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
   },
   chipPressed: {
     backgroundColor: colors.surfaceMuted,

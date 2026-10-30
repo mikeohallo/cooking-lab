@@ -209,7 +209,7 @@ export function EditableWords({
               style={styles.editedLink}
               testID={`${testID}-edited`}
             >
-              <AppText variant="caption" tone="primary" style={styles.editedText}>
+              <AppText variant="caption" tone="accent" style={styles.editedText}>
                 {EDITED}
               </AppText>
             </Pressable>

@@ -5,8 +5,11 @@ import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
 
 type CardProps = {
   children: ReactNode;
-  /** `surface` for ordinary content, `muted` for secondary grouping, `hero` for the one big card. */
-  variant?: 'surface' | 'muted' | 'hero';
+  /**
+   * `surface` for ordinary content, `muted` for secondary grouping, `hero` for
+   * the one big card, `panel` for the Last time and Next time panel.
+   */
+  variant?: 'surface' | 'muted' | 'hero' | 'panel';
   /** When set, the whole card is one tappable control. */
   onPress?: () => void;
   /**
@@ -78,6 +81,10 @@ const variantStyles = StyleSheet.create({
   muted: {
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.surfaceMuted,
+  },
+  panel: {
+    backgroundColor: colors.lastTimeSurface,
+    borderColor: colors.lastTimeBorder,
   },
   hero: {
     backgroundColor: colors.surface,

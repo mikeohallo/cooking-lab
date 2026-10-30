@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
   },
   starFilled: {
-    color: colors.accent,
+    color: colors.star,
   },
   starEmpty: {
     color: colors.textMuted,

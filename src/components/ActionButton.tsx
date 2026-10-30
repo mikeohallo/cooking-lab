@@ -4,11 +4,11 @@ import { MIN_TOUCH_TARGET, PRIMARY_TOUCH_TARGET, colors, radius, space } from '.
 import { AppText } from './AppText';
 
 export type ActionButtonVariant =
-  /** The one main action on the screen: solid sage, white label. */
+  /** The one main action on the screen: near-black, white label. */
   | 'primary'
-  /** A utility or non-primary progression: soft sage surface, primary text. */
+  /** A utility or non-primary progression: a soft grey surface, ink label. */
   | 'secondary'
-  /** A quiet text-only control for an uncommon or destructive-leaning action. */
+  /** A quiet text-only control in paprika: a link or a small action. */
   | 'quiet';
 
 type ActionButtonProps = {
@@ -51,7 +51,13 @@ export function ActionButton({
 }: ActionButtonProps) {
   const inactive = disabled || pending;
   const labelTone =
-    variant === 'primary' ? 'onPrimary' : tone === 'danger' ? 'danger' : 'primary';
+    variant === 'primary'
+      ? 'onPrimary'
+      : tone === 'danger'
+        ? 'danger'
+        : variant === 'quiet'
+          ? 'accent'
+          : 'primary';
 
   return (
     <Pressable
@@ -74,7 +80,7 @@ export function ActionButton({
       <View style={styles.content}>
         {pending ? (
           <ActivityIndicator
-            color={variant === 'primary' ? colors.onPrimary : colors.primary}
+            color={variant === 'primary' ? colors.onPrimary : colors.text}
             accessibilityLabel="Working"
           />
         ) : null}

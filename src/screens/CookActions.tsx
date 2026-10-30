@@ -154,7 +154,7 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
 const styles = StyleSheet.create({
   scrim: {
     flex: 1,
-    backgroundColor: 'rgba(32, 37, 31, 0.4)',
+    backgroundColor: colors.scrim,
   },
   sheet: {
     gap: space.xs,

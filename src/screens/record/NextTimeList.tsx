@@ -18,7 +18,7 @@ import {
 import { nextTimeWords } from '../../domain/cookRecord';
 import type { Lesson, LessonRevision } from '../../domain/entities';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
-import { space } from '../../theme/tokens';
+import { colors, radius, space } from '../../theme/tokens';
 import { EditableWords } from '../cook/EditableWords';
 import type { Version } from '../cook/VersionsSheet';
 
@@ -135,9 +135,15 @@ export function NextTimeList({ lessons, edits, onRevise, onAdd, onShowVersions }
 }
 
 const styles = StyleSheet.create({
+  // The Last time and Next time panel (scheme A).
   block: {
     gap: space.xs,
     marginTop: space.xs,
+    padding: space.sm,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: colors.lastTimeBorder,
+    backgroundColor: colors.lastTimeSurface,
   },
   form: {
     gap: space.xs,

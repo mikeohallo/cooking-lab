@@ -44,7 +44,7 @@ export function ScreenHeader({
             style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
             testID="screen-back"
           >
-            <AppText variant="bodyStrong" tone="primary">
+            <AppText variant="bodyStrong" tone="accent">
               ‹ Back
             </AppText>
           </Pressable>

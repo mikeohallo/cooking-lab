@@ -215,7 +215,7 @@ export function IngredientsBox({ versions, hasTimeline, open, onSave, onShowVers
               style={styles.link}
               testID="ingredients-show-all"
             >
-              <AppText variant="label" tone="primary">
+              <AppText variant="label" tone="accent">
                 {expanded ? INGREDIENTS_SHOW_LESS : ingredientsShowAll(lines.length)}
               </AppText>
             </Pressable>
@@ -228,7 +228,7 @@ export function IngredientsBox({ versions, hasTimeline, open, onSave, onShowVers
               style={styles.link}
               testID="ingredients-edited"
             >
-              <AppText variant="caption" tone="primary" style={styles.underline}>
+              <AppText variant="caption" tone="accent" style={styles.underline}>
                 {EDITED}
               </AppText>
             </Pressable>

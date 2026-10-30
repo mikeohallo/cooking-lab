@@ -244,7 +244,7 @@ function expectNeutralCard(eventId: string): void {
     readingTreatments.oven.surface,
     readingTreatments.oven.ink,
     colors.accent,
-    colors.accentSoft,
+    colors.readingInternalBorder,
     colors.accentPressed,
   ];
   expect(kindColours).not.toContain(card.backgroundColor);
