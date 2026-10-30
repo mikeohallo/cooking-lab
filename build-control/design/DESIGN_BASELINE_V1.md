@@ -1,8 +1,13 @@
 # Cooking Lab — Design Baseline v1
 
-**Status:** LOCKED / ACCEPTED  
+> **Replaced by [Design Baseline v2](./DESIGN_BASELINE_V2.md) on 30 October
+> 2026** (colour scheme A, "Paprika", and Plus Jakarta Sans). v2 says which of
+> the rules below still stand; the palette and the typography here no longer
+> do. Kept as the record of what v1 was.
+
+**Status:** REPLACED by v2 (was LOCKED / ACCEPTED)  
 **Design direction:** Calm Modern Companion  
-**Approved by:** Mike O'Halloran  
+**Approved by:** Mike (product owner)  
 **Approval instruction:** "Lock the design and prepare M2."  
 **Date:** 7 September 2026  
 **Applies from:** Milestone 2 onward unless changed through Cooking Lab Build Control
