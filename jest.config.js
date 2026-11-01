@@ -2,7 +2,23 @@
 module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  testMatch: ['<rootDir>/__tests__/**/*.test.ts', '<rootDir>/__tests__/**/*.test.tsx'],
+  /**
+   * Which files are suites: every `*.test.ts` and `*.test.tsx` under
+   * `__tests__`.
+   *
+   * Written as a root plus a relative glob rather than as
+   * `<rootDir>/__tests__/**`, on purpose. Jest pastes the absolute rootDir into
+   * a glob and, on Windows, turns each backslash into a forward slash *unless
+   * the next character is one a glob treats as special* — and a dot is one. So
+   * a checkout inside a folder whose name starts with a dot (`<parent>\.deploys\<repo>`)
+   * became the glob `<parent>\.deploys/<repo>/…`: an escaped dot with no slash
+   * before it, which matches no path at all, and `npm test` found no suites. A
+   * relative glob never has the rootDir in it, so where the repository sits
+   * cannot change what it matches; `roots` keeps it to this repository's own
+   * `__tests__`, as before.
+   */
+  roots: ['<rootDir>/__tests__'],
+  testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   /**
    * How long one test may take, sized for the CI runner rather than for a
    * developer's desktop.
