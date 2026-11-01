@@ -7,7 +7,7 @@
  * has to hold — taking a tag off one cook leaves it on every other.
  */
 
-import { cleanup, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { cleanup, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 
 import {
   ADD_TAG,
@@ -195,7 +195,10 @@ describe('an open cook', () => {
     expect(screen.getByTestId(`all-tag-${elsewhere}`).props.accessibilityState).toMatchObject({
       checked: false,
     });
-    expect(screen.getByTestId(`all-tag-${onCook}`)).toHaveTextContent(/✓/);
+    // On the cook: teal with a tick (0.4.0 draws the tick as an icon).
+    expect(
+      within(screen.getByTestId(`all-tag-${onCook}`)).getByTestId('icon-check', { includeHiddenElements: true }),
+    ).toBeTruthy();
 
     await user.press(screen.getByRole('button', { name: HIDE_MY_TAGS }));
     expect(screen.queryByTestId('all-tags')).toBeNull();

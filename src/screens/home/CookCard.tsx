@@ -1,15 +1,14 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { AppText } from '../../components/AppText';
-import { Card } from '../../components/Card';
-import { MealTypeLabel } from '../../components/MealTypeLabel';
+import { CookCard as CookCardPart } from '../../components/CookCard';
 import { StatusChip } from '../../components/StatusChip';
 import { DELETE_COOK, STATUS_OPEN, UNTITLED_COOK } from '../../content/product';
 import type { Cook } from '../../domain/entities';
 import type { StoredMealType } from '../../domain/enums';
 import { formatDateTime } from '../../format/dateTime';
 import { verdictExcerpt } from '../../state/useCookList';
-import { colors, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
 import type { HighlightedSegment, SearchHit } from '../history/search';
 import { ratingsSpoken, type StarredRating } from './ratingsLine';
 
@@ -19,6 +18,10 @@ type CookCardProps = {
   verdict?: string | null;
   /** Its meal type, shown as a small label above the title (0.3.0). */
   mealType?: StoredMealType | null;
+  /** Its cuisine's label, or Other's words (0.4.0). */
+  cuisine?: string | null;
+  /** The card's photo (0.4.0): its own first, or the last cook of the same dish. */
+  photoUri?: string | null;
   /** Its ratings with stars, in order; N/A left out (0.3.0). */
   ratings?: readonly StarredRating[];
   /** When the card is a search result: the matched words picked out. */
@@ -31,21 +34,17 @@ type CookCardProps = {
 };
 
 /**
- * A cook on Home: its meal type above the title; the title, never cut off;
- * the date; who gave it how many stars, on one line; then the first line or
- * two of the notes. Long-press for Delete cook.
- *
- * N2 (0.3.0): the title is a block of its own, the full width of the card,
- * not a shrinking item in a row beside the Open chip. In a row, Android
- * measured the title at the row's width and then drew it narrower, and a
- * wrapped last word ("Acceptance cook" → "Acceptance") fell on a line that was
- * never drawn. It now wraps to as many lines as it needs at any width and any
- * font scale.
+ * A cook on Home, on the shared CookCard (0.4.0): its photo or meal tile, the
+ * meal label and cuisine, the title (never cut off, N2), the date, who gave it
+ * how many stars, then the first line or two of the notes. Long-press for
+ * Delete cook. Part 2 of 0.4.0 redraws Home around it.
  */
 export function CookCard({
   cook,
   verdict,
   mealType = null,
+  cuisine = null,
+  photoUri = null,
   ratings = [],
   hit,
   selected,
@@ -56,32 +55,25 @@ export function CookCard({
   const excerpt = verdictExcerpt(verdict === undefined ? cook.verdict : verdict);
   const open = cook.status === 'open';
   return (
-    <Card
+    <CookCardPart
+      title={hit !== undefined && cook.title !== null ? <Highlighted segments={hit.title} /> : title}
+      untitled={cook.title === null}
+      dateLine={formatDateTime(cook.startedAt)}
+      mealType={mealType}
+      cuisine={cuisine}
+      photoUri={photoUri}
+      badge={open ? <StatusChip status="open" label={STATUS_OPEN} /> : null}
+      selected={selected}
       onPress={onPress}
       onLongPress={onLongPress}
       longPressLabel={DELETE_COOK}
-      selected={selected}
       accessibilityLabel={`${title}, ${formatDateTime(cook.startedAt)}`}
       accessibilityHint={open ? 'Continue this cook' : 'Open this cook'}
       testID={`cook-card-${cook.id}`}
+      partID={`cook-${cook.id}`}
+      titleTestID={`cook-title-${cook.id}`}
+      mealTestID={`cook-meal-${cook.id}`}
     >
-      {mealType !== null || open ? (
-        <View style={styles.labels}>
-          <MealTypeLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
-          {open ? <StatusChip status="open" label={STATUS_OPEN} /> : null}
-        </View>
-      ) : null}
-      <AppText
-        variant="bodyStrong"
-        tone={cook.title ? 'text' : 'muted'}
-        style={styles.title}
-        testID={`cook-title-${cook.id}`}
-      >
-        {hit !== undefined && cook.title !== null ? <Highlighted segments={hit.title} /> : title}
-      </AppText>
-      <AppText variant="caption" tone="muted">
-        {formatDateTime(cook.startedAt)}
-      </AppText>
       {ratings.length > 0 ? (
         <AppText
           variant="secondary"
@@ -91,7 +83,7 @@ export function CookCard({
           {ratings.map((rating, index) => (
             <AppText key={rating.key} variant="secondary">
               {index > 0 ? '  ·  ' : ''}
-              <AppText variant="secondary" style={styles.star}>
+              <AppText variant="secondary" tone="star">
                 ★
               </AppText>
               {` ${rating.stars} ${rating.name}`}
@@ -100,12 +92,12 @@ export function CookCard({
         </AppText>
       ) : null}
       {hit !== undefined && hit.tags.length > 0 ? (
-        <AppText variant="secondary" tone="muted" testID={`cook-tags-line-${cook.id}`}>
+        <AppText variant="secondary" tone="inkMuted" testID={`cook-tags-line-${cook.id}`}>
           <Highlighted segments={hit.tagLine} />
         </AppText>
       ) : null}
       {hit !== undefined && hit.ingredientLine.length > 0 ? (
-        <AppText variant="secondary" tone="muted" testID={`cook-ingredients-line-${cook.id}`}>
+        <AppText variant="secondary" tone="inkMuted" testID={`cook-ingredients-line-${cook.id}`}>
           <Highlighted segments={hit.ingredientLine} />
         </AppText>
       ) : null}
@@ -114,18 +106,16 @@ export function CookCard({
           {excerpt}
         </AppText>
       ) : null}
-    </Card>
+    </CookCardPart>
   );
 }
 
 /**
- * Text with the matched runs picked out.
- *
- * Bold and a soft tint behind it, not colour alone: a highlight that was only
- * a tint would be invisible to some of the people reading it, and weight
- * carries the same information everywhere.
+ * Text with the matched runs picked out: bold and a soft tint behind it, not
+ * colour alone.
  */
 export function Highlighted({ segments }: { segments: readonly HighlightedSegment[] }) {
+  const styles = useStyles();
   return (
     <>
       {segments.map((segment, index) => (
@@ -143,22 +133,11 @@ export function Highlighted({ segments }: { segments: readonly HighlightedSegmen
   );
 }
 
-const styles = StyleSheet.create({
-  labels: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.xs,
-  },
-  // A block of its own, full width; see N2 above. Nothing here limits lines.
-  title: {
-    alignSelf: 'stretch',
-  },
-  star: {
-    color: colors.star,
-  },
-  match: {
-    backgroundColor: colors.primarySoft,
-    color: colors.text,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    match: {
+      backgroundColor: colors.surfaceRaised,
+      color: colors.ink,
+    },
+  }),
+);

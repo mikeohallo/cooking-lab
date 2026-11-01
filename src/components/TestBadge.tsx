@@ -1,16 +1,18 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, space } from '../theme/tokens';
 import { AppText } from './AppText';
 
 export const TEST_BADGE_LABEL = 'TEST';
 export const TEST_BADGE_TEST_ID = 'test-build-badge';
 
 /**
- * The persistent TEST indicator. Rendered by the shell chrome on every screen of
- * the TEST variant and never rendered by the production variant.
+ * Marks the Test build, beside the app name on every screen of it, so it is
+ * never mistaken for the real notebook. Never in the production app.
  */
 export function TestBadge() {
+  const styles = useStyles();
   return (
     <View
       style={styles.badge}
@@ -18,24 +20,24 @@ export function TestBadge() {
       accessibilityRole="text"
       accessibilityLabel="Test build"
     >
-      <AppText variant="caption" tone="onPrimary" style={styles.label}>
+      <AppText variant="label" tone="onTestBadge" style={styles.label}>
         {TEST_BADGE_LABEL}
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.testBadge,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.xs,
-    paddingVertical: space.xxs,
-  },
-  label: {
-    color: colors.onTestBadge,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    badge: {
+      alignSelf: 'center',
+      backgroundColor: colors.testBadge,
+      borderRadius: radius.pill,
+      paddingHorizontal: space.xs,
+      paddingVertical: space.xxs / 2,
+    },
+    label: {
+      letterSpacing: 1,
+    },
+  }),
+);

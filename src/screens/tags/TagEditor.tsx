@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
-import { StateNotice } from '../../components/StateNotice';
+import { Notice } from '../../components/Notice';
 import { TagChip } from '../../components/TagChip';
 import { TextField } from '../../components/TextField';
 import {
@@ -20,6 +20,7 @@ import type { CookId, Tag } from '../../domain/entities';
 import { MAX_TAG_ENTRY_LENGTH } from '../../domain/invariants';
 import { useScreenScroll } from '../../layout/ScreenScroll';
 import { useCookTags, usedBeforeWithout } from '../../state/useCookTags';
+import { makeStyles } from '../../theme/theme';
 import { space } from '../../theme/tokens';
 
 type TagEditorProps = {
@@ -70,6 +71,7 @@ export function TagEditor({
   labelled = true,
   testID = 'tag-editor',
 }: TagEditorProps) {
+  const styles = useStyles();
   const tagging = useCookTags(cookId, refreshToken);
   const [draft, setDraft] = useState('');
   const [suggestions, setSuggestions] = useState<readonly Tag[]>([]);
@@ -115,7 +117,7 @@ export function TagEditor({
   return (
     <View style={styles.editor} testID={testID}>
       {labelled ? (
-        <AppText variant="label" tone="muted" testID="tag-editor-label">
+        <AppText variant="label" tone="inkMuted" testID="tag-editor-label">
           {TAGS_LABEL}
         </AppText>
       ) : null}
@@ -134,13 +136,13 @@ export function TagEditor({
           ))}
         </View>
       ) : tagging.loading ? null : (
-        <AppText variant="secondary" tone="muted" testID="cook-tags-empty">
+        <AppText variant="secondary" tone="inkMuted" testID="cook-tags-empty">
           {NO_TAGS_YET}
         </AppText>
       )}
 
       {tagging.problem ? (
-        <StateNotice
+        <Notice
           title={TAG_FAILED_TITLE}
           body={tagging.problem}
           tone="problem"
@@ -184,9 +186,9 @@ export function TagEditor({
               testID="tag-input"
             />
           </View>
-          <ActionButton
+          <Button
             label={ADD_TAG}
-            variant="secondary"
+            variant="outlined"
             disabled={draft.trim() === ''}
             pending={tagging.saving}
             onPress={() => void submit()}
@@ -197,7 +199,7 @@ export function TagEditor({
 
       {usedBefore.length > 0 ? (
         <View style={styles.block} testID="tags-used-before">
-          <AppText variant="label" tone="muted">
+          <AppText variant="label" tone="inkMuted">
             {USED_BEFORE}
           </AppText>
           <View style={styles.chips}>
@@ -216,9 +218,9 @@ export function TagEditor({
       ) : null}
 
       {tagging.allTags.length > 0 ? (
-        <ActionButton
+        <Button
           label={showingAll ? HIDE_MY_TAGS : SHOW_MY_TAGS}
-          variant="quiet"
+          variant="text"
           onPress={() => setShowingAll((open) => !open)}
           testID="show-my-tags"
         />
@@ -242,28 +244,30 @@ export function TagEditor({
   );
 }
 
-const styles = StyleSheet.create({
-  editor: {
-    gap: space.xs,
-  },
-  block: {
-    gap: space.xxs,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  typing: {
-    gap: space.xs,
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.xs,
-  },
-  addField: {
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    editor: {
+      gap: space.xs,
+    },
+    block: {
+      gap: space.xxs,
+    },
+    chips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    typing: {
+      gap: space.xs,
+    },
+    addRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.xs,
+    },
+    addField: {
+      flexGrow: 1,
+      flexShrink: 1,
+    },
+  }),
+);

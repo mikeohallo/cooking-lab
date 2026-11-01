@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,7 +11,7 @@ import { StorageProvider } from '../src/state/StorageProvider';
 import { newDeviceId } from '../src/data/native/expoCrypto';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { describeStartup, initialiseStorage } from '../src/data/startup';
-import { colors } from '../src/theme/tokens';
+import { useTheme } from '../src/theme/theme';
 
 /**
  * One line in the device log per launch — `created` on a fresh install,
@@ -42,16 +43,21 @@ function gated({ children }: { children: ReactNode }) {
  * until it has — never an apparently empty Home.
  */
 export default function RootLayout() {
+  // Light or dark follows the phone, live; the system bars' icons follow it
+  // too, dark on the light page and light on the dark one.
+  const { name, colors } = useTheme();
+  const bars = name === 'dark' ? 'light' : 'dark';
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={bars} />
+      <NavigationBar style={name === 'dark' ? 'dark' : 'light'} />
       <StorageProvider start={initialiseStorage} newId={newDeviceId} onStarted={logStartup}>
         {/* Above every screen, so "Cook deleted · Undo" shows wherever the cook lands. */}
         <PendingDeletionProvider>
           <Stack
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
+              contentStyle: { backgroundColor: colors.page },
             }}
             screenLayout={gated}
           />

@@ -1,95 +1,75 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { space } from '../theme/tokens';
 import { AppText } from './AppText';
+import { TopBar } from './TopBar';
 
 type ScreenHeaderProps = {
   title: string;
   /** A short secondary line under the title: a date, a status. */
   subtitle?: string;
   onBack?: () => void;
-  /** Something placed on the trailing side — a chip, a small action. */
+  /** The back control's word: "Home", "Back to the cook". "Back" by default. */
+  backLabel?: string;
+  /** At most two actions on the right of the bar. */
   trailing?: ReactNode;
   /** Replaces the plain title with the caller's own title element (an inline editor, say). */
   titleSlot?: ReactNode;
-  /** A small line above the title, e.g. a cook's meal type (0.3.0). */
+  /** A small line above the title, e.g. a cook's meal type and cuisine. */
   eyebrow?: ReactNode;
   /** A line under the subtitle, e.g. "2nd time cooking this". */
   footnote?: ReactNode;
 };
 
 /**
- * The header of a pushed task screen: back, title, and room for one action.
- * Home keeps its own compact brand row (`ShellHeader`); this is for everything
- * reached from it.
+ * The top of a screen reached from Home: the TopBar with back and its
+ * actions, then the screen's own title below it, never squeezed into the bar.
  */
 export function ScreenHeader({
   title,
   subtitle,
   onBack,
+  backLabel = 'Back',
   trailing,
   titleSlot,
   eyebrow,
   footnote,
 }: ScreenHeaderProps) {
+  const styles = useStyles();
   return (
     <View style={styles.header}>
-      <View style={styles.row}>
-        {onBack ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={onBack}
-            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
-            testID="screen-back"
-          >
-            <AppText variant="bodyStrong" tone="accent">
-              ‹ Back
-            </AppText>
-          </Pressable>
-        ) : null}
-        {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
-      </View>
+      <TopBar
+        back={onBack ? { label: backLabel, onPress: onBack, accessibilityLabel: 'Back' } : undefined}
+        actions={trailing}
+      />
       <View style={styles.titleBlock}>
         {eyebrow ?? null}
         {titleSlot ?? (
-          <AppText variant="screenTitle" accessibilityRole="header">
+          <AppText variant="title" accessibilityRole="header">
             {title}
           </AppText>
         )}
-        {subtitle ? <AppText variant="secondary" tone="muted">{subtitle}</AppText> : null}
+        {subtitle ? (
+          <AppText variant="secondary" tone="inkMuted">
+            {subtitle}
+          </AppText>
+        ) : null}
         {footnote ?? null}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    gap: space.xs,
-    marginBottom: space.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: MIN_TOUCH_TARGET,
-  },
-  back: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-    paddingRight: space.sm,
-    borderRadius: radius.control,
-  },
-  backPressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  trailing: {
-    marginLeft: 'auto',
-    flexShrink: 1,
-  },
-  titleBlock: {
-    gap: space.xxs,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    header: {
+      gap: space.xs,
+      marginBottom: space.md,
+    },
+    titleBlock: {
+      gap: space.xxs,
+    },
+  }),
+);

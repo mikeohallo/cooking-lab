@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../components/ActionButton';
+import { Button } from '../components/Button';
 import { PaneSheet } from '../layout/panes';
 import { AppText } from '../components/AppText';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import {
   COOK_ACTIONS_CANCEL,
   DELETE_COOK,
@@ -17,7 +17,8 @@ import {
 } from '../content/product';
 import type { Cook, CookId } from '../domain/entities';
 import { usePendingDeletion } from '../state/PendingDeletion';
-import { colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, space } from '../theme/tokens';
 
 type CookActionsProps = {
   /** The cook the actions are for, or `null` when the sheet is closed. */
@@ -38,6 +39,7 @@ type CookActionsProps = {
  * back for a few seconds (`PendingDeletionProvider`).
  */
 export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
+  const styles = useStyles();
   const { requestDelete } = usePendingDeletion();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -87,7 +89,7 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
               </AppText>
 
               {problem ? (
-                <StateNotice
+                <Notice
                   title={DELETE_FAILED_TITLE}
                   body={`Nothing was changed. ${problem}`}
                   tone="problem"
@@ -98,20 +100,19 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
               {confirming ? (
                 <View style={styles.confirm} testID="delete-cook-confirm">
                   <AppText variant="bodyStrong">{DELETE_COOK_CONFIRM_TITLE}</AppText>
-                  <AppText variant="secondary" tone="muted">
+                  <AppText variant="secondary" tone="inkMuted">
                     {DELETE_COOK_CONFIRM_BODY}
                   </AppText>
                   <View style={styles.actions}>
-                    <ActionButton
+                    <Button
                       label={DELETE_COOK_KEEP}
-                      variant="secondary"
+                      variant="outlined"
                       onPress={close}
                       testID="delete-cook-keep"
                     />
-                    <ActionButton
+                    <Button
                       label={DELETE_COOK_CONFIRM}
-                      variant="quiet"
-                      tone="danger"
+                      variant="danger"
                       pending={deleting}
                       onPress={() => void confirmDelete()}
                       testID="delete-cook-confirm-button"
@@ -120,16 +121,15 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
                 </View>
               ) : (
                 <View style={styles.actions}>
-                  <ActionButton
+                  <Button
                     label={COOK_ACTIONS_CANCEL}
-                    variant="secondary"
+                    variant="outlined"
                     onPress={close}
                     testID="cook-actions-cancel"
                   />
-                  <ActionButton
+                  <Button
                     label={DELETE_COOK}
-                    variant="quiet"
-                    tone="danger"
+                    variant="danger"
                     onPress={() => {
                       setProblem(null);
                       setConfirming(true);
@@ -146,26 +146,28 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  scrim: {
-    flex: 1,
-    backgroundColor: colors.scrim,
-  },
-  sheet: {
-    gap: space.xs,
-    paddingHorizontal: space.ml,
-    paddingTop: space.ml,
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.hero,
-    borderTopRightRadius: radius.hero,
-  },
-  confirm: {
-    gap: space.xxs,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    scrim: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+    },
+    sheet: {
+      gap: space.xs,
+      paddingHorizontal: space.ml,
+      paddingTop: space.ml,
+      backgroundColor: colors.page,
+      borderTopLeftRadius: radius.card,
+      borderTopRightRadius: radius.card,
+    },
+    confirm: {
+      gap: space.xxs,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+  }),
+);

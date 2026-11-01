@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
-import { StateNotice } from '../../components/StateNotice';
+import { Notice } from '../../components/Notice';
 import { TextField } from '../../components/TextField';
 import {
   CANCEL,
@@ -25,7 +25,8 @@ import { currentIngredients, ingredientLines } from '../../domain/cookRecord';
 import type { IngredientVersion } from '../../domain/entities';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
 import { useScreenScroll } from '../../layout/ScreenScroll';
-import { MIN_TOUCH_TARGET, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { size, space } from '../../theme/tokens';
 import type { Version } from '../cook/VersionsSheet';
 
 /** How many lines a folded list shows. */
@@ -80,6 +81,7 @@ export function IngredientsBox({
   onSave,
   onShowVersions,
 }: IngredientsBoxProps) {
+  const styles = useStyles();
   const current = currentIngredients(versions);
   const startsAsField = open && current === null && !hasTimeline;
   const [editing, setEditing] = useState(false);
@@ -121,15 +123,15 @@ export function IngredientsBox({
       <Card testID="ingredients">
         <View ref={editorRef} style={styles.block} testID="ingredients-editor">
           <View style={styles.headerRow}>
-            <AppText variant="label" tone="muted" accessibilityRole="header">
+            <AppText variant="label" tone="inkMuted" accessibilityRole="header">
               {INGREDIENTS_TITLE}
             </AppText>
             {/* Save and Cancel above the field, so the keyboard never covers them. */}
             <View style={styles.actions}>
               {editing ? (
-                <ActionButton
+                <Button
                   label={CANCEL}
-                  variant="quiet"
+                  variant="text"
                   onPress={() => {
                     setEditing(false);
                     setProblem(null);
@@ -137,9 +139,9 @@ export function IngredientsBox({
                   testID="ingredients-cancel"
                 />
               ) : null}
-              <ActionButton
+              <Button
                 label={INGREDIENTS_SAVE}
-                variant="secondary"
+                variant="outlined"
                 disabled={blank || unchanged || tooLong}
                 pending={saving}
                 onPress={() => void save()}
@@ -167,7 +169,7 @@ export function IngredientsBox({
             testID="ingredients-input"
           />
           {problem ? (
-            <StateNotice title={problem} body={UNSAVED_KEPT} tone="problem" testID="ingredients-failed" />
+            <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID="ingredients-failed" />
           ) : null}
         </View>
       </Card>
@@ -182,14 +184,14 @@ export function IngredientsBox({
 
   if (current === null) {
     return (
-      <Card variant="muted" testID="ingredients">
+      <Card testID="ingredients">
         <View style={styles.headerRow}>
-          <AppText variant="label" tone="muted" accessibilityRole="header">
+          <AppText variant="label" tone="inkMuted" accessibilityRole="header">
             {INGREDIENTS_TITLE}
           </AppText>
-          <ActionButton label={INGREDIENTS_ADD} variant="quiet" onPress={startEditing} testID="ingredients-add" />
+          <Button label={INGREDIENTS_ADD} variant="text" onPress={startEditing} testID="ingredients-add" />
         </View>
-        <AppText variant="secondary" tone="muted">
+        <AppText variant="secondary" tone="inkMuted">
           {INGREDIENTS_NONE}
         </AppText>
       </Card>
@@ -204,12 +206,12 @@ export function IngredientsBox({
     <Card testID="ingredients">
       <View style={styles.block}>
         <View style={styles.headerRow}>
-          <AppText variant="label" tone="muted" accessibilityRole="header">
+          <AppText variant="label" tone="inkMuted" accessibilityRole="header">
             {INGREDIENTS_TITLE}
           </AppText>
-          <ActionButton
+          <Button
             label={INGREDIENTS_EDIT}
-            variant="quiet"
+            variant="text"
             accessibilityHint={`${INGREDIENTS_EDIT_LABEL}. The earlier list is kept.`}
             onPress={startEditing}
             testID="ingredients-edit"
@@ -227,7 +229,7 @@ export function IngredientsBox({
               style={styles.link}
               testID="ingredients-show-all"
             >
-              <AppText variant="label" tone="accent">
+              <AppText variant="label" tone="link">
                 {expanded ? INGREDIENTS_SHOW_LESS : ingredientsShowAll(lines.length)}
               </AppText>
             </Pressable>
@@ -240,7 +242,7 @@ export function IngredientsBox({
               style={styles.link}
               testID="ingredients-edited"
             >
-              <AppText variant="caption" tone="accent" style={styles.underline}>
+              <AppText variant="secondary" tone="link" style={styles.underline}>
                 {EDITED}
               </AppText>
             </Pressable>
@@ -251,35 +253,37 @@ export function IngredientsBox({
   );
 }
 
-const styles = StyleSheet.create({
-  block: {
-    gap: space.xs,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.xs,
-    marginLeft: 'auto',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: space.md,
-  },
-  link: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  underline: {
-    textDecorationLine: 'underline',
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    block: {
+      gap: space.xs,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: space.xs,
+      marginLeft: 'auto',
+    },
+    footerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: space.md,
+    },
+    link: {
+      minHeight: size.targetMin,
+      minWidth: size.targetMin,
+      justifyContent: 'center',
+    },
+    underline: {
+      textDecorationLine: 'underline',
+    },
+  }),
+);

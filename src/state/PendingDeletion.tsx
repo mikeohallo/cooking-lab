@@ -27,12 +27,12 @@ import {
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionButton } from '../components/ActionButton';
-import { AppText } from '../components/AppText';
+import { UndoBar as SharedUndoBar } from '../components/UndoBar';
 import { COOK_DELETED, UNDO } from '../content/product';
 import { UNDO_WINDOW_MS } from '../data/deletion/workflow';
 import type { CookId } from '../domain/entities';
-import { colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { space } from '../theme/tokens';
 import { useStorageState } from './StorageProvider';
 
 export type PendingDeletion = {
@@ -66,6 +66,7 @@ export function usePendingDeletion(): PendingDeletion {
 }
 
 export function PendingDeletionProvider({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   const state = useStorageState();
   const deletions = state.status === 'ready' ? state.storage.deletions : null;
   const [pending, setPending] = useState<CookId | null>(null);
@@ -178,46 +179,30 @@ export function UndoSlot() {
 
 /** "Cook deleted · Undo", over the bottom of whatever screen or pane is showing. */
 function UndoBar({ onUndo, inPane = false }: { onUndo: () => void; inPane?: boolean }) {
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   return (
-    <View
-      style={[styles.bar, { bottom: (inPane ? 0 : insets.bottom) + space.md }]}
-      accessibilityLiveRegion="polite"
+    <SharedUndoBar
+      message={COOK_DELETED}
+      undoLabel={UNDO}
+      onUndo={onUndo}
+      undoHint="Brings the cook back exactly as it was"
       testID="undo-bar"
-    >
-      <AppText variant="bodyStrong" tone="onPrimary" style={styles.message}>
-        {COOK_DELETED}
-      </AppText>
-      <ActionButton
-        label={UNDO}
-        variant="secondary"
-        onPress={onUndo}
-        accessibilityHint="Brings the cook back exactly as it was"
-        testID="undo-delete"
-      />
-    </View>
+      undoTestID="undo-delete"
+      style={[styles.bar, { bottom: (inPane ? 0 : insets.bottom) + space.md }]}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  bar: {
-    position: 'absolute',
-    left: space.md,
-    right: space.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.sm,
-    paddingVertical: space.xs,
-    paddingLeft: space.md,
-    paddingRight: space.xs,
-    borderRadius: radius.card,
-    backgroundColor: colors.text,
-  },
-  message: {
-    flexShrink: 1,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+    },
+    bar: {
+      position: 'absolute',
+      left: space.md,
+      right: space.md,
+    },
+  }),
+);

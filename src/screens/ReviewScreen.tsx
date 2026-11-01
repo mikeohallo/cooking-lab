@@ -6,13 +6,14 @@ import { useCook } from '../state/useCook';
 import { useCookRecord } from '../state/useCookRecord';
 import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite } from '../state/useWrite';
-import { ActionButton } from '../components/ActionButton';
+import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
-import { MealTypeLabel } from '../components/MealTypeLabel';
+import { CuisinePill } from '../components/CuisinePill';
+import { MealLabel } from '../components/MealLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import { TextField } from '../components/TextField';
 import {
   AI_NOT_CONNECTED_BODY,
@@ -41,6 +42,7 @@ import {
 } from '../content/product';
 import { HOUSEHOLD_ASKED_KEY } from '../data/sqlite/cookRecord';
 import type { CookId, HouseholdMember } from '../domain/entities';
+import { cuisineLabel } from '../domain/cookRecord';
 import type { MealType } from '../domain/enums';
 import {
   createUserLesson,
@@ -53,6 +55,7 @@ import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDateTime } from '../format/dateTime';
 import { REVIEW_RATINGS_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
+import { makeStyles } from '../theme/theme';
 import { space } from '../theme/tokens';
 import { TimelineEvent } from './cook/TimelineEvent';
 import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
@@ -78,6 +81,7 @@ type ReviewScreenProps = {
  * pretending an assistant ran; the cook is complete with a verdict alone.
  */
 export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) {
+  const styles = useStyles();
   // On the inner display: who ate it on the left, beside your notes and next
   // time on the right, with Finish review under them (0.3.0).
   const split = useLayoutMetrics().twoPane;
@@ -148,7 +152,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     return (
       <ScreenContainer testID="review-missing">
         <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={onBack} />
-        <StateNotice
+        <Notice
           title={COOK_NOT_FOUND_TITLE}
           body={COOK_NOT_FOUND_BODY}
           tone="problem"
@@ -162,7 +166,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     return (
       <ScreenContainer testID="review-failed">
         <ScreenHeader title={REVIEW_TITLE} onBack={onBack} />
-        <StateNotice
+        <Notice
           title="This cook could not be loaded"
           body={`Nothing was changed. ${load.message}`}
           tone="problem"
@@ -237,10 +241,11 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   };
 
   const finishButton = (
-    <ActionButton
+    <Button
       label={FINISH_REVIEW}
-      variant="primary"
-      size="hero"
+      variant="main"
+      size="main"
+      block
       onPress={() => void finish()}
       disabled={verdictTooLong || takeawayTooLong}
       pending={saveWrite.state.status === 'pending'}
@@ -252,7 +257,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     <>
       {/* Your notes and next time: in the main column, or the right-hand pane. */}
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{YOUR_NOTES}</AppText>
+        <AppText variant="heading">{YOUR_NOTES}</AppText>
         <TextField
           value={verdict}
           onChangeText={setVerdictDraft}
@@ -267,7 +272,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       </View>
 
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{NEXT_TIME}</AppText>
+        <AppText variant="heading">{NEXT_TIME}</AppText>
         <TextField
           value={takeaway}
           onChangeText={setTakeaway}
@@ -297,13 +302,16 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         onBack={onBack}
         eyebrow={
           record.status === 'ready' ? (
-            <MealTypeLabel mealType={record.mealType?.mealType ?? null} testID="review-meal-label" />
+            <View style={styles.eyebrow}>
+              <MealLabel mealType={record.mealType?.mealType ?? null} testID="review-meal-label" />
+              <CuisinePill label={cuisineLabel(record.cuisine)} testID="review-cuisine-label" />
+            </View>
           ) : null
         }
       />
 
       {saveWrite.state.status === 'failed' ? (
-        <StateNotice
+        <Notice
           title={saveWrite.state.message}
           body={UNSAVED_KEPT}
           tone="problem"
@@ -311,7 +319,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         />
       ) : null}
       {lessonProblem ? (
-        <StateNotice
+        <Notice
           title="Your verdict was saved, but the takeaway was not"
           body={`${lessonProblem} ${UNSAVED_KEPT}`}
           tone="problem"
@@ -322,10 +330,10 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
 
       {record.status === 'ready' && askHousehold ? (
         <Card testID="household-prompt">
-          <AppText variant="sectionTitle" accessibilityRole="header">
+          <AppText variant="heading" accessibilityRole="header">
             {WHO_USUALLY_EATS}
           </AppText>
-          <AppText variant="secondary" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {WHO_USUALLY_EATS_BODY}
           </AppText>
           <HouseholdEditor
@@ -334,15 +342,15 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
             testID="household-prompt-editor"
           />
           <View style={styles.promptActions}>
-            <ActionButton
+            <Button
               label={HOUSEHOLD_SKIP}
-              variant="quiet"
+              variant="text"
               onPress={finishAsking}
               testID="household-prompt-skip"
             />
-            <ActionButton
+            <Button
               label={HOUSEHOLD_DONE}
-              variant="secondary"
+              variant="outlined"
               onPress={finishAsking}
               testID="household-prompt-done"
             />
@@ -352,7 +360,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
 
       {record.status === 'ready' ? (
         <View style={styles.section}>
-          <AppText variant="sectionTitle">{WHO_ATE_IT}</AppText>
+          <AppText variant="heading">{WHO_ATE_IT}</AppText>
           <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
         </View>
       ) : null}
@@ -373,21 +381,21 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
         has the words for it: he has just eaten the thing.
       */}
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{TAGS_LABEL}</AppText>
+        <AppText variant="heading">{TAGS_LABEL}</AppText>
         {/* The section title above is the heading; the control prints none. */}
         <TagEditor cookId={cook.id} labelled={false} />
       </View>
 
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{SUGGESTIONS}</AppText>
-        <StateNotice title={AI_NOT_CONNECTED_TITLE} body={AI_NOT_CONNECTED_BODY} testID="ai-unavailable" />
+        <AppText variant="heading">{SUGGESTIONS}</AppText>
+        <Notice title={AI_NOT_CONNECTED_TITLE} body={AI_NOT_CONNECTED_BODY} testID="ai-unavailable" />
       </View>
 
       <View style={styles.section}>
-        <AppText variant="sectionTitle">{RAW_EVIDENCE}</AppText>
+        <AppText variant="heading">{RAW_EVIDENCE}</AppText>
         {events.length === 0 ? (
-          <Card variant="muted">
-            <AppText variant="secondary" tone="muted">
+          <Card>
+            <AppText variant="secondary" tone="inkMuted">
               Nothing was noted during this cook. The verdict will be its record.
             </AppText>
           </Card>
@@ -436,17 +444,25 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
 /** A stable empty array while the cook is still loading. See `CookScreen`. */
 const EMPTY_EVENTS: readonly never[] = [];
 
-const styles = StyleSheet.create({
-  section: {
-    gap: space.xs,
-    marginBottom: space.lg,
-  },
-  evidence: {
-    gap: space.xs,
-  },
-  promptActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    eyebrow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xs,
+    },
+    section: {
+      gap: space.xs,
+      marginBottom: space.lg,
+    },
+    evidence: {
+      gap: space.xs,
+    },
+    promptActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+  }),
+);

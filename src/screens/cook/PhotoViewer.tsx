@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { PaneSheet } from '../../layout/panes';
 import { AppText } from '../../components/AppText';
-import { StateNotice } from '../../components/StateNotice';
+import { Notice } from '../../components/Notice';
 import {
   CLOSE_PHOTO,
   PHOTO_ALT,
@@ -16,7 +16,8 @@ import {
   REMOVE_PHOTO_KEEP,
 } from '../../content/product';
 import { formatDateTime } from '../../format/dateTime';
-import { colors, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { space } from '../../theme/tokens';
 
 export type ViewedPhoto = {
   readonly eventId: string;
@@ -66,6 +67,7 @@ type PhotoViewerProps = {
  * no words of anybody's, and the only one the rules let go.
  */
 export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: PhotoViewerProps) {
+  const styles = useStyles();
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -116,12 +118,12 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
                 style={[styles.bar, { paddingBottom: BAR_BOTTOM_PADDING + insets.bottom }]}
                 testID="photo-viewer-bar"
               >
-                <AppText variant="caption" tone="muted">
+                <AppText variant="secondary" tone="inkMuted">
                   {`${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
                 </AppText>
 
                 {problem ? (
-                  <StateNotice
+                  <Notice
                     title="This photo was not removed"
                     body={`Nothing was changed. ${problem}`}
                     tone="problem"
@@ -132,20 +134,19 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
                 {confirming ? (
                   <View style={styles.confirm} testID="photo-remove-confirm">
                     <AppText variant="bodyStrong">{REMOVE_PHOTO_CONFIRM_TITLE}</AppText>
-                    <AppText variant="secondary" tone="muted">
+                    <AppText variant="secondary" tone="inkMuted">
                       {REMOVE_PHOTO_CONFIRM_BODY}
                     </AppText>
                     <View style={styles.actions}>
-                      <ActionButton
+                      <Button
                         label={REMOVE_PHOTO_KEEP}
-                        variant="secondary"
+                        variant="outlined"
                         onPress={() => setConfirming(false)}
                         testID="photo-remove-keep"
                       />
-                      <ActionButton
+                      <Button
                         label={REMOVE_PHOTO_CONFIRM}
-                        variant="quiet"
-                        tone="danger"
+                        variant="danger"
                         pending={removing}
                         onPress={() => void remove()}
                         testID="photo-remove-confirm-button"
@@ -155,10 +156,9 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
                 ) : (
                   <View style={styles.actions}>
                     {canRemove ? (
-                      <ActionButton
+                      <Button
                         label={REMOVE_PHOTO}
-                        variant="quiet"
-                        tone="danger"
+                        variant="danger"
                         onPress={() => {
                           setProblem(null);
                           setConfirming(true);
@@ -166,9 +166,9 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
                         testID="photo-remove"
                       />
                     ) : null}
-                    <ActionButton
+                    <Button
                       label={CLOSE_PHOTO}
-                      variant="secondary"
+                      variant="outlined"
                       onPress={close}
                       testID="photo-close"
                     />
@@ -186,31 +186,33 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
 /** Space under the last button, above the navigation area's own inset. */
 export const BAR_BOTTOM_PADDING = space.lg;
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  photo: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: colors.surfaceMuted,
-  },
-  bar: {
-    gap: space.xs,
-    paddingHorizontal: space.ml,
-    paddingTop: space.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  confirm: {
-    gap: space.xxs,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.page,
+    },
+    photo: {
+      flex: 1,
+      width: '100%',
+      backgroundColor: colors.surfaceRaised,
+    },
+    bar: {
+      gap: space.xs,
+      paddingHorizontal: space.ml,
+      paddingTop: space.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      backgroundColor: colors.page,
+    },
+    confirm: {
+      gap: space.xxs,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+  }),
+);

@@ -3,73 +3,55 @@ import { StyleSheet, View } from 'react-native';
 
 import { getAppIdentity, isTestBuild } from '../config/appIdentity';
 import { TEST_BUILD_NOTICE } from '../content/product';
-import { colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, size, space } from '../theme/tokens';
 import { AppText } from './AppText';
-import { TestBadge } from './TestBadge';
+import { TopBar } from './TopBar';
 
 type ShellHeaderProps = {
-  /** Optional screen title shown under the application name. */
+  /** Optional line shown under the application name. */
   subtitle?: string;
-  /** Something on the trailing side of the title — Home's ⋯ menu (0.3.0). */
+  /** Home's ⋯ menu, on the right. */
   trailing?: ReactNode;
 };
 
 /**
- * Home's compact brand row. Shows the variant display name and, on the TEST
- * variant only, an unmistakable TEST badge plus a short explanation of what
- * this build is. Production renders neither.
+ * Home's top: the app's name on the TopBar (with the TEST badge on the Test
+ * build), and on the Test build only, the notice saying what this build is.
+ * Production shows neither.
  */
 export function ShellHeader({ subtitle, trailing }: ShellHeaderProps) {
+  const styles = useStyles();
   const identity = getAppIdentity();
-  const showTestAffordances = isTestBuild();
-
   return (
     <View style={styles.header}>
-      <View style={styles.topRow}>
-        <View style={styles.titleRow}>
-          <AppText variant="display" accessibilityRole="header">
-            {identity.name}
-          </AppText>
-          {showTestAffordances ? <TestBadge /> : null}
-        </View>
-        {trailing ?? null}
-      </View>
+      <TopBar appTitle={identity.name} actions={trailing} />
       {subtitle ? (
-        <AppText variant="secondary" tone="muted">
+        <AppText variant="secondary" tone="inkMuted">
           {subtitle}
         </AppText>
       ) : null}
-      {showTestAffordances ? (
+      {isTestBuild() ? (
         <View style={styles.testNotice}>
-          <AppText variant="caption">{TEST_BUILD_NOTICE}</AppText>
+          <AppText variant="secondary">{TEST_BUILD_NOTICE}</AppText>
         </View>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    gap: space.xs,
-    marginBottom: space.lg,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.xs,
-  },
-  titleRow: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.xs,
-  },
-  testNotice: {
-    backgroundColor: colors.testSurface,
-    borderColor: colors.testBorder,
-    borderWidth: 1,
-    borderRadius: radius.control,
-    padding: space.xs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    header: {
+      gap: space.xs,
+      marginBottom: space.md,
+    },
+    testNotice: {
+      backgroundColor: colors.testSurface,
+      borderColor: colors.testLine,
+      borderWidth: size.hairline,
+      borderRadius: radius.field,
+      padding: space.sm,
+    },
+  }),
+);

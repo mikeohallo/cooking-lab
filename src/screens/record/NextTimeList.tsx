@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
-import { StateNotice } from '../../components/StateNotice';
+import { Notice } from '../../components/Notice';
+import { NextTimeCard } from '../../components/NextTimeCard';
 import { TextField } from '../../components/TextField';
 import {
   ADD_NEXT_TIME,
@@ -12,13 +13,15 @@ import {
   NEXT_TIME,
   NEXT_TIME_ACTIONS,
   NEXT_TIME_HINT,
+  NEXT_TIME_OVERLINE,
   SAVE_NEXT_TIME,
   UNSAVED_KEPT,
 } from '../../content/product';
 import { nextTimeWords } from '../../domain/cookRecord';
 import type { Lesson, LessonRevision } from '../../domain/entities';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
-import { colors, radius, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { radius, space } from '../../theme/tokens';
 import { EditableWords } from '../cook/EditableWords';
 import type { Version } from '../cook/VersionsSheet';
 
@@ -51,6 +54,7 @@ export function earlierNextTimeVersions(lesson: Lesson, edits: readonly LessonRe
  * note's are — and a line can be added after the review.
  */
 export function NextTimeList({ lessons, edits, onRevise, onAdd, onShowVersions }: NextTimeListProps) {
+  const styles = useStyles();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -70,15 +74,10 @@ export function NextTimeList({ lessons, edits, onRevise, onAdd, onShowVersions }
   };
 
   return (
-    <View style={styles.block} testID="next-time">
-      <View>
-        <AppText variant="label" tone="muted" accessibilityRole="header">
-          {NEXT_TIME}
-        </AppText>
-        <AppText variant="caption" tone="muted">
-          {NEXT_TIME_HINT}
-        </AppText>
-      </View>
+    <NextTimeCard label={NEXT_TIME_OVERLINE} lines={[]} testID="next-time">
+      <AppText variant="secondary" tone="inkMuted">
+        {NEXT_TIME_HINT}
+      </AppText>
       {lessons.map((lesson) => {
         const shown = nextTimeWords(lesson, edits);
         return (
@@ -98,10 +97,10 @@ export function NextTimeList({ lessons, edits, onRevise, onAdd, onShowVersions }
       {adding ? (
         <View style={styles.form}>
           <View style={styles.actions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={() => setAdding(false)} />
-            <ActionButton
+            <Button label={CANCEL} variant="text" onPress={() => setAdding(false)} />
+            <Button
               label={SAVE_NEXT_TIME}
-              variant="secondary"
+              variant="outlined"
               disabled={draft.trim() === '' || draft.length > MAX_TEXT_LENGTH}
               pending={saving}
               onPress={() => void add()}
@@ -119,41 +118,43 @@ export function NextTimeList({ lessons, edits, onRevise, onAdd, onShowVersions }
             autoFocus
             testID="next-time-input"
           />
-          {problem ? <StateNotice title={problem} body={UNSAVED_KEPT} tone="problem" /> : null}
+          {problem ? <Notice title={problem} body={UNSAVED_KEPT} tone="problem" /> : null}
         </View>
       ) : (
-        <ActionButton
+        <Button
           label={ADD_NEXT_TIME}
-          variant="quiet"
+          variant="text"
           onPress={() => setAdding(true)}
           style={styles.add}
           testID="next-time-add"
         />
       )}
-    </View>
+    </NextTimeCard>
   );
 }
 
-const styles = StyleSheet.create({
-  // The Last time and Next time panel (scheme A).
-  block: {
-    gap: space.xs,
-    marginTop: space.xs,
-    padding: space.sm,
-    borderRadius: radius.control,
-    borderWidth: 1,
-    borderColor: colors.lastTimeBorder,
-    backgroundColor: colors.lastTimeSurface,
-  },
-  form: {
-    gap: space.xs,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-  add: {
-    alignSelf: 'flex-start',
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    // The Last time and Next time panel (scheme A).
+    block: {
+      gap: space.xs,
+      marginTop: space.xs,
+      padding: space.sm,
+      borderRadius: radius.field,
+      borderWidth: 1,
+      borderColor: colors.nextLine,
+      backgroundColor: colors.next,
+    },
+    form: {
+      gap: space.xs,
+    },
+    actions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+    add: {
+      alignSelf: 'flex-start',
+    },
+  }),
+);

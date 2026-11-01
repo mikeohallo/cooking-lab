@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
+import { NotApplicableToggle, StarButtons } from '../../components/StarRating';
 import { TextField } from '../../components/TextField';
 import {
   ADD_A_LINE,
@@ -19,11 +20,11 @@ import {
   starsLabel,
 } from '../../content/product';
 import type { HouseholdMember, Rating } from '../../domain/entities';
-import { STAR_VALUES } from '../../domain/enums';
 import type { RatingAnswer, RatingPerson } from '../../domain/evidence';
 import { activeMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH, MAX_RATING_LINE_LENGTH } from '../../domain/invariants';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { size, space } from '../../theme/tokens';
 
 type WhoAteItProps = {
   household: readonly HouseholdMember[];
@@ -94,6 +95,7 @@ function rowsFor(
  * means "didn't eat it": it takes the stars away and counts nowhere.
  */
 export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: WhoAteItProps) {
+  const styles = useStyles();
   const [pendingGuests, setPendingGuests] = useState<readonly string[]>([]);
   const [addingGuest, setAddingGuest] = useState(false);
   const [guestDraft, setGuestDraft] = useState('');
@@ -112,7 +114,7 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
   return (
     <View style={styles.block} testID={testID}>
       {rows.length === 0 ? (
-        <AppText variant="secondary" tone="muted">
+        <AppText variant="secondary" tone="inkMuted">
           {NO_HOUSEHOLD_YET}
         </AppText>
       ) : null}
@@ -132,10 +134,10 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
             testID={`${testID}-guest-name`}
           />
           <View style={styles.formActions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={() => setAddingGuest(false)} />
-            <ActionButton
+            <Button label={CANCEL} variant="text" onPress={() => setAddingGuest(false)} />
+            <Button
               label={ADD_GUEST}
-              variant="secondary"
+              variant="outlined"
               disabled={guestDraft.trim() === '' || guestDraft.trim().length > MAX_PERSON_NAME_LENGTH}
               onPress={addGuest}
               testID={`${testID}-guest-add`}
@@ -143,9 +145,9 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
           </View>
         </View>
       ) : (
-        <ActionButton
+        <Button
           label={SOMEONE_ELSE}
-          variant="quiet"
+          variant="text"
           onPress={() => setAddingGuest(true)}
           style={styles.someoneElse}
           testID={`${testID}-someone-else`}
@@ -164,6 +166,7 @@ function RatingRow({
   onRate: WhoAteItProps['onRate'];
   testID: string;
 }) {
+  const styles = useStyles();
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [editingLine, setEditingLine] = useState(false);
@@ -193,45 +196,26 @@ function RatingRow({
       <AppText variant="bodyStrong">
         {row.name}
         {row.guest ? (
-          <AppText variant="caption" tone="muted">{`  ${GUEST_MARK}`}</AppText>
+          <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText>
         ) : null}
       </AppText>
       <View style={styles.controls}>
-        {STAR_VALUES.map((value) => {
-          const filled = stars !== null && value <= stars;
-          return (
-            <Pressable
-              key={value}
-              accessibilityRole="radio"
-              accessibilityLabel={starsLabel(value)}
-              accessibilityHint={value === stars ? 'Tap again to clear' : `${row.name}`}
-              accessibilityState={{ checked: value === stars, disabled: pending }}
-              onPress={() => tapStar(value)}
-              style={({ pressed }) => [styles.star, pressed && styles.pressed]}
-              testID={`${testID}-star-${value}`}
-            >
-              <AppText
-                variant="sectionTitle"
-                style={filled ? styles.starFilled : styles.starEmpty}
-                importantForAccessibility="no"
-              >
-                {filled ? '★' : '☆'}
-              </AppText>
-            </Pressable>
-          );
-        })}
-        <Pressable
-          accessibilityRole="switch"
+        <StarButtons
+          stars={stars}
+          onTap={tapStar}
+          labelFor={starsLabel}
+          hintFor={(value) => (value === stars ? 'Tap again to clear' : row.name)}
+          disabled={pending}
+          testID={testID}
+        />
+        <NotApplicableToggle
+          label={NOT_EATEN}
           accessibilityLabel={NOT_EATEN_LONG}
-          accessibilityState={{ checked: notEaten, disabled: pending }}
+          on={notEaten}
           onPress={tapNotEaten}
-          style={({ pressed }) => [styles.notEaten, notEaten && styles.notEatenOn, pressed && styles.pressed]}
+          disabled={pending}
           testID={`${testID}-na`}
-        >
-          <AppText variant="label" tone={notEaten ? 'onPrimary' : 'primary'}>
-            {NOT_EATEN}
-          </AppText>
-        </Pressable>
+        />
       </View>
 
       {editingLine ? (
@@ -246,10 +230,10 @@ function RatingRow({
             testID={`${testID}-line-input`}
           />
           <View style={styles.formActions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={() => setEditingLine(false)} />
-            <ActionButton
+            <Button label={CANCEL} variant="text" onPress={() => setEditingLine(false)} />
+            <Button
               label={SAVE_LINE}
-              variant="secondary"
+              variant="outlined"
               pending={pending}
               disabled={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
               onPress={() =>
@@ -277,9 +261,9 @@ function RatingRow({
           <AppText variant="secondary">{`“${line}”`}</AppText>
         </Pressable>
       ) : (
-        <ActionButton
+        <Button
           label={ADD_A_LINE}
-          variant="quiet"
+          variant="text"
           onPress={() => {
             setLineDraft('');
             setEditingLine(true);
@@ -289,7 +273,7 @@ function RatingRow({
         />
       )}
       {problem ? (
-        <AppText variant="caption" tone="danger" testID={`${testID}-failed`}>
+        <AppText variant="secondary" tone="danger" testID={`${testID}-failed`}>
           {problem}
         </AppText>
       ) : null}
@@ -297,74 +281,47 @@ function RatingRow({
   );
 }
 
-const styles = StyleSheet.create({
-  block: {
-    gap: space.sm,
-  },
-  row: {
-    gap: space.xxs,
-    paddingVertical: space.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  controls: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.xxs,
-  },
-  star: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.control,
-  },
-  starFilled: {
-    color: colors.star,
-  },
-  starEmpty: {
-    color: colors.textMuted,
-  },
-  pressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  notEaten: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: space.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    marginLeft: space.xs,
-  },
-  notEatenOn: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  lineForm: {
-    gap: space.xs,
-  },
-  lineShown: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  addLine: {
-    alignSelf: 'flex-start',
-  },
-  formActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  guestForm: {
-    gap: space.xs,
-  },
-  someoneElse: {
-    alignSelf: 'flex-start',
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    block: {
+      gap: space.sm,
+    },
+    row: {
+      gap: space.xxs,
+      paddingVertical: space.xs,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.line,
+    },
+    controls: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xxs,
+    },
+    pressed: {
+      backgroundColor: colors.surfaceRaised,
+    },
+    lineForm: {
+      gap: space.xs,
+    },
+    lineShown: {
+      minHeight: size.targetMin,
+      justifyContent: 'center',
+    },
+    addLine: {
+      alignSelf: 'flex-start',
+    },
+    formActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    guestForm: {
+      gap: space.xs,
+    },
+    someoneElse: {
+      alignSelf: 'flex-start',
+    },
+  }),
+);

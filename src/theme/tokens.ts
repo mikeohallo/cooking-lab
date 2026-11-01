@@ -1,148 +1,257 @@
 /**
- * Design tokens for Cooking Lab.
+ * Design tokens for Cooking Lab, 0.4.0.
  *
- * These are the controlled values from `build-control/design/DESIGN_BASELINE_V2.md`:
- * colour scheme A, "Paprika", picked on 30 October 2026, with Plus Jakarta
- * Sans. Screens and components style themselves from these and from nothing
- * else, so the look of the app is decided in one place and a hue change is a
- * token change rather than a hunt through screens.
+ * Taken from the 0.4.0 design system's `tokens.json` (version 2), approved by
+ * Mike (product owner) on 2 November 2026, and recorded in
+ * `build-control/design/DESIGN_BASELINE_V3.md`. The JSON's kebab-case names
+ * are kept, in camelCase: `meal-side` is `mealSide`, `next-ink` is `nextInk`.
  *
- * Scheme A in its own words: a cool light ground, white cards, near-black ink
- * and near-black primary buttons, and one warm accent — paprika — kept for
- * links and small actions. Meal types each have a soft label colour, always
- * printed with the word. Raw evidence and assistant suggestions must never
- * look interchangeable, and no state may rely on colour alone — which is why
- * the status treatments below come paired with text labels wherever they are
- * used.
+ * Every colour has one job (the baseline's table says which), and every one
+ * has a light and a dark value. The app follows the phone's light or dark
+ * setting (`src/theme/theme.tsx`); nothing here is chosen by a screen.
  *
- * Every pair of text and background colour the app draws is listed in
- * `textPairs` at the bottom, and `__tests__/contrast.test.ts` holds each one
- * to 4.5:1 (3:1 for text 24 px and up).
+ * Screens and components style themselves from these and from nothing else:
+ * `__tests__/noHandTypedStyles.test.ts` fails on a colour, font size, line
+ * height or corner radius typed into `src/screens` or `src/components`.
+ *
+ * Every text pair the app draws is in `textPairs`, and every control edge,
+ * focus ring and meaning-carrying icon in `controlPairs`, for both themes;
+ * `__tests__/contrast.test.ts` holds them to 4.5:1 (3:1 at 24 px and up) and
+ * 3:1.
  */
 
 import type { TextStyle } from 'react-native';
 
 import type { StoredMealType } from '../domain/enums';
 
-export const colors = {
-  /** The ground behind every screen. */
-  background: '#F4F4F2',
-  /** Cards, sheets and the composer. */
-  surface: '#FFFFFF',
-  /** Inputs. The same white as a card; kept as its own name for the inputs. */
-  surfaceStrong: '#FFFFFF',
-  /** Surface 2: secondary grouping, pressed states, quiet panels. */
-  surfaceMuted: '#EDEDEA',
-  /** Ink. */
-  text: '#17181B',
-  /** Muted text: dates, hints, labels. */
-  textMuted: '#5B5E64',
-  border: '#E0E0DC',
-  /** Primary buttons and selected chips: near-black, with white on it. */
-  primary: '#1D1E22',
-  primaryPressed: '#3A3C42',
-  /** Secondary buttons and soft selected states. A shade under surface 2. */
-  primarySoft: '#EAEAE6',
-  onPrimary: '#FFFFFF',
-  /** Paprika: links and small actions. Never a fill behind words. */
-  accent: '#B83F27',
-  accentPressed: '#96321E',
-  /** The stars in a rating. Always beside the number, which is in ink. */
-  star: '#C98A00',
-  /** The Last time and Next time panel. */
-  lastTimeSurface: '#FBEDE8',
-  lastTimeBorder: '#F1D3C9',
-  danger: '#A1271B',
-  dangerSoft: '#FBE9E6',
-  testBadge: '#B3261E',
-  onTestBadge: '#FFFFFF',
-  testSurface: '#FDECEA',
-  testBorder: '#E8A9A3',
-  /**
-   * The oven card's quiet grey, and the ink on it. The oven is the quiet
-   * reading of the two — it is the setting, not the thing being cooked — so it
-   * is grey, and amber stays for the reading that matters most, the internal
-   * one. Retuned for scheme A: a cool grey that sits on the white cards.
-   */
-  readingOvenSurface: '#EEEEEB',
-  readingOvenBorder: '#DCDCD7',
-  readingOvenText: '#45474D',
-  /** The internal card: amber, retuned to sit beside paprika rather than sage. */
-  readingInternalSurface: '#FBF0D9',
-  readingInternalBorder: '#EED9A8',
-  readingInternalText: '#7A5200',
-  /** The dimmed screen behind a sheet. Ink at 40 %. */
-  scrim: 'rgba(23, 24, 27, 0.4)',
-} as const;
+export type ThemeName = 'light' | 'dark';
+
+export const THEME_NAMES: readonly ThemeName[] = ['light', 'dark'];
+
+const light = {
+  /** The ground behind every screen: off-white, never grey. */
+  page: '#fbfaf6',
+  /** Cards, sheets, the inner screen's detail pane and the composer. */
+  surface: '#ffffff',
+  /** The search bar, the filter button, unselected filter chips, the cuisine pill, tag chips, photo placeholders. */
+  surfaceRaised: '#eef0ec',
+  /** Card edges and dividers. Decoration only: never the only edge of a control. */
+  line: '#efeee8',
+  /** The edge of text fields, outlined buttons and unselected choice chips: 3:1 on page and surface. */
+  controlLine: '#87918f',
+  /** All text and titles; icons beside text. Navy, not black. */
+  ink: '#00293b',
+  /** Dates, counts, hints and placeholders. */
+  inkMuted: '#5a6468',
+  /** Orange: the one main action on a screen, and the lightbulb behind Next time. */
+  primary: '#b85618',
+  primaryPressed: '#9e4813',
+  onPrimary: '#ffffff',
+  /** Deep teal: secondary actions and your own choices. */
+  secondary: '#00605a',
+  secondaryPressed: '#004c47',
+  onSecondary: '#ffffff',
+  /** Text buttons and the focus ring. */
+  link: '#00605a',
+  /** The chosen filter chip on Home, and N/A when pressed. */
+  selected: '#00293b',
+  onSelected: '#ffffff',
+  /** Sage: a place, not a thing to read. */
+  zone: '#e2ece2',
+  /** The Ingredients bar or box. */
+  zoneQuiet: '#e8eeea',
+  /** Icons drawn on zone and zone-quiet. */
+  zoneIcon: '#1e5a66',
+  /** Amber: Next time, and nothing else. */
+  next: '#fff1e0',
+  nextLine: '#f7d3ae',
+  nextInk: '#8a3e0c',
+  /** Go and look: Open on Last time, the Needs a review chip. */
+  peach: '#fce6cf',
+  onPeach: '#8a3e0c',
+  /** Filled stars, always beside the number. */
+  star: '#cc661e',
+  /** A rating number shown in star colour. */
+  starText: '#94480f',
+  starEmpty: '#d3d6d1',
+  /** The Oven reading's warm tint. */
+  readingOven: '#fdebdd',
+  readingOvenInk: '#8a3e0c',
+  /** The Internal reading's cool blue tint. */
+  readingInternal: '#e6effb',
+  readingInternalInk: '#1f4e8c',
+  /** Navy tint behind a note's pencil and Your notes' page icon. */
+  noteIcon: '#e7ecf0',
+  /** The word and icon of each meal. Never a fill. */
+  mealBreakfast: '#9a5300',
+  mealLunchDinner: '#2e6b3c',
+  mealDessert: '#a3345f',
+  mealSnack: '#3e5f8a',
+  mealSide: '#726000',
+  /** Delete and other actions that lose data. A state, never the brand. */
+  danger: '#a1271b',
+  dangerSoft: '#fbe9e6',
+  /** The Undo bar. */
+  inverse: '#00293b',
+  onInverse: '#fbfaf6',
+  inverseAction: '#f2a66a',
+  /** The dimmed screen behind a sheet or dialog. */
+  scrim: 'rgba(0, 41, 59, 0.4)',
+  statusOpen: '#eef0ec',
+  statusOpenInk: '#3f4a4e',
+  statusReviewed: '#ddefec',
+  statusReviewedInk: '#00605a',
+  /** The warm badge behind an average rating. The JSON's `{reading-oven}`. */
+  ratingBadge: '#fdebdd',
+  /** Kept for the assistant's evidence labels in update 3. */
+  statusInference: '#f4ecdb',
+  statusInferenceInk: '#5c4a24',
+  statusKnowledge: '#e4eaf5',
+  statusKnowledgeInk: '#2c4a75',
+  statusProposed: '#f1eee6',
+  statusProposedInk: '#5c4d33',
+  statusRejected: '#fbe9e6',
+  statusRejectedInk: '#8a2a1c',
+  statusImported: '#eeeaf6',
+  statusImportedInk: '#4f4370',
+  /** The TEST badge, in the Test build only. */
+  testBadge: '#b3261e',
+  onTestBadge: '#ffffff',
+  testSurface: '#fdecea',
+  testLine: '#e8a9a3',
+};
+
+export type Palette = { readonly [K in keyof typeof light]: string };
+
+const dark: Palette = {
+  page: '#0f1719',
+  surface: '#182326',
+  surfaceRaised: '#22302f',
+  line: '#24323a',
+  controlLine: '#6f8584',
+  ink: '#e6eeec',
+  inkMuted: '#b4c2c1',
+  primary: '#f08a4b',
+  primaryPressed: '#e07a3b',
+  onPrimary: '#331300',
+  secondary: '#7fd1c8',
+  secondaryPressed: '#6bc0b6',
+  onSecondary: '#00302c',
+  link: '#7fd1c8',
+  selected: '#e6eeec',
+  onSelected: '#0f1719',
+  zone: '#1c2e28',
+  zoneQuiet: '#1f2c2a',
+  zoneIcon: '#8ccfc4',
+  next: '#3b300c',
+  nextLine: '#6b5718',
+  nextInk: '#ffd77a',
+  peach: '#f5b88e',
+  onPeach: '#3a1704',
+  star: '#f08a4b',
+  starText: '#f2a66a',
+  starEmpty: '#3a4646',
+  readingOven: '#42221a',
+  readingOvenInk: '#ffbfa0',
+  readingInternal: '#16233d',
+  readingInternalInk: '#a9c6ff',
+  noteIcon: '#22303a',
+  mealBreakfast: '#f0b45e',
+  mealLunchDinner: '#8fd19c',
+  mealDessert: '#f29bbe',
+  mealSnack: '#9dbdeb',
+  mealSide: '#dcc65a',
+  danger: '#ffb4ab',
+  dangerSoft: '#4a1a14',
+  inverse: '#e6eeec',
+  onInverse: '#0f1719',
+  inverseAction: '#94480f',
+  scrim: 'rgba(0, 0, 0, 0.6)',
+  statusOpen: '#22302f',
+  statusOpenInk: '#c9d4d3',
+  statusReviewed: '#12302c',
+  statusReviewedInk: '#7fd1c8',
+  ratingBadge: '#42221a',
+  statusInference: '#2f2a20',
+  statusInferenceInk: '#e0cfa8',
+  statusKnowledge: '#1b2a4a',
+  statusKnowledgeInk: '#afc6f5',
+  statusProposed: '#2e2a22',
+  statusProposedInk: '#d8cbb0',
+  statusRejected: '#44160f',
+  statusRejectedInk: '#ffb4a8',
+  statusImported: '#2b2540',
+  statusImportedInk: '#cfc2f0',
+  testBadge: '#ffb4ab',
+  onTestBadge: '#690005',
+  testSurface: '#44160f',
+  testLine: '#8c3a30',
+};
+
+export type ColorRole = keyof Palette;
+
+export const palettes: Readonly<Record<ThemeName, Palette>> = { light, dark };
 
 /**
- * Evidence and status treatments: a background and a foreground for each
- * meaning. Always rendered with the meaning spelled out next to the colour.
- * Retuned for scheme A; the meanings are v1's.
+ * The shadows, as React Native `boxShadow` strings. Dark has none: a card
+ * there is edged with `line` instead.
  */
-export const statusTreatments = {
-  observed: { background: '#E3F0E8', foreground: '#1F5A3A' },
-  inference: { background: '#FBF0D9', foreground: '#6E4A00' },
-  knowledge: { background: '#E4EAF5', foreground: '#2C4A75' },
-  proposed: { background: '#F1EEE6', foreground: '#5C4D33' },
-  approved: { background: '#E3F0E8', foreground: '#1F5A3A' },
-  rejected: { background: '#FBE9E6', foreground: '#8A2A1C' },
-  imported: { background: '#EEEAF6', foreground: '#4F4370' },
-  /** An open cook, still being cooked. Neutral: it is a state, not a verdict. */
-  open: { background: '#ECECE8', foreground: '#3F4147' },
-  /** A reviewed cook. Shares the approved treatment: the cook has sat down with it. */
-  reviewed: { background: '#E3F0E8', foreground: '#1F5A3A' },
-} as const;
+export type Shadows = {
+  readonly card: string | undefined;
+  readonly fab: string | undefined;
+  readonly bar: string | undefined;
+  readonly sheet: string | undefined;
+};
 
-export type StatusTreatment = keyof typeof statusTreatments;
+export const shadows: Readonly<Record<ThemeName, Shadows>> = {
+  light: {
+    card: '0px 1px 2px rgba(0, 41, 59, 0.05), 0px 6px 18px rgba(0, 41, 59, 0.06)',
+    fab: '0px 8px 20px rgba(184, 86, 24, 0.3)',
+    bar: '0px -6px 18px rgba(0, 41, 59, 0.06)',
+    sheet: '0px -8px 24px rgba(0, 41, 59, 0.16)',
+  },
+  dark: { card: undefined, fab: undefined, bar: undefined, sheet: undefined },
+};
 
-/**
- * Each meal type's label: a background and text colour for the small label
- * above a title, and a dot for the chips. The word is always printed; the
- * colour is never the only signal (scheme A, 30 October 2026).
- */
-export const mealTypeColors: Readonly<
-  Record<StoredMealType, { readonly background: string; readonly text: string; readonly dot: string }>
-> = {
-  breakfast: { background: '#FCEFD4', text: '#714900', dot: '#D79A1E' },
-  lunch_dinner: { background: '#E2EAFA', text: '#1E4691', dot: '#3D6FD1' },
-  dessert: { background: '#F9E0EA', text: '#8E2156', dot: '#C9417F' },
-  snack: { background: '#DDF1EA', text: '#155C46', dot: '#2E9B76' },
+/** Each meal's colour role: the word and the icon, never a fill. */
+export const mealColorRole: Readonly<Record<StoredMealType, ColorRole>> = {
+  breakfast: 'mealBreakfast',
+  lunch_dinner: 'mealLunchDinner',
+  dessert: 'mealDessert',
+  snack: 'mealSnack',
+  side: 'mealSide',
 };
 
 /**
- * How a temperature reading is painted, by what it was taken of.
- *
- * Both treatments come with a word — "Oven", "Internal" — printed on the card
- * by `TimelineEvent`, because the baseline forbids colour as the only signal
- * and two readings that differ only in hue would be exactly that. A reading
- * that does not say what it was taken of is not in here: it is drawn neutral,
- * on the plain surface with the border token and ordinary text, so amber means
- * Internal and grey means Oven and nothing else.
- *
- * The text colour is `ink` and not `value`, which is the name it wants. A
- * member called `value` read inside a JSX inline style is what a Reanimated
- * shared value looks like, so Reanimated's Babel plugin rewrites every such
- * style to `console.warn(require('react-native-reanimated')…)` — which pulls a
- * whole animation library into a screen that does not animate, and warns about
- * a mistake nobody made. Avoiding the name is cheaper than explaining it twice.
+ * Status chips: a ground and its ink. Cooking, Reviewed and Needs a review are
+ * shown now; the rest wait for the assistant's evidence labels in update 3.
+ * Observed and Approved have no pair of their own in the design system, so
+ * they wear Reviewed's teal tint: each is the cook's own, settled record.
  */
-export const readingTreatments = {
-  oven: {
-    surface: colors.readingOvenSurface,
-    border: colors.readingOvenBorder,
-    ink: colors.readingOvenText,
-  },
-  internal: {
-    surface: colors.readingInternalSurface,
-    border: colors.readingInternalBorder,
-    ink: colors.readingInternalText,
-  },
-} as const;
+export const statusRoles = {
+  open: { background: 'statusOpen', foreground: 'statusOpenInk' },
+  reviewed: { background: 'statusReviewed', foreground: 'statusReviewedInk' },
+  needsReview: { background: 'peach', foreground: 'onPeach' },
+  observed: { background: 'statusReviewed', foreground: 'statusReviewedInk' },
+  approved: { background: 'statusReviewed', foreground: 'statusReviewedInk' },
+  inference: { background: 'statusInference', foreground: 'statusInferenceInk' },
+  knowledge: { background: 'statusKnowledge', foreground: 'statusKnowledgeInk' },
+  proposed: { background: 'statusProposed', foreground: 'statusProposedInk' },
+  rejected: { background: 'statusRejected', foreground: 'statusRejectedInk' },
+  imported: { background: 'statusImported', foreground: 'statusImportedInk' },
+} as const satisfies Record<string, { background: ColorRole; foreground: ColorRole }>;
 
-export type ReadingTreatment = keyof typeof readingTreatments;
+export type StatusTreatment = keyof typeof statusRoles;
 
-/** The baseline spacing scale, by name rather than by number. */
+/** A temperature reading's tint and ink, by what it was taken of. */
+export const readingRoles = {
+  oven: { tint: 'readingOven', ink: 'readingOvenInk' },
+  internal: { tint: 'readingInternal', ink: 'readingInternalInk' },
+} as const satisfies Record<string, { tint: ColorRole; ink: ColorRole }>;
+
+export type ReadingTreatment = keyof typeof readingRoles;
+
+/** The spacing steps. Spacing comes from these and nothing else. */
 export const space = {
   xxs: 4,
   xs: 8,
@@ -154,119 +263,184 @@ export const space = {
   xxl: 40,
 } as const;
 
+/** The cover screen's side margin: `space-md` plus 2. */
+export const COVER_MARGIN = space.md + 2;
+
 export const radius = {
-  /** Inputs and buttons. */
-  control: 14,
-  /** Standard cards. */
-  card: 18,
-  /** Hero cards. */
-  hero: 24,
-  /** Chips and pills. */
+  /** Photos on cook cards and in the Photos grid. */
+  photo: 14,
+  /** Text fields, the Ingredients bar, the Undo bar. */
+  field: 16,
+  /** Cards, the Cooking now card, reading cards and the title photo. */
+  card: 20,
+  /** The Next time card and the top corners of sheets. */
+  zone: 22,
+  /** Buttons, the search bar, chips, pills and icon circles. */
   pill: 999,
-  /** Photos in the timeline. */
-  photo: 16,
 } as const;
 
-/** Android/Material minimum. Applied to every interactive control. */
-export const MIN_TOUCH_TARGET = 48;
+export const size = {
+  /** The smallest touch target for any control (Android). */
+  targetMin: 48,
+  /** The main action on a screen: New Cook, the composer, Finish review. */
+  targetMain: 56,
+  /** The tinted circle behind a section or reading icon. */
+  iconCircle: 40,
+  /** The same on the inner screen. */
+  iconCircleInner: 36,
+  /** The lightbulb circle on Next time. */
+  nextCircle: 44,
+  /** The icons themselves, on their 24 grid. */
+  icon: 24,
+  iconSmall: 16,
+  iconTiny: 12,
+  /** A cook card's photo on the cover screen. */
+  photoCardW: 104,
+  photoCardH: 88,
+  /** The same in the inner list. */
+  photoCardWInner: 72,
+  photoCardHInner: 64,
+  /** The square photo beside a cook's title. */
+  photoTitle: 92,
+  /** The widest a column of running text may grow. */
+  measure: 680,
+  /** The list pane on the inner screen. */
+  paneList: 400,
+  /** Filter chips sit 40 tall inside a 48 touch area. */
+  chip: 40,
+  /** Tag chips. */
+  tagChip: 34,
+  /** The sheet's handle. */
+  handleW: 32,
+  handleH: 4,
+  /** A person's dot in Who ate it. */
+  dot: 12,
+  /** A star button's drawn width, in its 48 tall target. */
+  starButton: 30,
+  /** Hairlines and rings. */
+  hairline: 1,
+  nextEdge: 1.5,
+  ring: 2,
+} as const;
 
-/** The one main action on a screen is deliberately larger than the minimum. */
-export const PRIMARY_TOUCH_TARGET = 64;
+export const breakpoint = {
+  /** From here the screen shows two panes. */
+  medium: 600,
+  /** The inner screen turned sideways: the same panes, a wider detail pane. */
+  expanded: 840,
+} as const;
+
+/** Disabled controls fade to this, and say why nearby when it is not obvious. */
+export const DISABLED_OPACITY = 0.4;
+
+type TypeEntry = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'letterSpacing'>;
 
 /**
- * The type scale. Each style carries its size, line height and weight together
- * so a screen cannot pair a display size with a body line height by accident.
- * The face is Plus Jakarta Sans, bundled in the app (`src/theme/fonts.ts`);
- * `AppText` picks the file for each weight, and falls back to the system sans
- * with the same weights if the fonts could not be loaded.
+ * The type scale, one family: Plus Jakarta Sans. Each style carries its size,
+ * line height, weight and tracking together.
  */
 export const type = {
-  display: { fontSize: 30, lineHeight: 38, fontWeight: '800' },
-  screenTitle: { fontSize: 24, lineHeight: 31, fontWeight: '700' },
-  sectionTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700' },
-  body: { fontSize: 16, lineHeight: 23, fontWeight: '400' },
-  bodyStrong: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  appTitle: { fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
+  /** The app name on the inner screen. */
+  appTitleInner: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8 },
+  title: { fontSize: 28, lineHeight: 33, fontWeight: '800', letterSpacing: -0.6 },
+  titleCompact: { fontSize: 24, lineHeight: 29, fontWeight: '800', letterSpacing: -0.5 },
+  heading: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.3 },
+  cardTitle: { fontSize: 17, lineHeight: 22, fontWeight: '800', letterSpacing: -0.2 },
+  nextTime: { fontSize: 17, lineHeight: 25, fontWeight: '700' },
+  /** Next time's words in the inner screen's side column. */
+  nextTimeLarge: { fontSize: 18, lineHeight: 26, fontWeight: '700' },
+  body: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
+  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: '700' },
   secondary: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
-  button: { fontSize: 16, lineHeight: 21, fontWeight: '700' },
-  temperature: { fontSize: 28, lineHeight: 35, fontWeight: '700' },
-} as const satisfies Record<string, Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight'>>;
+  overline: { fontSize: 13, lineHeight: 18, fontWeight: '800', letterSpacing: 1 },
+  label: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  chip: { fontSize: 14, lineHeight: 18, fontWeight: '700' },
+  button: { fontSize: 16, lineHeight: 20, fontWeight: '800' },
+  buttonMain: { fontSize: 17, lineHeight: 22, fontWeight: '800' },
+  readingNumber: { fontSize: 30, lineHeight: 34, fontWeight: '800', letterSpacing: -0.6 },
+} as const satisfies Record<string, TypeEntry>;
 
 export type TypeStyle = keyof typeof type;
 
 /** Text of this size or larger may be held to 3:1 rather than 4.5:1. */
 export const LARGE_TEXT_SIZE = 24;
 
-/**
- * Every text colour the app draws, on every background it draws it on.
- *
- * `size` is the smallest size that pair is used at, so a pair used only for a
- * large title is held to the large-text ratio and every other to 4.5:1. The
- * stars are not here: a star is always next to its number, which is printed
- * in ink, so the colour is decoration and not the text that carries the
- * meaning (see `DESIGN_BASELINE_V2.md`).
- */
-export type TextPair = {
+/** A colour pair the contrast test checks, with the smallest size it is used at. */
+export type ColorPair = {
   readonly name: string;
-  readonly text: string;
-  readonly background: string;
+  readonly fg: ColorRole;
+  readonly bg: ColorRole;
   readonly size: number;
 };
 
-const SMALL = type.caption.fontSize;
+const SMALL = type.label.fontSize;
 
-function onEach(
-  name: string,
-  text: string,
-  backgrounds: Readonly<Record<string, string>>,
-  size = SMALL,
-): TextPair[] {
-  return Object.entries(backgrounds).map(([where, background]) => ({
-    name: `${name} on ${where}`,
-    text,
-    background,
-    size,
-  }));
+function onEach(fg: ColorRole, backgrounds: readonly ColorRole[], size = SMALL): ColorPair[] {
+  return backgrounds.map((bg) => ({ name: `${fg} on ${bg}`, fg, bg, size }));
 }
 
-const GROUNDS = {
-  background: colors.background,
-  surface: colors.surface,
-  surfaceMuted: colors.surfaceMuted,
-  primarySoft: colors.primarySoft,
-  lastTimeSurface: colors.lastTimeSurface,
-} as const;
+const MEALS: readonly ColorRole[] = Object.values(mealColorRole);
 
-export const textPairs: readonly TextPair[] = [
-  ...onEach('text', colors.text, { ...GROUNDS, dangerSoft: colors.dangerSoft, testSurface: colors.testSurface }),
-  ...onEach('textMuted', colors.textMuted, { ...GROUNDS, dangerSoft: colors.dangerSoft }),
-  ...onEach('accent', colors.accent, GROUNDS),
-  ...onEach('danger', colors.danger, { ...GROUNDS, dangerSoft: colors.dangerSoft }),
-  ...onEach('onPrimary', colors.onPrimary, {
-    primary: colors.primary,
-    primaryPressed: colors.primaryPressed,
-    // The Undo bar is ink with white words on it.
-    text: colors.text,
-  }),
-  ...onEach('onTestBadge', colors.onTestBadge, { testBadge: colors.testBadge }),
-  // The ink of the Undo bar's own button, a secondary button on the ink bar.
-  ...onEach('text', colors.text, { 'secondary on the Undo bar': colors.primarySoft }),
-  ...Object.entries(statusTreatments).map(([meaning, treatment]) => ({
+/**
+ * Every text colour the app draws, on every ground the token notes put it on.
+ * Held to 4.5:1 in both themes, or 3:1 for text 24 px and up.
+ */
+export const textPairs: readonly ColorPair[] = [
+  ...onEach('ink', [
+    'page',
+    'surface',
+    'surfaceRaised',
+    'zone',
+    'zoneQuiet',
+    'next',
+    'dangerSoft',
+    'testSurface',
+    'ratingBadge',
+    'statusOpen',
+    'statusReviewed',
+  ]),
+  ...onEach('inkMuted', ['page', 'surface', 'surfaceRaised', 'zone', 'zoneQuiet']),
+  ...onEach('onPrimary', ['primary', 'primaryPressed']),
+  ...onEach('onSecondary', ['secondary', 'secondaryPressed']),
+  ...onEach('link', ['page', 'surface', 'surfaceRaised', 'zone', 'zoneQuiet']),
+  ...onEach('onSelected', ['selected']),
+  ...onEach('nextInk', ['next']),
+  ...onEach('onPeach', ['peach']),
+  ...onEach('starText', ['page', 'surface']),
+  ...onEach('readingOvenInk', ['readingOven']),
+  ...onEach('readingInternalInk', ['readingInternal']),
+  // A meal's word sits above a title on a card, on the page, and on the
+  // Cooking now card's sage.
+  ...MEALS.flatMap((meal) => onEach(meal, ['page', 'surface', 'zone'])),
+  ...onEach('danger', ['page', 'surface', 'dangerSoft']),
+  ...onEach('onInverse', ['inverse']),
+  ...onEach('inverseAction', ['inverse']),
+  ...Object.entries(statusRoles).map(([meaning, roles]) => ({
     name: `status ${meaning}`,
-    text: treatment.foreground,
-    background: treatment.background,
-    size: type.label.fontSize,
-  })),
-  ...Object.entries(mealTypeColors).map(([mealType, treatment]) => ({
-    name: `meal type ${mealType}`,
-    text: treatment.text,
-    background: treatment.background,
+    fg: roles.foreground as ColorRole,
+    bg: roles.background as ColorRole,
     size: SMALL,
   })),
-  ...Object.entries(readingTreatments).flatMap(([kind, treatment]) => [
-    { name: `reading ${kind} ink`, text: treatment.ink, background: treatment.surface, size: SMALL },
-    { name: `reading ${kind} text`, text: colors.text, background: treatment.surface, size: SMALL },
-    { name: `reading ${kind} muted`, text: colors.textMuted, background: treatment.surface, size: SMALL },
-  ]),
+  ...onEach('onTestBadge', ['testBadge']),
+];
+
+/**
+ * Control edges, focus rings and icons that carry meaning, on the grounds
+ * they are drawn on. Held to 3:1 in both themes.
+ */
+export const controlPairs: readonly ColorPair[] = [
+  ...onEach('controlLine', ['page', 'surface']),
+  // The focus ring sits 2 px outside a control, on page or surface, and on next.
+  ...onEach('link', ['page', 'surface', 'next']),
+  ...onEach('primary', ['page', 'surface']),
+  ...onEach('secondary', ['page', 'surface']),
+  ...onEach('selected', ['page', 'surface', 'surfaceRaised']),
+  ...onEach('zoneIcon', ['zone', 'zoneQuiet']),
+  ...onEach('star', ['page', 'surface']),
+  // A meal's icon in a filter chip, and on the no-photo tile.
+  ...MEALS.flatMap((meal) => onEach(meal, ['surfaceRaised', 'zone'])),
+  ...onEach('readingOvenInk', ['readingOven']),
+  ...onEach('readingInternalInk', ['readingInternal']),
+  ...onEach('ink', ['noteIcon']),
 ];

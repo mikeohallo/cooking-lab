@@ -4,9 +4,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppText } from '../components/AppText';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ShellHeader } from '../components/ShellHeader';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import { STARTING_TITLE } from '../content/product';
-import { colors, space } from '../theme/tokens';
+import { makeStyles, useColors } from '../theme/theme';
+import { space } from '../theme/tokens';
 import { useStorageState, type StorageState } from './StorageProvider';
 
 type StartupGateProps = {
@@ -22,6 +23,8 @@ type StartupGateProps = {
  * rather than be shown a notebook with nothing in it.
  */
 export function StartupGate({ children }: StartupGateProps) {
+  const styles = useStyles();
+  const colors = useColors();
   const state = useStorageState();
 
   if (state.status === 'ready') {
@@ -33,8 +36,8 @@ export function StartupGate({ children }: StartupGateProps) {
       <ScreenContainer testID="startup-starting">
         <ShellHeader />
         <View style={styles.starting}>
-          <ActivityIndicator color={colors.primary} />
-          <AppText variant="secondary" tone="muted">
+          <ActivityIndicator color={colors.ink} />
+          <AppText variant="secondary" tone="inkMuted">
             {STARTING_TITLE}
           </AppText>
         </View>
@@ -46,7 +49,7 @@ export function StartupGate({ children }: StartupGateProps) {
   return (
     <ScreenContainer testID="startup-failed">
       <ShellHeader />
-      <StateNotice title={title} body={body} tone="problem" testID="startup-failure-notice" />
+      <Notice title={title} body={body} tone="problem" testID="startup-failure-notice" />
     </ScreenContainer>
   );
 }
@@ -95,10 +98,12 @@ function describeFailure(state: Extract<StorageState, { status: 'failed' }>): {
   }
 }
 
-const styles = StyleSheet.create({
-  starting: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    starting: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.sm,
+    },
+  }),
+);

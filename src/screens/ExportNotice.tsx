@@ -1,4 +1,4 @@
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import { EXPORT_DONE_TITLE, EXPORT_FAILED_BODY, EXPORT_FAILED_TITLE } from '../content/product';
 import type { ExportState } from '../state/useExport';
 
@@ -13,11 +13,11 @@ type ExportNoticeProps = {
  */
 export function ExportNotice({ state, testID }: ExportNoticeProps) {
   if (state.status === 'done') {
-    return <StateNotice title={EXPORT_DONE_TITLE} body={state.summary} testID={`${testID}-done`} />;
+    return <Notice title={EXPORT_DONE_TITLE} body={state.summary} testID={`${testID}-done`} />;
   }
   if (state.status === 'failed') {
     return (
-      <StateNotice
+      <Notice
         title={EXPORT_FAILED_TITLE}
         body={`${state.message} ${EXPORT_FAILED_BODY}`}
         tone="problem"

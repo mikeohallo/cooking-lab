@@ -8,13 +8,15 @@ import { useKeepScreenOn, useScreenStaysOn } from '../state/useKeepScreenOn';
 import { useExport } from '../state/useExport';
 import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite, type WriteState } from '../state/useWrite';
-import { ActionButton } from '../components/ActionButton';
+import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
-import { MealTypeLabel } from '../components/MealTypeLabel';
+import { Icon } from '../components/Icon';
+import { CuisinePill } from '../components/CuisinePill';
+import { MealLabel } from '../components/MealLabel';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import { StatusChip } from '../components/StatusChip';
 import { TextField } from '../components/TextField';
 import {
@@ -50,7 +52,7 @@ import {
   YOUR_NOTES,
 } from '../content/product';
 import type { PhotoOrigin } from '../data/adapters';
-import { timesCookedLine } from '../domain/cookRecord';
+import { cuisineLabel, timesCookedLine } from '../domain/cookRecord';
 import type { Cook, CookEvent, CookId, JsonObject, Lesson, Revision } from '../domain/entities';
 import type { MealType } from '../domain/enums';
 import {
@@ -63,7 +65,8 @@ import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { COOK_SIDE_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDateTime } from '../format/dateTime';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, size, space } from '../theme/tokens';
 import { CookActions } from './CookActions';
 import { Composer } from './cook/Composer';
 import { EditableWords } from './cook/EditableWords';
@@ -140,6 +143,7 @@ export function CookScreen({
   inFront = true,
   embedded = false,
 }: CookScreenProps) {
+  const styles = useStyles();
   // On the inner display a cook's page has two panes: the timeline and the
   // composer on the left, Last time and the whole ingredients list on the
   // right. Inside Home's pane it is one column.
@@ -182,7 +186,7 @@ export function CookScreen({
     return (
       <Frame embedded={embedded} testID="cook-missing">
         <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={back} />
-        <StateNotice
+        <Notice
           title={COOK_NOT_FOUND_TITLE}
           body={COOK_NOT_FOUND_BODY}
           tone="problem"
@@ -196,7 +200,7 @@ export function CookScreen({
     return (
       <Frame embedded={embedded} testID="cook-failed">
         <ScreenHeader title={UNTITLED_COOK} onBack={back} />
-        <StateNotice
+        <Notice
           title="This cook could not be loaded"
           body={`Nothing was changed. ${load.message}`}
           tone="problem"
@@ -421,12 +425,15 @@ export function CookScreen({
         onBack={back}
         eyebrow={
           record.status === 'ready' ? (
-            <MealTypeLabel mealType={record.mealType?.mealType ?? null} testID="cook-meal-label" />
+            <View style={styles.eyebrow}>
+              <MealLabel mealType={record.mealType?.mealType ?? null} testID="cook-meal-label" />
+              <CuisinePill label={cuisineLabel(record.cuisine)} testID="cook-cuisine-label" />
+            </View>
           ) : null
         }
         footnote={
           record.status === 'ready' && timesCookedLine(record.timesCooked) !== null ? (
-            <AppText variant="caption" tone="muted" testID="times-cooked">
+            <AppText variant="secondary" tone="inkMuted" testID="times-cooked">
               {timesCookedLine(record.timesCooked)}
             </AppText>
           ) : null
@@ -438,9 +445,9 @@ export function CookScreen({
             {readOnly ? (
               <StatusChip status="reviewed" label={STATUS_REVIEWED} testID="cook-status-chip" />
             ) : (
-              <ActionButton
+              <Button
                 label={FINISH_AND_REVIEW}
-                variant="secondary"
+                variant="outlined"
                 onPress={() => onReview(cook.id)}
                 testID="finish-and-review"
               />
@@ -452,7 +459,7 @@ export function CookScreen({
               style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
               testID="cook-more"
             >
-              <AppText variant="bodyStrong" tone="primary" importantForAccessibility="no">
+              <AppText variant="bodyStrong" tone="ink" importantForAccessibility="no">
                 ⋯
               </AppText>
             </Pressable>
@@ -470,8 +477,8 @@ export function CookScreen({
           style={[styles.awake, staysOn && styles.awakeOn]}
           testID="screen-awake-toggle"
         >
-          <View style={[styles.awakeDot, staysOn && styles.awakeDotOn]} />
-          <AppText variant="label" tone={staysOn ? 'primary' : 'muted'}>
+          <Icon name="sun" color={staysOn ? 'zoneIcon' : 'inkMuted'} size={size.iconSmall + 2} />
+          <AppText variant="label" tone={staysOn ? 'ink' : 'inkMuted'}>
             {staysOn ? SCREEN_STAYS_ON : SCREEN_CAN_SLEEP}
           </AppText>
         </Pressable>
@@ -482,16 +489,16 @@ export function CookScreen({
           <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
           {readOnly ? (
             <View style={styles.again}>
-              <ActionButton
+              <Button
                 label={COOK_THIS_AGAIN}
-                variant="secondary"
+                variant="outlined"
                 accessibilityHint={COOK_THIS_AGAIN_HINT}
                 pending={againWrite.state.status === 'pending'}
                 onPress={() => void cookAgain()}
                 testID="cook-this-again"
               />
               {againWrite.state.status === 'failed' ? (
-                <AppText variant="caption" tone="danger" testID="cook-this-again-failed">
+                <AppText variant="secondary" tone="danger" testID="cook-this-again-failed">
                   {againWrite.state.message}
                 </AppText>
               ) : null}
@@ -502,7 +509,7 @@ export function CookScreen({
           {split ? null : ingredientsBox(true)}
         </View>
       ) : record.status === 'failed' ? (
-        <StateNotice
+        <Notice
           title="Part of this cook could not be loaded"
           body={`Nothing was changed. ${record.message}`}
           tone="problem"
@@ -518,11 +525,11 @@ export function CookScreen({
       {photoProblem ? <PhotoProblemNotice problem={photoProblem} /> : null}
 
       {readOnly ? (
-        <Card variant="hero" testID="verdict-card">
+        <Card testID="verdict-card">
           {verdictNow.text !== null && verdictNow.text.trim() !== '' ? (
             <EditableWords
               heading={
-                <AppText variant="label" tone="muted">
+                <AppText variant="label" tone="inkMuted">
                   {YOUR_NOTES}
                 </AppText>
               }
@@ -541,10 +548,10 @@ export function CookScreen({
             />
           ) : (
             <>
-              <AppText variant="label" tone="muted">
+              <AppText variant="label" tone="inkMuted">
                 {YOUR_NOTES}
               </AppText>
-              <AppText variant="body" tone="muted">
+              <AppText variant="body" tone="inkMuted">
                 {NO_NOTES}
               </AppText>
             </>
@@ -563,7 +570,7 @@ export function CookScreen({
 
       {readOnly && record.status === 'ready' ? (
         <Card testID="ratings-card">
-          <AppText variant="label" tone="muted" accessibilityRole="header">
+          <AppText variant="label" tone="inkMuted" accessibilityRole="header">
             {WHO_ATE_IT}
           </AppText>
           <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
@@ -573,11 +580,11 @@ export function CookScreen({
       <View style={styles.timeline} testID="timeline">
         {events.length === 0 ? (
           readOnly ? (
-            <AppText variant="secondary" tone="muted">
+            <AppText variant="secondary" tone="inkMuted">
               Nothing was noted during this cook.
             </AppText>
           ) : (
-            <StateNotice title={EMPTY_TIMELINE_TITLE} body={EMPTY_TIMELINE_BODY} />
+            <Notice title={EMPTY_TIMELINE_TITLE} body={EMPTY_TIMELINE_BODY} />
           )
         ) : (
           events.map((event) => (
@@ -632,14 +639,14 @@ export function CookScreen({
 
       {readOnly ? (
         <View style={styles.exportSection} testID="export-section">
-          <ActionButton
+          <Button
             label={EXPORT_COOK}
             onPress={() => void exportOne.run(() => exporter.exportCook(cook.id))}
-            variant="quiet"
+            variant="text"
             pending={exportOne.state.status === 'pending'}
             testID="export-cook"
           />
-          <AppText variant="caption" tone="muted" style={styles.exportHint}>
+          <AppText variant="secondary" tone="inkMuted" style={styles.exportHint}>
             {EXPORT_COOK_HINT}
           </AppText>
           <ExportNotice state={exportOne.state} testID="export-cook" />
@@ -664,7 +671,7 @@ type PhotoProblem =
 function PhotoProblemNotice({ problem }: { problem: PhotoProblem }) {
   if (problem.kind === 'denied') {
     return (
-      <StateNotice
+      <Notice
         title={PHOTO_CAMERA_DENIED_TITLE}
         body={problem.canAskAgain ? PHOTO_CAMERA_DENIED_BODY : PHOTO_CAMERA_BLOCKED_BODY}
         tone="problem"
@@ -673,7 +680,7 @@ function PhotoProblemNotice({ problem }: { problem: PhotoProblem }) {
     );
   }
   return (
-    <StateNotice
+    <Notice
       title={PHOTO_FAILED_TITLE}
       body={`${PHOTO_FAILED_BODY} ${problem.message}`}
       tone="problem"
@@ -698,6 +705,7 @@ type EditableTitleProps = {
 
 /** The title, tappable to edit in place. Optional, and user-authored only. */
 function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
+  const styles = useStyles();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cook.title ?? '');
 
@@ -714,7 +722,7 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
         style={styles.titlePressable}
         testID="cook-title"
       >
-        <AppText variant="screenTitle" tone={cook.title ? 'text' : 'muted'} accessibilityRole="header">
+        <AppText variant="title" tone={cook.title ? 'ink' : 'inkMuted'} accessibilityRole="header">
           {cook.title ?? UNTITLED_COOK}
         </AppText>
       </Pressable>
@@ -742,10 +750,10 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
         testID="cook-title-input"
       />
       <View style={styles.titleActions}>
-        <ActionButton label={CANCEL} variant="quiet" onPress={() => setEditing(false)} />
-        <ActionButton
+        <Button label={CANCEL} variant="text" onPress={() => setEditing(false)} />
+        <Button
           label={SAVE_TITLE}
-          variant="secondary"
+          variant="outlined"
           disabled={tooLong}
           pending={writeState.status === 'pending'}
           onPress={() => {
@@ -763,81 +771,78 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  tags: {
-    marginBottom: space.md,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xxs,
-  },
-  more: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.control,
-  },
-  morePressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  awake: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: space.md,
-    marginBottom: space.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  awakeOn: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  awakeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: colors.textMuted,
-  },
-  awakeDotOn: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  timeline: {
-    gap: space.xs,
-    paddingBottom: space.lg,
-  },
-  exportSection: {
-    gap: space.xs,
-    paddingBottom: space.lg,
-  },
-  exportHint: {
-    textAlign: 'center',
-  },
-  record: {
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  again: {
-    gap: space.xxs,
-  },
-  titlePressable: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  titleEditor: {
-    gap: space.xs,
-  },
-  titleActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    eyebrow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xs,
+    },
+    tags: {
+      marginBottom: space.md,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xxs,
+    },
+    more: {
+      minWidth: size.targetMin,
+      minHeight: size.targetMin,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.field,
+    },
+    morePressed: {
+      backgroundColor: colors.surfaceRaised,
+    },
+    awake: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+      minHeight: size.targetMin,
+      paddingHorizontal: space.md,
+      marginBottom: space.sm,
+      borderRadius: radius.pill,
+      borderWidth: size.hairline,
+      borderColor: colors.controlLine,
+      backgroundColor: colors.surface,
+    },
+    awakeOn: {
+      borderColor: colors.zone,
+      backgroundColor: colors.zone,
+    },
+    timeline: {
+      gap: space.xs,
+      paddingBottom: space.lg,
+    },
+    exportSection: {
+      gap: space.xs,
+      paddingBottom: space.lg,
+    },
+    exportHint: {
+      textAlign: 'center',
+    },
+    record: {
+      gap: space.sm,
+      marginBottom: space.md,
+    },
+    again: {
+      gap: space.xxs,
+    },
+    titlePressable: {
+      minHeight: size.targetMin,
+      justifyContent: 'center',
+    },
+    titleEditor: {
+      gap: space.xs,
+    },
+    titleActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+  }),
+);

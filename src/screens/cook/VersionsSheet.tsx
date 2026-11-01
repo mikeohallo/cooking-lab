@@ -1,13 +1,14 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { PaneSheet } from '../../layout/panes';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { CLOSE_VERSIONS, EARLIER_VERSIONS, ORIGINAL_VERSION } from '../../content/product';
 import type { IsoTimestamp, Revision } from '../../domain/entities';
 import { formatDateTime } from '../../format/dateTime';
-import { colors, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { space } from '../../theme/tokens';
 
 export type Version = {
   readonly text: string;
@@ -47,6 +48,7 @@ type VersionsSheetProps = {
 
 /** Read-only. Nothing here can change or remove a version. */
 export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
+  const styles = useStyles();
   return (
     <PaneSheet visible={versions !== null} onRequestClose={onClose} transparent={false} testID="versions-sheet">
       {(insets) => (
@@ -62,14 +64,14 @@ export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
               },
             ]}
           >
-            <AppText variant="sectionTitle" accessibilityRole="header">
+            <AppText variant="heading" accessibilityRole="header">
               {EARLIER_VERSIONS}
             </AppText>
             <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
               {(versions ?? []).map((version, index) => (
                 <Card key={`${version.at}-${index}`} testID={`version-${index}`}>
                   <AppText variant="body">{version.text}</AppText>
-                  <AppText variant="caption" tone="muted">
+                  <AppText variant="secondary" tone="inkMuted">
                     {version.original
                       ? `${ORIGINAL_VERSION} · ${formatDateTime(version.at)}`
                       : formatDateTime(version.at)}
@@ -78,9 +80,9 @@ export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
               ))}
             </ScrollView>
             <View style={styles.actions}>
-              <ActionButton
+              <Button
                 label={CLOSE_VERSIONS}
-                variant="secondary"
+                variant="outlined"
                 onPress={onClose}
                 testID="versions-close"
               />
@@ -92,20 +94,22 @@ export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    gap: space.sm,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    gap: space.xs,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      gap: space.sm,
+      backgroundColor: colors.page,
+    },
+    list: {
+      flex: 1,
+    },
+    listContent: {
+      gap: space.xs,
+    },
+    actions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+  }),
+);

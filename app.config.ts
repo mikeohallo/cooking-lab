@@ -70,6 +70,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // not update an installed app to the same code.
     version: '0.3.0',
     orientation: 'default',
+    // 0.4.0: light or dark follows the phone's own setting, and changes live
+    // when the phone switches (src/theme/theme.tsx). expo-system-ui carries
+    // this to Android. Android's dynamic colour (wallpaper colours) is never
+    // used: every colour comes from src/theme/tokens.ts.
+    userInterfaceStyle: 'automatic',
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
@@ -126,6 +131,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       'expo-status-bar',
+      'expo-system-ui',
       // The local database is encrypted at rest. `useSQLCipher` swaps the
       // bundled SQLite for SQLCipher in the native build; the key is applied to
       // each connection by `src/data/sqlite/connection.ts` and is generated and

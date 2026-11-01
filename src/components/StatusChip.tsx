@@ -1,7 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 
-import { radius, space, statusTreatments, type StatusTreatment } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, size, space, statusRoles, type StatusTreatment } from '../theme/tokens';
 import { AppText } from './AppText';
+import { Icon, type IconName } from './Icon';
 
 type StatusChipProps = {
   /** Which meaning this chip carries. Decides the colour treatment. */
@@ -11,32 +13,42 @@ type StatusChipProps = {
   testID?: string;
 };
 
+const ICON: Partial<Record<StatusTreatment, IconName>> = {
+  open: 'flame',
+  reviewed: 'check',
+};
+
 /**
- * A small pill that names a state or an evidence class.
- *
- * Used only where the label carries meaning — a cook that is still open, a
- * finding that is an inference — and never to decorate ordinary metadata.
+ * A small pill naming where a cook is: Cooking (a flame), Reviewed (a tick)
+ * or Needs a review. The other evidence pairs wait for update 3.
  */
 export function StatusChip({ status, label, testID }: StatusChipProps) {
-  const treatment = statusTreatments[status];
+  const styles = useStyles();
+  const roles = statusRoles[status];
+  const icon = ICON[status];
   return (
-    <View
-      style={[styles.chip, { backgroundColor: treatment.background }]}
-      accessibilityLabel={label}
-      testID={testID}
-    >
-      <AppText variant="label" style={{ color: treatment.foreground }}>
+    <View style={[styles.chip, styles[status]]} accessibilityLabel={label} testID={testID}>
+      {icon ? <Icon name={icon} color={roles.foreground} size={size.iconTiny + 1} /> : null}
+      <AppText variant="label" tone={roles.foreground}>
         {label}
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  chip: {
-    alignSelf: 'flex-start',
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xxs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xxs,
+      alignSelf: 'flex-start',
+      borderRadius: radius.pill,
+      paddingHorizontal: space.sm - 2,
+      paddingVertical: space.xxs - 1,
+    },
+    ...(Object.fromEntries(
+      Object.entries(statusRoles).map(([name, roles]) => [name, { backgroundColor: colors[roles.background] }]),
+    ) as Record<StatusTreatment, { backgroundColor: string }>),
+  }),
+);

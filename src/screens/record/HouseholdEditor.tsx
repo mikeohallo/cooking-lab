@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { TextField } from '../../components/TextField';
@@ -20,7 +20,8 @@ import type { HouseholdMember } from '../../domain/entities';
 import { activeMembers, retiredMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH } from '../../domain/invariants';
 import { useStorage } from '../../state/StorageProvider';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { radius, size, space } from '../../theme/tokens';
 
 type HouseholdEditorProps = {
   members: readonly HouseholdMember[];
@@ -38,6 +39,7 @@ type HouseholdEditorProps = {
  * depends on a drag a screen reader cannot do.
  */
 export function HouseholdEditor({ members, onChanged, testID = 'household' }: HouseholdEditorProps) {
+  const styles = useStyles();
   const { data, newId, now } = useStorage();
   const [draft, setDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
   return (
     <View style={styles.block} testID={testID}>
       {active.length === 0 ? (
-        <AppText variant="secondary" tone="muted">
+        <AppText variant="secondary" tone="inkMuted">
           {NO_HOUSEHOLD_YET}
         </AppText>
       ) : null}
@@ -102,9 +104,9 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
               />
             </View>
           </View>
-          <ActionButton
+          <Button
             label={RETIRE}
-            variant="quiet"
+            variant="text"
             accessibilityHint={`${member.name}. Their ratings are kept.`}
             disabled={busy}
             onPress={() =>
@@ -132,9 +134,9 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
             testID={`${testID}-name`}
           />
         </View>
-        <ActionButton
+        <Button
           label={HOUSEHOLD_ADD}
-          variant="secondary"
+          variant="outlined"
           disabled={draft.trim() === '' || busy}
           onPress={add}
           testID={`${testID}-add`}
@@ -143,20 +145,20 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
 
       {retired.length > 0 ? (
         <View style={styles.block} testID={`${testID}-retired`}>
-          <AppText variant="label" tone="muted">
+          <AppText variant="label" tone="inkMuted">
             {RETIRED_HEADING}
           </AppText>
-          <AppText variant="caption" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {RETIRED_BODY}
           </AppText>
           {retired.map((member) => (
             <View key={member.id} style={styles.memberRow}>
-              <AppText variant="body" tone="muted" style={styles.name}>
+              <AppText variant="body" tone="inkMuted" style={styles.name}>
                 {member.name}
               </AppText>
-              <ActionButton
+              <Button
                 label={RESTORE}
-                variant="quiet"
+                variant="text"
                 disabled={busy}
                 onPress={() =>
                   void run(async () => {
@@ -188,6 +190,7 @@ function Arrow({
   onPress: () => void;
   testID: string;
 }) {
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -198,52 +201,54 @@ function Arrow({
       style={({ pressed }) => [styles.arrow, pressed && styles.arrowPressed, disabled && styles.arrowDisabled]}
       testID={testID}
     >
-      <AppText variant="bodyStrong" tone="primary" importantForAccessibility="no">
+      <AppText variant="bodyStrong" tone="ink" importantForAccessibility="no">
         {glyph}
       </AppText>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  block: {
-    gap: space.xs,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.xs,
-  },
-  name: {
-    flexShrink: 1,
-  },
-  memberActions: {
-    flexDirection: 'row',
-    gap: space.xxs,
-  },
-  arrow: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.control,
-  },
-  arrowPressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  arrowDisabled: {
-    opacity: 0.35,
-  },
-  retire: {
-    alignSelf: 'flex-start',
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.xs,
-  },
-  addField: {
-    flex: 1,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    block: {
+      gap: space.xs,
+    },
+    memberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: space.xs,
+    },
+    name: {
+      flexShrink: 1,
+    },
+    memberActions: {
+      flexDirection: 'row',
+      gap: space.xxs,
+    },
+    arrow: {
+      minWidth: size.targetMin,
+      minHeight: size.targetMin,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.field,
+    },
+    arrowPressed: {
+      backgroundColor: colors.surfaceRaised,
+    },
+    arrowDisabled: {
+      opacity: 0.35,
+    },
+    retire: {
+      alignSelf: 'flex-start',
+    },
+    addRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.xs,
+    },
+    addField: {
+      flex: 1,
+    },
+  }),
+);

@@ -4,10 +4,11 @@ import { StyleSheet } from 'react-native';
 import { AppText } from '../components/AppText';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import { RETRY, WHOS_EATING, WHO_USUALLY_EATS_BODY } from '../content/product';
 import type { HouseholdMember } from '../domain/entities';
 import { useStorage } from '../state/StorageProvider';
+import { makeStyles } from '../theme/theme';
 import { space } from '../theme/tokens';
 import { HouseholdEditor } from './record/HouseholdEditor';
 
@@ -20,6 +21,7 @@ type HouseholdScreenProps = {
  * the order the review lists them. Kept on this phone and nowhere else.
  */
 export function HouseholdScreen({ onBack }: HouseholdScreenProps) {
+  const styles = useStyles();
   const { data } = useStorage();
   const [members, setMembers] = useState<readonly HouseholdMember[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -48,11 +50,11 @@ export function HouseholdScreen({ onBack }: HouseholdScreenProps) {
   return (
     <ScreenContainer testID="household-screen">
       <ScreenHeader title={WHOS_EATING} onBack={onBack} />
-      <AppText variant="secondary" tone="muted" style={styles.intro}>
+      <AppText variant="secondary" tone="inkMuted" style={styles.intro}>
         {WHO_USUALLY_EATS_BODY}
       </AppText>
       {problem ? (
-        <StateNotice
+        <Notice
           title="The list could not be loaded"
           body={`Nothing was changed. ${problem}`}
           tone="problem"
@@ -64,8 +66,10 @@ export function HouseholdScreen({ onBack }: HouseholdScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  intro: {
-    marginBottom: space.md,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    intro: {
+      marginBottom: space.md,
+    },
+  }),
+);

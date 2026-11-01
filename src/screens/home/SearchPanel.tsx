@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
-import { MealTypeDot } from '../../components/MealTypeLabel';
+import { FilterChip } from '../../components/FilterChip';
+import { MEAL_ICON } from '../../components/Icon';
 import { TagChip } from '../../components/TagChip';
 import { TextField } from '../../components/TextField';
 import {
@@ -20,7 +21,8 @@ import {
 import { MEAL_TYPE_LABELS } from '../../domain/cookRecord';
 import type { HouseholdMember, Tag } from '../../domain/entities';
 import { STAR_VALUES, STORED_MEAL_TYPES, type Stars, type StoredMealType } from '../../domain/enums';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { mealColorRole, radius, size, space } from '../../theme/tokens';
 import { peopleToPick, samePick, type CookFilters, type PersonPick } from '../history/filters';
 
 type SearchPanelProps = {
@@ -59,6 +61,7 @@ export function SearchPanel({
   household,
   guestNames,
 }: SearchPanelProps) {
+  const styles = useStyles();
   const [showingTags, setShowingTags] = useState(false);
   const [whoOpen, setWhoOpen] = useState(false);
   const [whoPerson, setWhoPerson] = useState<PersonPick | null>(null);
@@ -117,9 +120,9 @@ export function SearchPanel({
       ) : null}
       {searching ? (
         <View style={styles.end}>
-          <ActionButton
+          <Button
             label={CLEAR_SEARCH}
-            variant="quiet"
+            variant="text"
             onPress={() => {
               onType('');
               onPickTags(() => []);
@@ -137,20 +140,15 @@ export function SearchPanel({
         {STORED_MEAL_TYPES.map((mealType) => {
           const selected = mealFilter.includes(mealType);
           return (
-            <Pressable
+            <FilterChip
               key={mealType}
-              accessibilityRole="checkbox"
-              accessibilityLabel={MEAL_TYPE_LABELS[mealType]}
-              accessibilityState={{ checked: selected }}
+              label={MEAL_TYPE_LABELS[mealType]}
+              selected={selected}
+              icon={MEAL_ICON[mealType]}
+              iconColor={mealColorRole[mealType]}
               onPress={() => toggleMeal(mealType)}
-              style={[styles.chip, selected && styles.chipSelected]}
               testID={`history-meal-${mealType}`}
-            >
-              <MealTypeDot mealType={mealType} />
-              <AppText variant="label" tone={selected ? 'onPrimary' : 'primary'}>
-                {selected ? `✓ ${MEAL_TYPE_LABELS[mealType]}` : MEAL_TYPE_LABELS[mealType]}
-              </AppText>
-            </Pressable>
+            />
           );
         })}
       </View>
@@ -165,26 +163,26 @@ export function SearchPanel({
           />
         ) : null}
         {people.length > 0 ? (
-          <ActionButton
+          <Button
             label={WHO_AND_STARS}
-            variant="quiet"
+            variant="text"
             accessibilityHint="Pick a person and a least number of stars"
             onPress={() => setWhoOpen((now) => !now)}
             testID="history-who-toggle"
           />
         ) : null}
         {allTags.length > 0 ? (
-          <ActionButton
+          <Button
             label={showingTags ? HIDE_MY_TAGS : SHOW_MY_TAGS}
-            variant="quiet"
+            variant="text"
             onPress={() => setShowingTags((now) => !now)}
             testID="history-show-my-tags"
           />
         ) : null}
         {filtering ? (
-          <ActionButton
+          <Button
             label={CLEAR_FILTERS}
-            variant="quiet"
+            variant="text"
             onPress={clearFilters}
             testID="history-clear-filters"
           />
@@ -193,7 +191,7 @@ export function SearchPanel({
 
       {whoOpen ? (
         <View style={styles.panel} testID="history-who-panel">
-          <AppText variant="label" tone="muted">
+          <AppText variant="label" tone="inkMuted">
             {WHO_AND_STARS_PICK}
           </AppText>
           <View style={styles.chips}>
@@ -218,7 +216,7 @@ export function SearchPanel({
                   style={styles.chip}
                   testID={`history-who-stars-${value}`}
                 >
-                  <AppText variant="label" tone="primary" importantForAccessibility="no">
+                  <AppText variant="label" tone="ink" importantForAccessibility="no">
                     {`${value}★+`}
                   </AppText>
                 </Pressable>
@@ -245,38 +243,40 @@ export function SearchPanel({
   );
 }
 
-const styles = StyleSheet.create({
-  panel: {
-    gap: space.xs,
-  },
-  end: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.xxs,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    panel: {
+      gap: space.xs,
+    },
+    end: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    row: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xxs,
+    },
+    chips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+      minHeight: size.targetMin,
+      paddingHorizontal: space.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.surface,
+    },
+    chipSelected: {
+      backgroundColor: colors.selected,
+      borderColor: colors.selected,
+    },
+  }),
+);

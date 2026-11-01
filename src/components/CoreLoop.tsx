@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { CORE_LOOP_STEPS } from '../content/product';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
-import { colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, space } from '../theme/tokens';
 import { AppText } from './AppText';
 
 /**
@@ -14,6 +15,7 @@ import { AppText } from './AppText';
  * nothing is ever pushed off the right edge.
  */
 export function CoreLoop() {
+  const styles = useStyles();
   const { allowsInlineLoop } = useLayoutMetrics();
 
   return (
@@ -26,7 +28,7 @@ export function CoreLoop() {
           {index > 0 ? (
             <AppText
               variant="secondary"
-              tone="muted"
+              tone="inkMuted"
               accessibilityElementsHidden
               importantForAccessibility="no"
             >
@@ -42,25 +44,27 @@ export function CoreLoop() {
   );
 }
 
-const styles = StyleSheet.create({
-  loop: {
-    gap: space.xs,
-  },
-  loopInline: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  loopStacked: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-  },
-  step: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xxs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    loop: {
+      gap: space.xs,
+    },
+    loopInline: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+    },
+    loopStacked: {
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+    },
+    step: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.pill,
+      paddingHorizontal: space.sm,
+      paddingVertical: space.xxs,
+    },
+  }),
+);

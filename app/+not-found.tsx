@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { AppText } from '../src/components/AppText';
 import { ScreenContainer } from '../src/components/ScreenContainer';
 import { ShellHeader } from '../src/components/ShellHeader';
-import { StateNotice } from '../src/components/StateNotice';
+import { Notice } from '../src/components/Notice';
 import { BACK_TO_HOME } from '../src/content/product';
 
 /**
@@ -29,13 +29,13 @@ export default function NotFoundRoute() {
   return (
     <ScreenContainer testID="not-found-screen">
       <ShellHeader />
-      <StateNotice
+      <Notice
         title="There is no screen at this address"
         body="Nothing has been changed. Go back to Home to carry on."
         tone="problem"
         action={{ label: BACK_TO_HOME, onPress: () => router.replace('/') }}
       />
-      <AppText variant="caption" tone="muted" testID="not-found-path">
+      <AppText variant="secondary" tone="inkMuted" testID="not-found-path">
         {`Asked for: ${pathname} · segments: ${JSON.stringify(segments)}`}
       </AppText>
     </ScreenContainer>

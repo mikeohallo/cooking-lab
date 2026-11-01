@@ -8,7 +8,8 @@ import { ScreenScrollContext, type ScreenScroll } from '../layout/ScreenScroll';
 import { bottomClearance, useKeyboardHeight } from '../layout/useKeyboardClearance';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { UndoSlot } from '../state/PendingDeletion';
-import { colors, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { space } from '../theme/tokens';
 
 /**
  * The second pane, on the unfolded inner display (0.3.0). A screen passes
@@ -78,6 +79,7 @@ type ScreenContainerProps = {
  * of horizontal overflow at ~320 dp.
  */
 export function ScreenContainer({ children, footer, testID, side, fixed }: ScreenContainerProps) {
+  const styles = useStyles();
   const { gutter, contentMaxWidth, twoPane } = useLayoutMetrics();
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight();
@@ -157,6 +159,7 @@ function Pane({
   scrollTestID,
   footerTestID,
 }: PaneProps) {
+  const styles = useStyles();
   const scrollRef = useRef<ScrollView>(null);
   const columnRef = useRef<View>(null);
 
@@ -221,48 +224,50 @@ function Pane({
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  // The side pane is always to the right of the main one, after it in the
-  // tree, so adding it never moves the main pane.
-  side: {
-    borderLeftWidth: 1,
-    borderLeftColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingVertical: space.ml,
-  },
-  column: {
-    width: '100%',
-    alignSelf: 'center',
-    flexGrow: 1,
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  // Takes only the height its contents need, up to the footer's cap.
-  footerScroll: {
-    flexGrow: 0,
-  },
-  footerContent: {
-    paddingTop: space.sm,
-    paddingBottom: space.sm,
-  },
-  footerColumn: {
-    width: '100%',
-    alignSelf: 'center',
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.page,
+    },
+    flex: {
+      flex: 1,
+    },
+    row: {
+      flexDirection: 'row',
+    },
+    // The side pane is always to the right of the main one, after it in the
+    // tree, so adding it never moves the main pane.
+    side: {
+      borderLeftWidth: 1,
+      borderLeftColor: colors.line,
+      backgroundColor: colors.page,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingVertical: space.ml,
+    },
+    column: {
+      width: '100%',
+      alignSelf: 'center',
+      flexGrow: 1,
+    },
+    footer: {
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      backgroundColor: colors.page,
+    },
+    // Takes only the height its contents need, up to the footer's cap.
+    footerScroll: {
+      flexGrow: 0,
+    },
+    footerContent: {
+      paddingTop: space.sm,
+      paddingBottom: space.sm,
+    },
+    footerColumn: {
+      width: '100%',
+      alignSelf: 'center',
+    },
+  }),
+);

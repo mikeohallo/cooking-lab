@@ -21,8 +21,11 @@ import {
   SEND_NOTE,
 } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
-import { colors, readingTreatments } from '../src/theme/tokens';
+import { palettes, readingRoles } from '../src/theme/tokens';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
+
+// Screen tests draw the light theme: the phone's setting in the test runner.
+const colors = palettes.light;
 
 const user = userEvent.setup();
 
@@ -233,19 +236,17 @@ describe('a reading taken somewhere else', () => {
 function expectNeutralCard(eventId: string): void {
   const card = flatStyle(screen.getByTestId(`event-${eventId}`).props.style);
   expect(card.backgroundColor).toBe(colors.surface);
-  expect(card.borderColor).toBe(colors.border);
+  expect(card.borderColor).toBe(colors.line);
   expect(card.borderWidth).toBeGreaterThan(0);
   const value = flatStyle(screen.getByTestId(`reading-value-${eventId}`).props.style);
-  expect(value.color).toBe(colors.text);
+  expect(value.color).toBe(colors.ink);
 
   const kindColours: string[] = [
-    readingTreatments.internal.surface,
-    readingTreatments.internal.ink,
-    readingTreatments.oven.surface,
-    readingTreatments.oven.ink,
-    colors.accent,
-    colors.readingInternalBorder,
-    colors.accentPressed,
+    colors[readingRoles.internal.tint],
+    colors[readingRoles.internal.ink],
+    colors[readingRoles.oven.tint],
+    colors[readingRoles.oven.ink],
+    colors.link,
   ];
   expect(kindColours).not.toContain(card.backgroundColor);
   expect(kindColours).not.toContain(value.color);

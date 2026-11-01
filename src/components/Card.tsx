@@ -1,15 +1,11 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { radius, size, space } from '../theme/tokens';
 
 type CardProps = {
   children: ReactNode;
-  /**
-   * `surface` for ordinary content, `muted` for secondary grouping, `hero` for
-   * the one big card, `panel` for the Last time and Next time panel.
-   */
-  variant?: 'surface' | 'muted' | 'hero' | 'panel';
   /** When set, the whole card is one tappable control. */
   onPress?: () => void;
   /**
@@ -19,11 +15,10 @@ type CardProps = {
   onLongPress?: () => void;
   /** What the long-press does, for the screen reader's action list. */
   longPressLabel?: string;
-  /**
-   * A tappable card that is the one shown beside the list, on the inner
-   * display: a heavier ink border, and "selected" for TalkBack.
-   */
+  /** The cook shown beside the list on the inner screen: a 2 px teal ring. */
   selected?: boolean;
+  /** Tighter padding, for a card that is mostly a photo. */
+  compact?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
@@ -31,22 +26,24 @@ type CardProps = {
 };
 
 /**
- * A large rounded card with generous padding: the baseline's basic surface.
- * Borders and tonal surfaces carry the hierarchy; there are no drop shadows.
+ * A white container that marks one thing as an object: a cook, a reading, a
+ * set of notes, the people who ate. A line edge, card corners, and a soft
+ * shadow in light (the line alone in dark). Never nested in another card.
  */
 export function Card({
   children,
-  variant = 'surface',
   onPress,
   onLongPress,
   longPressLabel,
   selected,
+  compact = false,
   accessibilityLabel,
   accessibilityHint,
   testID,
   style,
 }: CardProps) {
-  const base = [styles.card, variantStyles[variant], selected && styles.selected, style];
+  const styles = useStyles();
+  const base = [styles.card, compact && styles.compact, selected && styles.selected, style];
 
   if (onPress) {
     return (
@@ -80,42 +77,29 @@ export function Card({
   );
 }
 
-const variantStyles = StyleSheet.create({
-  surface: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  muted: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.surfaceMuted,
-  },
-  panel: {
-    backgroundColor: colors.lastTimeSurface,
-    borderColor: colors.lastTimeBorder,
-  },
-  hero: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.hero,
-    padding: space.ml,
-  },
-});
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.card,
-    borderWidth: 1,
-    padding: space.md,
-    gap: space.xs,
-  },
-  pressable: {
-    minHeight: MIN_TOUCH_TARGET,
-  },
-  pressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  selected: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-  },
-});
+const useStyles = makeStyles(({ colors, shadows }) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: size.hairline,
+      borderRadius: radius.card,
+      padding: space.md,
+      gap: space.xs,
+      boxShadow: shadows.card,
+    },
+    compact: {
+      padding: space.xs + space.xxs / 2,
+    },
+    pressable: {
+      minHeight: size.targetMin,
+    },
+    pressed: {
+      backgroundColor: colors.surfaceRaised,
+    },
+    selected: {
+      borderColor: colors.secondary,
+      borderWidth: size.ring,
+    },
+  }),
+);

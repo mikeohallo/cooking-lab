@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
@@ -8,13 +8,16 @@ import { useExport } from '../state/useExport';
 import { useHistoryIndex } from '../state/useHistoryIndex';
 import { useTagIndex } from '../state/useTagIndex';
 import { useWrite } from '../state/useWrite';
-import { ActionButton } from '../components/ActionButton';
+import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
 import { CoreLoop } from '../components/CoreLoop';
+import { NewCookButton } from '../components/NewCookButton';
+import { Pager } from '../components/Pager';
+import { IconButton } from '../components/TopBar';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ShellHeader } from '../components/ShellHeader';
-import { StateNotice } from '../components/StateNotice';
+import { Notice } from '../components/Notice';
 import {
   COOKING_NOW,
   EMPTY_HOME_BODY,
@@ -42,7 +45,8 @@ import type { StoredMealType } from '../domain/enums';
 import { RevealOnChange } from '../layout/RevealOnChange';
 import { HOME_LIST_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { space } from '../theme/tokens';
 import { CookActions } from './CookActions';
 import { CookScreen } from './CookScreen';
 import { ExportNotice } from './ExportNotice';
@@ -89,6 +93,7 @@ type Entry = {
  * leaving Home. An open cook still opens on its own page, with its composer.
  */
 export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
+  const styles = useStyles();
   const { data, exporter, newId, now } = useStorage();
   // A cook deleted, or brought back with Undo, changes the lists too.
   const { version } = usePendingDeletion();
@@ -180,18 +185,13 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   );
 
   const more = (
-    <Pressable
-      accessibilityRole="button"
+    <IconButton
+      icon="more"
       accessibilityLabel={HOME_MORE}
       accessibilityState={{ expanded: menuOpen }}
       onPress={() => setMenuOpen((now) => !now)}
-      style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
       testID="home-more"
-    >
-      <AppText variant="sectionTitle" tone="primary" importantForAccessibility="no">
-        ⋯
-      </AppText>
-    </Pressable>
+    />
   );
 
   return (
@@ -223,46 +223,45 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
         <Card testID="home-menu">
           {loaded && !isEmpty ? (
             <View style={styles.menuItem} testID="export-section">
-              <ActionButton
+              <Button
                 label={EXPORT_EVERYTHING}
                 onPress={() => void exportAll.run(() => exporter.exportEverything())}
-                variant="quiet"
+                variant="text"
                 pending={exportAll.state.status === 'pending'}
                 style={styles.menuButton}
                 testID="export-everything"
               />
-              <AppText variant="caption" tone="muted">
+              <AppText variant="secondary" tone="inkMuted">
                 {EXPORT_EVERYTHING_HINT}
               </AppText>
               <ExportNotice state={exportAll.state} testID="export-everything" />
             </View>
           ) : null}
-          <ActionButton
+          <Button
             label={WHOS_EATING}
             accessibilityHint={WHOS_EATING_HINT}
             onPress={() => {
               setMenuOpen(false);
               onHousehold();
             }}
-            variant="quiet"
+            variant="text"
             style={styles.menuButton}
             testID="whos-eating"
           />
         </Card>
       ) : null}
 
-      <ActionButton
-        label={NEW_COOK_TITLE}
-        hint={NEW_COOK_HINT}
-        onPress={() => void startCook()}
-        variant="primary"
-        size="hero"
-        pending={create.state.status === 'pending'}
-        style={styles.newCook}
-        testID="new-cook"
-      />
+      <View style={styles.newCook}>
+        <NewCookButton
+          label={NEW_COOK_TITLE}
+          accessibilityHint={NEW_COOK_HINT}
+          onPress={() => void startCook()}
+          pending={create.state.status === 'pending'}
+          testID="new-cook"
+        />
+      </View>
       {create.state.status === 'failed' ? (
-        <StateNotice
+        <Notice
           title={create.state.message}
           body="Nothing was created. Try again in a moment."
           tone="problem"
@@ -271,7 +270,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       ) : null}
 
       {loadProblem ? (
-        <StateNotice
+        <Notice
           title="Your cooks could not be listed"
           body={`${loadProblem} ${UNSAVED_KEPT}`}
           tone="problem"
@@ -280,14 +279,14 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
 
       {isEmpty ? (
         <View style={styles.section}>
-          <StateNotice title={EMPTY_HOME_TITLE} body={EMPTY_HOME_BODY} testID="home-empty" />
+          <Notice title={EMPTY_HOME_TITLE} body={EMPTY_HOME_BODY} testID="home-empty" />
           <CoreLoop />
         </View>
       ) : null}
 
       {open.status === 'ready' && open.cooks.length > 0 ? (
         <View style={styles.section} testID="cooking-now">
-          <AppText variant="sectionTitle" accessibilityRole="header">
+          <AppText variant="heading" accessibilityRole="header">
             {COOKING_NOW}
           </AppText>
           {open.cooks.map((cook) => (
@@ -322,14 +321,14 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
           </RevealOnChange>
 
           {!searching && filtering && shown.length === 0 ? (
-            <StateNotice
+            <Notice
               title={FILTER_NO_RESULTS_TITLE}
               body={FILTER_NO_RESULTS_BODY}
               testID="history-filter-empty"
             />
           ) : null}
           {searching && entries.length === 0 ? (
-            <StateNotice
+            <Notice
               title={SEARCH_NO_RESULTS_TITLE}
               body={SEARCH_NO_RESULTS_BODY}
               testID="history-search-empty"
@@ -338,7 +337,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
 
           {entries.length > 0 ? (
             <View style={styles.list}>
-              <AppText variant="label" tone="muted" testID="home-page-summary">
+              <AppText variant="label" tone="inkMuted" testID="home-page-summary">
                 {pageSummary(current)}
               </AppText>
               {searching ? (
@@ -362,32 +361,15 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
                 </View>
               )}
               {current.pageCount > 1 ? (
-                <View style={styles.pager} testID="home-pager">
-                  <ActionButton
-                    label={PAGE_PREVIOUS}
-                    variant="secondary"
-                    disabled={current.page <= 1}
-                    onPress={() => goToPage(current.page - 1)}
-                    style={styles.pagerButton}
-                    testID="home-page-previous"
-                  />
-                  <AppText
-                    variant="bodyStrong"
-                    style={styles.pagerPosition}
-                    accessibilityLabel={`Page ${pagePosition(current)}`}
-                    testID="home-page-position"
-                  >
-                    {pagePosition(current)}
-                  </AppText>
-                  <ActionButton
-                    label={PAGE_NEXT}
-                    variant="secondary"
-                    disabled={current.page >= current.pageCount}
-                    onPress={() => goToPage(current.page + 1)}
-                    style={styles.pagerButton}
-                    testID="home-page-next"
-                  />
-                </View>
+                <Pager
+                  page={current.page}
+                  pageCount={current.pageCount}
+                  position={pagePosition(current)}
+                  previousLabel={PAGE_PREVIOUS}
+                  nextLabel={PAGE_NEXT}
+                  onPrevious={() => goToPage(current.page - 1)}
+                  onNext={() => goToPage(current.page + 1)}
+                />
               ) : null}
             </View>
           ) : null}
@@ -408,12 +390,13 @@ type PageGroupProps = {
 
 /** One of the two result groups on this page. An empty group is not drawn. */
 function PageGroup({ label, entries, render, testID }: PageGroupProps) {
+  const styles = useStyles();
   if (entries.length === 0) {
     return null;
   }
   return (
     <View style={styles.list} testID={testID}>
-      <AppText variant="sectionTitle" accessibilityRole="header">
+      <AppText variant="heading" accessibilityRole="header">
         {label}
       </AppText>
       {entries.map(render)}
@@ -426,47 +409,24 @@ const EMPTY_COOKS: readonly Cook[] = [];
 const EMPTY_MEALS: Readonly<Record<CookId, StoredMealType>> = {};
 const EMPTY_VERDICTS: Readonly<Record<CookId, string | null>> = {};
 
-const styles = StyleSheet.create({
-  section: {
-    gap: space.xs,
-    marginTop: space.lg,
-  },
-  newCook: {
-    marginTop: space.xs,
-  },
-  list: {
-    gap: space.xs,
-    marginTop: space.xs,
-  },
-  more: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.control,
-  },
-  morePressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  menuItem: {
-    gap: space.xxs,
-  },
-  menuButton: {
-    alignSelf: 'flex-start',
-  },
-  pager: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.xs,
-    marginTop: space.sm,
-    marginBottom: space.lg,
-  },
-  pagerButton: {
-    minWidth: 104,
-  },
-  pagerPosition: {
-    flex: 1,
-    textAlign: 'center',
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    section: {
+      gap: space.xs,
+      marginTop: space.lg,
+    },
+    newCook: {
+      marginVertical: space.xs,
+    },
+    list: {
+      gap: space.xs,
+      marginTop: space.xs,
+    },
+    menuItem: {
+      gap: space.xxs,
+    },
+    menuButton: {
+      alignSelf: 'flex-start',
+    },
+  }),
+);

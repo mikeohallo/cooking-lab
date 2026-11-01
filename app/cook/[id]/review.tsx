@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 
 import { ScreenContainer } from '../../../src/components/ScreenContainer';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
-import { StateNotice } from '../../../src/components/StateNotice';
+import { Notice } from '../../../src/components/Notice';
 import { BACK_TO_HOME, COOK_NOT_FOUND_BODY, COOK_NOT_FOUND_TITLE } from '../../../src/content/product';
 import type { CookId } from '../../../src/domain/entities';
 import { isEntityId } from '../../../src/domain/invariants';
@@ -36,7 +36,7 @@ export default function ReviewRoute() {
     return (
       <ScreenContainer testID="review-bad-link">
         <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={goBack} />
-        <StateNotice
+        <Notice
           title={COOK_NOT_FOUND_TITLE}
           body={COOK_NOT_FOUND_BODY}
           tone="problem"

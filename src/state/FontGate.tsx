@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { FONT_FILES, FontsReadyContext } from '../theme/fonts';
-import { colors } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+
 
 /**
  * Holds the app on a plain screen until Plus Jakarta Sans has loaded from the
@@ -15,6 +16,7 @@ import { colors } from '../theme/tokens';
  * stopping — the face is a nicety, the notebook is not.
  */
 export function FontGate({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   const [loaded, error] = useFonts(FONT_FILES);
 
   if (!loaded && error === null) {
@@ -24,9 +26,11 @@ export function FontGate({ children }: { children: ReactNode }) {
   return <FontsReadyContext.Provider value={loaded && error === null}>{children}</FontsReadyContext.Provider>;
 }
 
-const styles = StyleSheet.create({
-  plain: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    plain: {
+      flex: 1,
+      backgroundColor: colors.page,
+    },
+  }),
+);

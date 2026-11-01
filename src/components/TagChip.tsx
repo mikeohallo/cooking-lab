@@ -1,8 +1,10 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { REMOVE_TAG } from '../content/product';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../theme/tokens';
+import { makeStyles } from '../theme/theme';
+import { DISABLED_OPACITY, radius, size, space } from '../theme/tokens';
 import { AppText } from './AppText';
+import { Icon } from './Icon';
 
 type TagChipProps = {
   name: string;
@@ -14,8 +16,9 @@ type TagChipProps = {
    *                takes it off again.
    *   `pick`       a tag in a list that is not on this cook; tapping adds it.
    *   `plain`      no action at all, for a line that is only showing tags.
+   *   `add`        the "+ Tag" chip, in link teal.
    */
-  variant: 'removable' | 'selected' | 'pick' | 'plain';
+  variant: 'removable' | 'selected' | 'pick' | 'plain' | 'add';
   onPress?: () => void;
   /** Dims the chip and refuses taps while a tag write is in flight. */
   disabled?: boolean;
@@ -23,103 +26,94 @@ type TagChipProps = {
 };
 
 /**
- * One tag, as an outlined pill.
- *
- * Outlined rather than filled, with the selected state filled: a cook's tags are
- * quiet metadata under a title and should not compete with it, while "this one
- * is on the cook" has to be obvious at a glance in a list of thirty. The
- * selected state is a fill *and* a tick, never the fill alone — nothing in this
- * app carries meaning in colour and nothing else.
- *
- * A removable chip's whole body is the control, not a small × inside it: a 16 dp
- * cross next to a word is a target nobody hits in a kitchen. The chip is at
- * least `MIN_TOUCH_TARGET` tall and its accessible name says what tapping does.
+ * One tag: a quiet pill on surface-raised, 34 dp drawn inside a 48 dp touch
+ * area. A tag that is on the cook, in a list to pick from, is teal with a
+ * tick — never the fill alone. A removable chip's whole body is the control,
+ * and its name says what tapping does ("Remove tag apple").
  */
 export function TagChip({ name, variant, onPress, disabled = false, testID }: TagChipProps) {
+  const styles = useStyles();
+  const chosen = variant === 'selected';
   const body = (
-    <View style={styles.row}>
-      {variant === 'selected' ? (
-        <AppText variant="label" tone="onPrimary" style={styles.mark}>
-          ✓
-        </AppText>
-      ) : null}
-      <AppText variant="label" tone={variant === 'selected' ? 'onPrimary' : 'primary'}>
+    <View
+      style={[
+        styles.chip,
+        chosen && styles.chosen,
+        variant === 'add' && styles.add,
+        disabled && styles.disabled,
+      ]}
+    >
+      {chosen ? <Icon name="check" color="onSecondary" size={size.iconTiny + 2} /> : null}
+      <AppText variant="label" tone={chosen ? 'onSecondary' : variant === 'add' ? 'link' : 'ink'}>
         {name}
       </AppText>
-      {variant === 'removable' ? (
-        <AppText variant="label" tone="muted" style={styles.mark}>
-          ✕
-        </AppText>
-      ) : null}
+      {variant === 'removable' ? <Icon name="close" color="inkMuted" size={size.iconTiny + 2} /> : null}
     </View>
   );
 
   if (variant === 'plain' || onPress === undefined) {
     return (
-      <View style={[styles.chip, styles.outlined, disabled && styles.disabled]} testID={testID}>
+      <View style={styles.target} testID={testID}>
         {body}
       </View>
     );
   }
 
   const accessibilityLabel = variant === 'removable' ? `${REMOVE_TAG} ${name}` : name;
+  const isButton = variant === 'removable' || variant === 'add';
 
   return (
     <Pressable
-      accessibilityRole={variant === 'removable' ? 'button' : 'checkbox'}
+      accessibilityRole={isButton ? 'button' : 'checkbox'}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={
-        variant === 'removable'
-          ? { disabled }
-          : { disabled, checked: variant === 'selected' }
-      }
+      accessibilityState={isButton ? { disabled } : { disabled, checked: chosen }}
       accessibilityHint={
-        variant === 'removable' ? 'Takes this tag off this cook' : 'Adds or removes this tag'
+        variant === 'removable'
+          ? 'Takes this tag off this cook'
+          : variant === 'add'
+            ? undefined
+            : 'Adds or removes this tag'
       }
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      style={({ pressed }) => [
-        styles.chip,
-        variant === 'selected' ? styles.filled : styles.outlined,
-        pressed && !disabled && styles.pressed,
-        disabled && styles.disabled,
-      ]}
+      style={({ pressed }) => [styles.target, pressed && !disabled && styles.pressed]}
     >
       {body}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  chip: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-    paddingHorizontal: space.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  outlined: {
-    backgroundColor: colors.surface,
-    borderColor: colors.primary,
-  },
-  filled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  pressed: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
-  },
-  disabled: {
-    opacity: 0.55,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xxs,
-  },
-  mark: {
-    opacity: 0.8,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    target: {
+      minHeight: size.targetMin,
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+    },
+    chip: {
+      minHeight: size.tagChip,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xxs,
+      paddingHorizontal: space.sm,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceRaised,
+    },
+    chosen: {
+      backgroundColor: colors.secondary,
+    },
+    add: {
+      backgroundColor: 'transparent',
+      borderWidth: size.hairline,
+      borderStyle: 'dashed',
+      borderColor: colors.link,
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+    disabled: {
+      opacity: DISABLED_OPACITY,
+    },
+  }),
+);

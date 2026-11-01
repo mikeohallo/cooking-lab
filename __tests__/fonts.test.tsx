@@ -70,10 +70,10 @@ describe('the typeface', () => {
     await render(
       <FontGate>
         <AppText testID="body">Body</AppText>
-        <AppText testID="title" variant="screenTitle">
+        <AppText testID="title" variant="label">
           Title
         </AppText>
-        <AppText testID="display" variant="display">
+        <AppText testID="display" variant="appTitle">
           Display
         </AppText>
       </FontGate>,
@@ -94,7 +94,7 @@ describe('the typeface', () => {
     );
     const style = styleOf('body');
     expect(style.fontFamily).toBeUndefined();
-    expect(style.fontWeight).toBe('600');
+    expect(style.fontWeight).toBe('700');
   });
 
   it('keeps Android font scaling', async () => {

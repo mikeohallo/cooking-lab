@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { CameraButton } from '../../components/CameraButton';
-import { StateNotice } from '../../components/StateNotice';
+import { ReadingChip } from '../../components/Composer';
+import { Notice } from '../../components/Notice';
 import { TextField } from '../../components/TextField';
 import {
   ADD_INTERNAL_READING,
@@ -24,6 +25,7 @@ import type { PhotoOrigin } from '../../data/adapters';
 import type { JsonObject } from '../../domain/entities';
 import type { ReadingKind } from '../../domain/enums';
 import { NOTE_MAX_LINES } from '../../layout/footerLimit';
+import { makeStyles } from '../../theme/theme';
 import { space } from '../../theme/tokens';
 import type { WriteState } from '../../state/useWrite';
 import { parseTemperature, readingKindLabel } from './temperature';
@@ -79,6 +81,7 @@ export function Composer({
   writeState,
   photoPending = false,
 }: ComposerProps) {
+  const styles = useStyles();
   const [note, setNote] = useState('');
   const [panel, setPanel] = useState<OpenPanel>(CLOSED);
   const [celsius, setCelsius] = useState('');
@@ -136,7 +139,7 @@ export function Composer({
   return (
     <View style={styles.composer} testID="composer">
       {writeState.status === 'failed' ? (
-        <StateNotice
+        <Notice
           title={writeState.message}
           body={UNSAVED_KEPT}
           tone="problem"
@@ -158,13 +161,13 @@ export function Composer({
             testID="temperature-celsius"
           />
           {temperatureProblem ? (
-            <StateNotice title={temperatureProblem} tone="problem" testID="temperature-problem" />
+            <Notice title={temperatureProblem} tone="problem" testID="temperature-problem" />
           ) : null}
           <View style={styles.actions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={closePanel} />
-            <ActionButton
+            <Button label={CANCEL} variant="text" onPress={closePanel} />
+            <Button
               label={SAVE_TEMPERATURE}
-              variant="secondary"
+              variant="outlined"
               onPress={() => void addReading(panel.reading)}
               pending={pending}
               testID="temperature-save"
@@ -199,13 +202,13 @@ export function Composer({
             </View>
           </View>
           {temperatureProblem ? (
-            <StateNotice title={temperatureProblem} tone="problem" testID="temperature-problem" />
+            <Notice title={temperatureProblem} tone="problem" testID="temperature-problem" />
           ) : null}
           <View style={styles.actions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={closePanel} />
-            <ActionButton
+            <Button label={CANCEL} variant="text" onPress={closePanel} />
+            <Button
               label={SAVE_TEMPERATURE}
-              variant="secondary"
+              variant="outlined"
               onPress={() => void addReading('none')}
               pending={pending}
               testID="temperature-save"
@@ -216,20 +219,20 @@ export function Composer({
 
       {panel.kind === 'photo' ? (
         <View style={styles.panel} testID="photo-panel">
-          <ActionButton
+          <Button
             label={TAKE_PHOTO}
-            variant="secondary"
+            variant="outlined"
             onPress={() => void takePhoto('camera')}
             testID="take-photo"
           />
-          <ActionButton
+          <Button
             label={CHOOSE_PHOTO}
-            variant="secondary"
+            variant="outlined"
             onPress={() => void takePhoto('library')}
             testID="choose-photo"
           />
           <View style={styles.actions}>
-            <ActionButton label={CANCEL} variant="quiet" onPress={closePanel} />
+            <Button label={CANCEL} variant="text" onPress={closePanel} />
           </View>
         </View>
       ) : null}
@@ -266,21 +269,21 @@ export function Composer({
             />
           </View>
           <View style={styles.actions}>
-            <ActionButton
+            <ReadingChip
+              kind="oven"
               label={ADD_OVEN_READING}
-              variant="secondary"
               onPress={() => openReading('oven')}
               testID="oven-reading-toggle"
             />
-            <ActionButton
+            <ReadingChip
+              kind="internal"
               label={ADD_INTERNAL_READING}
-              variant="secondary"
               onPress={() => openReading('internal')}
               testID="internal-reading-toggle"
             />
-            <ActionButton
+            <Button
               label={SEND_NOTE}
-              variant="primary"
+              variant="main"
               onPress={() => void sendNote()}
               pending={pending}
               style={styles.send}
@@ -288,9 +291,9 @@ export function Composer({
             />
           </View>
           <View style={styles.elsewhereRow}>
-            <ActionButton
+            <Button
               label={READING_SOMEWHERE_ELSE}
-              variant="quiet"
+              variant="text"
               onPress={() => {
                 setCelsius('');
                 setWhere('');
@@ -307,46 +310,48 @@ export function Composer({
   );
 }
 
-const styles = StyleSheet.create({
-  composer: {
-    gap: space.xs,
-  },
-  panel: {
-    gap: space.xs,
-    paddingBottom: space.xs,
-  },
-  noteRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.xs,
-  },
-  noteField: {
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-  temperatureFields: {
-    flexDirection: 'row',
-    gap: space.xs,
-  },
-  celsiusField: {
-    flexBasis: 110,
-    flexGrow: 0,
-  },
-  whereField: {
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-  elsewhereRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  send: {
-    minWidth: 96,
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    composer: {
+      gap: space.xs,
+    },
+    panel: {
+      gap: space.xs,
+      paddingBottom: space.xs,
+    },
+    noteRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.xs,
+    },
+    noteField: {
+      flexGrow: 1,
+      flexShrink: 1,
+    },
+    temperatureFields: {
+      flexDirection: 'row',
+      gap: space.xs,
+    },
+    celsiusField: {
+      flexBasis: 110,
+      flexGrow: 0,
+    },
+    whereField: {
+      flexGrow: 1,
+      flexShrink: 1,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+    elsewhereRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    send: {
+      minWidth: 96,
+    },
+  }),
+);

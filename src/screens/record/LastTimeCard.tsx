@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
-import { MealTypeLabel } from '../../components/MealTypeLabel';
+import { CuisinePill } from '../../components/CuisinePill';
+import { LastTimeCard as LastTimeCardPart } from '../../components/LastTimeCard';
+import { MealLabel } from '../../components/MealLabel';
 import {
   INGREDIENTS_SHOW_LESS,
   LAST_TIME,
@@ -13,11 +15,12 @@ import {
   OPEN_LAST_TIME,
   YOUR_NOTES,
 } from '../../content/product';
-import { nextTimeWords, orderRatings, raterName, ratingAnswerText } from '../../domain/cookRecord';
+import { cuisineLabel, nextTimeWords, orderRatings, raterName, ratingAnswerText } from '../../domain/cookRecord';
 import type { CookId, HouseholdMember } from '../../domain/entities';
 import { formatDateTime } from '../../format/dateTime';
 import type { LastTime } from '../../state/useCookRecord';
-import { MIN_TOUCH_TARGET, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { size, space } from '../../theme/tokens';
 
 /** How many lines of the earlier notes stand in when there is no next-time line. */
 const NOTES_LINES = 3;
@@ -29,6 +32,26 @@ type LastTimeCardProps = {
   folded: boolean;
   onOpen: (cookId: CookId) => void;
 };
+
+/**
+ * The average of the stars given, to one place ("4.5"), and how many said
+ * something: "· 2 ratings, 1 N/A". Null when nobody gave stars.
+ */
+export function ratingAverage(
+  ratings: readonly { readonly stars: number | null; readonly notEaten: boolean }[],
+): { readonly value: string; readonly summary: string } | null {
+  const starred = ratings.flatMap((rating) => (rating.stars === null ? [] : [rating.stars]));
+  if (starred.length === 0) {
+    return null;
+  }
+  const mean = starred.reduce((sum, stars) => sum + stars, 0) / starred.length;
+  const notApplicable = ratings.filter((rating) => rating.notEaten).length;
+  const counted = `${starred.length} ${starred.length === 1 ? 'rating' : 'ratings'}`;
+  return {
+    value: mean.toFixed(1),
+    summary: notApplicable > 0 ? `· ${counted}, ${notApplicable} N/A` : `· ${counted}`,
+  };
+}
 
 /** The first few lines of the earlier notes, as they now read. */
 export function notesExcerpt(notes: string | null, lines = NOTES_LINES): string | null {
@@ -51,6 +74,7 @@ export function notesExcerpt(notes: string | null, lines = NOTES_LINES): string 
  * line once the timeline has entries.
  */
 export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCardProps) {
+  const styles = useStyles();
   const [unfolded, setUnfolded] = useState(false);
   const { cook } = lastTime;
   const when = formatDateTime(cook.startedAt);
@@ -69,9 +93,9 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
     .filter((line): line is string => line !== null);
 
   const open = (
-    <ActionButton
+    <Button
       label={OPEN_LAST_TIME}
-      variant="quiet"
+      variant="peach"
       accessibilityHint={`Opens the cook from ${when}`}
       onPress={() => onOpen(cook.id)}
       testID="last-time-open"
@@ -81,7 +105,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
   if (folded && !unfolded) {
     const summary = nextTime[0] ?? notes?.split('\n')[0] ?? ratingLines[0] ?? '';
     return (
-      <Card variant="panel" testID="last-time">
+      <Card testID="last-time">
         <View style={styles.row}>
           <Pressable
             accessibilityRole="button"
@@ -93,7 +117,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
             testID="last-time-folded"
           >
             <AppText variant="secondary" numberOfLines={1}>
-              <AppText variant="label" tone="muted">{`${LAST_TIME} · `}</AppText>
+              <AppText variant="label" tone="inkMuted">{`${LAST_TIME} · `}</AppText>
               {summary === '' ? when : summary}
             </AppText>
           </Pressable>
@@ -103,23 +127,23 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
     );
   }
 
+  const average = ratingAverage(ratings);
   return (
-    <Card variant="panel" testID="last-time">
+    <LastTimeCardPart
+      heading={`${LAST_TIME} · ${when}`}
+      average={average?.value ?? null}
+      ratingSummary={average?.summary ?? null}
+      openLabel={OPEN_LAST_TIME}
+      openHint={`Opens the cook from ${when}`}
+      onOpen={() => onOpen(cook.id)}
+    >
       <View style={styles.block}>
-        <View style={styles.row}>
-          <View style={styles.title}>
-            <MealTypeLabel mealType={lastTime.mealType?.mealType ?? null} testID="last-time-meal" />
-            <AppText variant="label" tone="muted" accessibilityRole="header">
-              {LAST_TIME}
-            </AppText>
-            <AppText variant="caption" tone="muted">
-              {when}
-            </AppText>
-          </View>
-          {open}
+        <View style={styles.labels}>
+          <MealLabel mealType={lastTime.mealType?.mealType ?? null} testID="last-time-meal" />
+          <CuisinePill label={cuisineLabel(lastTime.cuisine ?? null)} testID="last-time-cuisine" />
         </View>
         {ratingLines.length === 0 ? (
-          <AppText variant="secondary" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {LAST_TIME_NO_RATINGS}
           </AppText>
         ) : (
@@ -133,7 +157,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
         )}
         {nextTime.length > 0 ? (
           <View testID="last-time-next-time">
-            <AppText variant="label" tone="muted">
+            <AppText variant="label" tone="inkMuted">
               {NEXT_TIME}
             </AppText>
             {nextTime.map((line, index) => (
@@ -144,7 +168,7 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
           </View>
         ) : notes !== null ? (
           <View testID="last-time-notes">
-            <AppText variant="label" tone="muted">
+            <AppText variant="label" tone="inkMuted">
               {YOUR_NOTES}
             </AppText>
             <AppText variant="body">{notes}</AppText>
@@ -157,37 +181,45 @@ export function LastTimeCard({ lastTime, household, folded, onOpen }: LastTimeCa
             style={styles.fold}
             testID="last-time-fold"
           >
-            <AppText variant="label" tone="accent">
+            <AppText variant="label" tone="link">
               {INGREDIENTS_SHOW_LESS}
             </AppText>
           </Pressable>
         ) : null}
       </View>
-    </Card>
+    </LastTimeCardPart>
   );
 }
 
-const styles = StyleSheet.create({
-  block: {
-    gap: space.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.xs,
-  },
-  title: {
-    flexShrink: 1,
-  },
-  foldedText: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  fold: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-  },
-});
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
+    labels: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xs,
+    },
+    block: {
+      gap: space.xs,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: space.xs,
+    },
+    title: {
+      flexShrink: 1,
+    },
+    foldedText: {
+      flex: 1,
+      minHeight: size.targetMin,
+      justifyContent: 'center',
+    },
+    fold: {
+      minHeight: size.targetMin,
+      justifyContent: 'center',
+      alignSelf: 'flex-start',
+    },
+  }),
+);

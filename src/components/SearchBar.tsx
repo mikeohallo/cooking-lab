@@ -1,0 +1,136 @@
+import { forwardRef } from 'react';
+import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+
+import { fontStyleFor, useFontsReady } from '../theme/fonts';
+import { makeStyles, useColors } from '../theme/theme';
+import { radius, size, space, type } from '../theme/tokens';
+import { AppText } from './AppText';
+import { Icon } from './Icon';
+
+type SearchBarProps = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'value' | 'onChangeText'> & {
+  value: string;
+  onChangeText: (text: string) => void;
+  /** The round filter button beside the bar, with the count of filters on. */
+  onFilters?: () => void;
+  filterCount?: number;
+  filtersLabel?: string;
+  clearLabel?: string;
+};
+
+/**
+ * The search over your cooks: a pill on surface-raised with a magnifier, a ×
+ * once there is text, and the round filter button beside it showing how many
+ * filters are on.
+ */
+export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBar(
+  { value, onChangeText, onFilters, filterCount = 0, filtersLabel = 'Filters', clearLabel = 'Clear search', ...input },
+  ref,
+) {
+  const styles = useStyles();
+  const colors = useColors();
+  const fontsReady = useFontsReady();
+  return (
+    <View style={styles.row}>
+      <View style={styles.bar}>
+        <Icon name="search" color="inkMuted" size={size.icon - 4} />
+        <TextInput
+          ref={ref}
+          {...input}
+          value={value}
+          onChangeText={onChangeText}
+          placeholderTextColor={colors.inkMuted}
+          accessibilityLabel={input.accessibilityLabel ?? input.placeholder}
+          style={[styles.input, fontsReady ? fontStyleFor(type.body.fontWeight) : null]}
+        />
+        {value.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={clearLabel}
+            onPress={() => onChangeText('')}
+            style={styles.clear}
+            testID="search-clear"
+          >
+            <Icon name="close" color="inkMuted" size={size.icon - 6} />
+          </Pressable>
+        ) : null}
+      </View>
+      {onFilters ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={filterCount > 0 ? `${filtersLabel}, ${filterCount} on` : filtersLabel}
+          onPress={onFilters}
+          style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
+          testID="search-filters"
+        >
+          <Icon name="filter" color="ink" size={size.icon - 2} />
+          {filterCount > 0 ? (
+            <View style={styles.count}>
+              <AppText variant="label" tone="onSelected">
+                {String(filterCount)}
+              </AppText>
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
+
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+    },
+    bar: {
+      flex: 1,
+      minHeight: size.targetMin + 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+      paddingLeft: space.md,
+      paddingRight: space.xxs,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceRaised,
+    },
+    input: {
+      flex: 1,
+      minHeight: size.targetMin,
+      color: colors.ink,
+      fontSize: type.body.fontSize,
+      lineHeight: type.body.lineHeight,
+      paddingVertical: 0,
+    },
+    clear: {
+      width: size.targetMin - 4,
+      height: size.targetMin - 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+    },
+    filterButton: {
+      width: size.targetMin + 2,
+      height: size.targetMin + 2,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceRaised,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    count: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      minWidth: size.iconSmall + 4,
+      height: size.iconSmall + 4,
+      paddingHorizontal: space.xxs,
+      borderRadius: radius.pill,
+      backgroundColor: colors.selected,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  }),
+);

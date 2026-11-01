@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useFocusRefresh } from '../../../src/state/useFocusRefresh';
 import { ScreenContainer } from '../../../src/components/ScreenContainer';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
-import { StateNotice } from '../../../src/components/StateNotice';
+import { Notice } from '../../../src/components/Notice';
 import { BACK_TO_HOME, COOK_NOT_FOUND_BODY, COOK_NOT_FOUND_TITLE } from '../../../src/content/product';
 import type { CookId } from '../../../src/domain/entities';
 import { isEntityId } from '../../../src/domain/invariants';
@@ -38,7 +38,7 @@ export default function CookRoute() {
     return (
       <ScreenContainer testID="cook-bad-link">
         <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={goHome} />
-        <StateNotice
+        <Notice
           title={COOK_NOT_FOUND_TITLE}
           body={COOK_NOT_FOUND_BODY}
           tone="problem"

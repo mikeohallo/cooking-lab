@@ -18,7 +18,8 @@ import { latestWords } from '../../domain/evidence';
 import { photoPlacedWhenAdded } from '../../domain/photoTime';
 import { formatTime } from '../../format/dateTime';
 import { photoFrame, PLACEHOLDER_RATIO, type PixelSize } from '../../layout/photoFrame';
-import { colors, radius, readingTreatments, space } from '../../theme/tokens';
+import { makeStyles, useColors } from '../../theme/theme';
+import { radius, readingRoles, space } from '../../theme/tokens';
 import { EditableWords } from './EditableWords';
 import { formatCelsius, readingKindFromEvent, readingKindLabel, whereFromEvent } from './temperature';
 
@@ -68,6 +69,8 @@ type TimelineEventProps = {
  * for the cook's own words.
  */
 export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
+  const styles = useStyles();
+  const colors = useColors();
   const time = formatTime(event.ts);
 
   switch (event.kind) {
@@ -95,7 +98,7 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
       return (
         <Card testID={`event-${event.id}`}>
           <AppText variant="body">{event.body ?? ''}</AppText>
-          <AppText variant="caption" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {time}
           </AppText>
         </Card>
@@ -113,7 +116,7 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
           <View style={styles.temperature} testID={`event-${event.id}`}>
             <View style={styles.temperatureRow}>
               <AppText
-                variant="temperature"
+                variant="readingNumber"
                 style={styles.temperatureValue}
                 testID={`reading-value-${event.id}`}
               >
@@ -121,7 +124,7 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
               </AppText>
               <View style={styles.temperatureDetail}>
                 {where ? <AppText variant="bodyStrong">{where}</AppText> : null}
-                <AppText variant="caption" tone="muted">
+                <AppText variant="secondary" tone="inkMuted">
                   {time}
                 </AppText>
               </View>
@@ -130,28 +133,29 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
         );
       }
 
-      const treatment = readingTreatments[kind];
+      const roles = readingRoles[kind];
       const label = readingKindLabel(kind);
       return (
         <View
           style={[
             styles.reading,
-            { backgroundColor: treatment.surface, borderColor: treatment.border },
+            { backgroundColor: colors[roles.tint], borderColor: colors[roles.tint] },
           ]}
           testID={`event-${event.id}`}
         >
           <ReadingIcon kind={kind} testID={`reading-icon-${kind}`} />
           <View style={styles.readingWords}>
-            <AppText variant="bodyStrong" style={{ color: treatment.ink }}>
+            <AppText variant="bodyStrong" tone={roles.ink}>
               {label}
             </AppText>
-            <AppText variant="caption" tone="muted">
+            <AppText variant="secondary" tone="inkMuted">
               {where ? `${time} · ${where}` : time}
             </AppText>
           </View>
           <AppText
-            variant="temperature"
-            style={[styles.readingValue, { color: treatment.ink }]}
+            variant="readingNumber"
+            tone={roles.ink}
+            style={styles.readingValue}
             testID={`reading-value-${event.id}`}
           >
             {formatCelsius(event)}
@@ -165,21 +169,21 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
       // time it was added, and says so (0.2.2; see `src/domain/photoTime.ts`).
       const when = photoPlacedWhenAdded(event) ? `${PHOTO_ADDED_AT} ${time}` : time;
       const caption = (
-        <AppText variant="caption" tone="muted" testID={`photo-caption-${event.id}`}>
+        <AppText variant="secondary" tone="inkMuted" testID={`photo-caption-${event.id}`}>
           {`${PHOTO_LABEL} · ${when}`}
         </AppText>
       );
 
       if (photo?.uri == null) {
         return (
-          <Card variant="muted" testID={`event-${event.id}`}>
-            <AppText variant="label" tone="muted">
+          <Card testID={`event-${event.id}`}>
+            <AppText variant="label" tone="inkMuted">
               {PHOTO_LABEL}
             </AppText>
-            <AppText variant="secondary" tone="muted">
+            <AppText variant="secondary" tone="inkMuted">
               {PHOTO_MISSING}
             </AppText>
-            <AppText variant="caption" tone="muted">
+            <AppText variant="secondary" tone="inkMuted">
               {when}
             </AppText>
           </Card>
@@ -214,12 +218,12 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
 
     case 'assistant_msg':
       return (
-        <Card variant="muted" testID={`event-${event.id}`}>
-          <AppText variant="label" tone="muted">
+        <Card testID={`event-${event.id}`}>
+          <AppText variant="label" tone="inkMuted">
             Assistant
           </AppText>
           <AppText variant="body">{event.body ?? ''}</AppText>
-          <AppText variant="caption" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {time}
           </AppText>
         </Card>
@@ -227,12 +231,12 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
 
     case 'plan':
       return (
-        <Card variant="muted" testID={`event-${event.id}`}>
-          <AppText variant="label" tone="muted">
+        <Card testID={`event-${event.id}`}>
+          <AppText variant="label" tone="inkMuted">
             Plan
           </AppText>
           <AppText variant="body">{event.body ?? ''}</AppText>
-          <AppText variant="caption" tone="muted">
+          <AppText variant="secondary" tone="inkMuted">
             {time}
           </AppText>
         </Card>
@@ -247,6 +251,7 @@ export function TimelineEvent({ event, photo, note }: TimelineEventProps) {
  * than the cap is letterboxed on the frame's muted ground.
  */
 function TimelinePicture({ uri, eventId }: { uri: string; eventId: string }) {
+  const styles = useStyles();
   const { height: windowHeight } = useWindowDimensions();
   const [frameWidth, setFrameWidth] = useState(0);
   const [natural, setNatural] = useState<PixelSize | null>(null);
@@ -275,61 +280,63 @@ function TimelinePicture({ uri, eventId }: { uri: string; eventId: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  temperature: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.card,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-  },
-  temperatureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    flexWrap: 'wrap',
-  },
-  temperatureValue: {
-    color: colors.text,
-  },
-  temperatureDetail: {
-    flexShrink: 1,
-    gap: 2,
-  },
-  reading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    borderWidth: 1,
-    borderRadius: radius.card,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-  },
-  readingWords: {
-    flexGrow: 1,
-    flexShrink: 1,
-    gap: 2,
-  },
-  readingValue: {
-    textAlign: 'right',
-  },
-  photoBlock: {
-    gap: space.xxs,
-  },
-  photoFrame: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.photo,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceMuted,
-  },
-  photoFramePending: {
-    aspectRatio: 1 / PLACEHOLDER_RATIO,
-  },
-  photo: {
-    width: '100%',
-    height: '100%',
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    temperature: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.card,
+      paddingHorizontal: space.md,
+      paddingVertical: space.sm,
+    },
+    temperatureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.md,
+      flexWrap: 'wrap',
+    },
+    temperatureValue: {
+      color: colors.ink,
+    },
+    temperatureDetail: {
+      flexShrink: 1,
+      gap: 2,
+    },
+    reading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.sm,
+      borderWidth: 1,
+      borderRadius: radius.card,
+      paddingHorizontal: space.md,
+      paddingVertical: space.sm,
+    },
+    readingWords: {
+      flexGrow: 1,
+      flexShrink: 1,
+      gap: 2,
+    },
+    readingValue: {
+      textAlign: 'right',
+    },
+    photoBlock: {
+      gap: space.xxs,
+    },
+    photoFrame: {
+      width: '100%',
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.photo,
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceRaised,
+    },
+    photoFramePending: {
+      aspectRatio: 1 / PLACEHOLDER_RATIO,
+    },
+    photo: {
+      width: '100%',
+      height: '100%',
+    },
+  }),
+);

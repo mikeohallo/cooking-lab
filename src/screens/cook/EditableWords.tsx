@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ActionButton } from '../../components/ActionButton';
+import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
-import { StateNotice } from '../../components/StateNotice';
+import { Notice } from '../../components/Notice';
 import { TextField } from '../../components/TextField';
 import { CANCEL, EDIT, EDITED, EDIT_UNCHANGED, SAVE_EDIT, UNSAVED_KEPT } from '../../content/product';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
 import { useScreenScroll } from '../../layout/ScreenScroll';
-import { MIN_TOUCH_TARGET, colors, radius, space } from '../../theme/tokens';
+import { makeStyles } from '../../theme/theme';
+import { radius, size, space } from '../../theme/tokens';
 
 type EditableWordsProps = {
   /** The words as they now read: the newest edit, or the original. */
@@ -63,6 +64,7 @@ export function EditableWords({
   heading,
   testID,
 }: EditableWordsProps) {
+  const styles = useStyles();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(words);
@@ -105,15 +107,15 @@ export function EditableWords({
         <View style={styles.editorTop}>
           <View style={styles.words}>{heading}</View>
           <View style={styles.actions} testID={`${testID}-edit-actions`}>
-            <ActionButton
+            <Button
               label={CANCEL}
-              variant="quiet"
+              variant="text"
               onPress={() => setEditing(false)}
               testID={`${testID}-edit-cancel`}
             />
-            <ActionButton
+            <Button
               label={SAVE_EDIT}
-              variant="secondary"
+              variant="outlined"
               disabled={unchanged || blank || tooLong}
               pending={saving}
               onPress={() => void save()}
@@ -142,7 +144,7 @@ export function EditableWords({
           testID={`${testID}-edit-input`}
         />
         {problem ? (
-          <StateNotice title={problem} body={UNSAVED_KEPT} tone="problem" testID={`${testID}-edit-failed`} />
+          <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID={`${testID}-edit-failed`} />
         ) : null}
       </View>
     );
@@ -150,15 +152,15 @@ export function EditableWords({
 
   const menu = menuOpen ? (
     <View style={styles.actions} testID={`${testID}-menu`}>
-      <ActionButton
+      <Button
         label={CANCEL}
-        variant="quiet"
+        variant="text"
         onPress={() => setMenuOpen(false)}
         testID={`${testID}-menu-cancel`}
       />
-      <ActionButton
+      <Button
         label={EDIT}
-        variant="secondary"
+        variant="outlined"
         accessibilityHint={`${editLabel}. The earlier words are kept.`}
         onPress={startEditing}
         testID={`${testID}-edit`}
@@ -187,7 +189,7 @@ export function EditableWords({
             hitSlop={4}
             testID={`${testID}-more`}
           >
-            <AppText variant="bodyStrong" tone="muted" importantForAccessibility="no">
+            <AppText variant="bodyStrong" tone="inkMuted" importantForAccessibility="no">
               ⋯
             </AppText>
           </Pressable>
@@ -197,7 +199,7 @@ export function EditableWords({
       {caption !== undefined || edited ? (
         <View style={styles.captionRow}>
           {caption !== undefined ? (
-            <AppText variant="caption" tone="muted">
+            <AppText variant="secondary" tone="inkMuted">
               {caption}
             </AppText>
           ) : null}
@@ -209,7 +211,7 @@ export function EditableWords({
               style={styles.editedLink}
               testID={`${testID}-edited`}
             >
-              <AppText variant="caption" tone="accent" style={styles.editedText}>
+              <AppText variant="secondary" tone="link" style={styles.editedText}>
                 {EDITED}
               </AppText>
             </Pressable>
@@ -221,58 +223,60 @@ export function EditableWords({
   );
 }
 
-const styles = StyleSheet.create({
-  block: {
-    gap: space.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.xs,
-  },
-  words: {
-    flexGrow: 1,
-    flexShrink: 1,
-    gap: space.xxs,
-  },
-  // Pinned to the top right of the words, however long they are.
-  more: {
-    alignSelf: 'flex-start',
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.control,
-    marginTop: -space.xs,
-    marginRight: -space.xs,
-  },
-  editorTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  morePressed: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  captionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: space.xs,
-  },
-  editedLink: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  editedText: {
-    textDecorationLine: 'underline',
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: space.xs,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    block: {
+      gap: space.xs,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.xs,
+    },
+    words: {
+      flexGrow: 1,
+      flexShrink: 1,
+      gap: space.xxs,
+    },
+    // Pinned to the top right of the words, however long they are.
+    more: {
+      alignSelf: 'flex-start',
+      minWidth: size.targetMin,
+      minHeight: size.targetMin,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.field,
+      marginTop: -space.xs,
+      marginRight: -space.xs,
+    },
+    editorTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    morePressed: {
+      backgroundColor: colors.surfaceRaised,
+    },
+    captionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: space.xs,
+    },
+    editedLink: {
+      minHeight: size.targetMin,
+      minWidth: size.targetMin,
+      justifyContent: 'center',
+    },
+    editedText: {
+      textDecorationLine: 'underline',
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: space.xs,
+    },
+  }),
+);

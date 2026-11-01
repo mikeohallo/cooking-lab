@@ -24,8 +24,11 @@ import {
 } from '../src/content/product';
 import { PHOTO_HEIGHT_SHARE } from '../src/layout/photoFrame';
 import { CookScreen } from '../src/screens/CookScreen';
-import { colors, radius } from '../src/theme/tokens';
+import { palettes, radius } from '../src/theme/tokens';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
+
+// Screen tests draw the light theme: the phone's setting in the test runner.
+const colors = palettes.light;
 
 const user = userEvent.setup();
 
@@ -342,7 +345,7 @@ describe('a photograph in the timeline', () => {
     const id = await photoInTimeline();
     const frame = flat(screen.getByTestId(`photo-frame-${id}`).props.style);
     expect(frame.borderWidth).toBe(1);
-    expect(frame.borderColor).toBe(colors.border);
+    expect(frame.borderColor).toBe(colors.line);
     expect(frame.borderRadius).toBe(radius.photo);
     expect(frame.overflow).toBe('hidden');
     expect(frame.width).toBe('100%');
