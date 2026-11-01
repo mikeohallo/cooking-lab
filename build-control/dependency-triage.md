@@ -119,6 +119,22 @@ The merged manifest is still `INTERNET` and `CAMERA` and nothing else.
 `decode-uri-component`, `deepmerge`, `node-forge`, `uuid` and `zod`, as
 in 0.2.2; neither new package adds one.
 
+## Added in 0.4.0 part 1, 2 November 2026
+
+Three packages for the 0.4.0 design system (Design Baseline v3), each at the
+version Expo SDK 57 pins for it.
+
+| Package | Version | Why | In the APK | What it brought with it |
+|---|---|---|---|---|
+| `react-native-svg` | `15.15.4` (exact, as SDK 57 pins it) | The design system's icons: rounded line icons on a 24 grid, drawn by the app in `src/components/Icon.tsx`. Views could not draw a flame, an apple or leaves, and an icon font would be a large binary asset | **Yes** (native code) | `css-select`, `css-tree`, `warn-once` and their small dependencies. Its Android manifest is empty: no permissions |
+| `expo-system-ui` | `~57.0.3` (57.0.4 installed) | Makes `userInterfaceStyle: 'automatic'` take effect on Android, so the app follows the phone's light or dark setting | **Yes** | `@react-native/normalize-colors` (already in the tree), `debug`. Empty manifest |
+| `expo-navigation-bar` | `~57.0.2` (57.0.3 installed) | Turns the navigation bar's buttons light or dark live, with the theme (`app/_layout.tsx`) | **Yes** | `debug`. Empty manifest |
+
+The merged manifest is still `INTERNET` and `CAMERA` and nothing else.
+`npm audit --audit-level=critical` passes. It lists the same seven packages as
+the base commit's lockfile (`decode-uri-component`, `deepmerge`, `glob`,
+`minimatch`, `node-forge`, `uuid`, `zod`); none of the three adds one.
+
 ## In CI
 
 CI runs `npm audit --audit-level=critical` after installing. A new critical

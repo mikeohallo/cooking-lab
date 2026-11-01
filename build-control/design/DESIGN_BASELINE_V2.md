@@ -1,6 +1,6 @@
 # Cooking Lab — Design Baseline v2
 
-**Status:** ACCEPTED — replaces [Design Baseline v1](./DESIGN_BASELINE_V1.md)
+**Status:** REPLACED by [Design Baseline v3](./DESIGN_BASELINE_V3.md) from 0.4.0 (was ACCEPTED, replacing [Design Baseline v1](./DESIGN_BASELINE_V1.md))
 **Picked by:** Mike, product owner, on 30 October 2026, from the designs shown
 for update 2: **colour scheme A, "Paprika"**, set in **Plus Jakarta Sans**
 **Applies from:** 0.3.0
