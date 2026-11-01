@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
@@ -40,6 +40,7 @@ import {
   WHOS_EATING,
   WHOS_EATING_HINT,
 } from '../content/product';
+import { getBuildStamp, versionLine } from '../config/appIdentity';
 import type { Cook, CookId } from '../domain/entities';
 import type { StoredMealType } from '../domain/enums';
 import { RevealOnChange } from '../layout/RevealOnChange';
@@ -94,6 +95,7 @@ type Entry = {
  */
 export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
   const styles = useStyles();
+  const window = useWindowDimensions();
   const { data, exporter, newId, now } = useStorage();
   // A cook deleted, or brought back with Undo, changes the lists too.
   const { version } = usePendingDeletion();
@@ -248,6 +250,9 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
             style={styles.menuButton}
             testID="whos-eating"
           />
+          <AppText variant="secondary" tone="inkMuted" testID="home-version">
+            {versionLine(getBuildStamp(), window.width, window.height)}
+          </AppText>
         </Card>
       ) : null}
 

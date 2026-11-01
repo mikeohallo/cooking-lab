@@ -41,6 +41,9 @@ function buildCommit(): string {
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const requested = (process.env.APP_VARIANT ?? '').trim().toLowerCase() || 'production';
+  // Worked out once: stamped into the APK's version name, and carried in
+  // `extra` for the version line at the foot of Home's ⋯ menu (0.4.0).
+  const commit = buildCommit();
   const identity = (variantTable as Record<string, (typeof variantTable)['test'] | undefined>)[
     requested
   ];
@@ -162,10 +165,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ['./plugins/withVariantGuard', { variant: requested }],
       // Both variants: the APK's version name carries the commit it was
       // built from, e.g. `0.1.0 (e24bfd6)`. See CLAUDE.md, "Builds".
-      ['./plugins/withBuildCommit', { commit: buildCommit() }],
+      ['./plugins/withBuildCommit', { commit }],
     ],
     extra: {
       appVariant: requested,
+      buildCommit: commit,
       // The routes live in `app/`, and that is pinned rather than left to
       // detection: Expo silently prefers a `src/app` folder over `app` when one
       // exists, which is exactly how the first slice-1 TEST build shipped with

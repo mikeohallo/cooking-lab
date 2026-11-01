@@ -8,7 +8,7 @@ import {
   type VariantIdentity,
 } from './variants';
 
-type ExtraShape = { appVariant?: unknown };
+type ExtraShape = { appVariant?: unknown; buildCommit?: unknown };
 
 /**
  * The variant baked into the installed build by `app.config.ts`.
@@ -30,4 +30,27 @@ export function getAppIdentity(): VariantIdentity {
 
 export function isTestBuild(): boolean {
   return getAppIdentity().showsTestIndicator;
+}
+
+/**
+ * The version and commit this build carries: the version in `app.config.ts`
+ * and the commit it stamped into the APK's version name. `unknown` for either
+ * that is missing, never a guess.
+ */
+export function getBuildStamp(): { readonly version: string; readonly commit: string } {
+  const config = Constants.expoConfig;
+  const extra = config?.extra as ExtraShape | undefined;
+  const version = typeof config?.version === 'string' && config.version !== '' ? config.version : 'unknown';
+  const commit =
+    typeof extra?.buildCommit === 'string' && extra.buildCommit !== '' ? extra.buildCommit : 'unknown';
+  return { version, commit };
+}
+
+/** "0.4.0 (abc1234) · 369 × 905": the build, and the window's size in dp, rounded. */
+export function versionLine(
+  stamp: { readonly version: string; readonly commit: string },
+  width: number,
+  height: number,
+): string {
+  return `${stamp.version} (${stamp.commit}) · ${Math.round(width)} × ${Math.round(height)}`;
 }
