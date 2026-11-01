@@ -3,7 +3,7 @@
  * meal type, ingredients, the household, ratings, next-time edits and "Cook
  * this again" — and rule 13 in the domain, where each one is decided.
  *
- * The people are made up: Alex, Sam and Jo.
+ * The people are made up: You, Guest and Guest 2.
  */
 
 import type { DatabaseAdapter } from '../src/data/adapters';
@@ -92,7 +92,7 @@ describe('rule 13 in the domain', () => {
 
   it('takes one to five whole stars, or N/A with none, from exactly one person', () => {
     const rate = (stars: number | null, notEaten = false, line: string | null = null) =>
-      rateCook(COOK, { memberId: 'm-alex' }, { stars, notEaten, line }, { id: 'r1' }, 'user', T1);
+      rateCook(COOK, { memberId: 'm-you' }, { stars, notEaten, line }, { id: 'r1' }, 'user', T1);
     for (const stars of [1, 2, 3, 4, 5]) {
       expect(granted(rate(stars))?.stars).toBe(stars);
     }
@@ -108,8 +108,8 @@ describe('rule 13 in the domain', () => {
       rateCook(COOK, { guestName: '  ' }, { stars: 4, notEaten: false, line: null }, { id: 'r2' }, 'user', T1),
     ).toMatchObject({ allowed: false });
     expect(
-      granted(rateCook(COOK, { guestName: ' Jo ' }, { stars: 4, notEaten: false, line: null }, { id: 'r2' }, 'user', T1)),
-    ).toMatchObject({ guestName: 'Jo', memberId: null });
+      granted(rateCook(COOK, { guestName: ' Guest 2 ' }, { stars: 4, notEaten: false, line: null }, { id: 'r2' }, 'user', T1)),
+    ).toMatchObject({ guestName: 'Guest 2', memberId: null });
   });
 
   it('starts a cook again with the same title, pointing back at the earlier one', () => {
@@ -125,19 +125,19 @@ describe('rule 13 in the domain', () => {
   });
 
   it('adds household members in order, refuses a blank or repeated name, and moves them', () => {
-    const alex = granted(addMember(' Alex ', [], { id: 'm-alex' }, T0));
-    expect(alex).toMatchObject({ name: 'Alex', position: 0, retiredAt: null });
-    const sam = granted(addMember('Sam', [alex], { id: 'm-sam' }, T0));
-    expect(sam.position).toBe(1);
-    expect(addMember('alex', [alex, sam], { id: 'x' }, T0)).toMatchObject({ allowed: false, code: 'name_not_valid' });
-    expect(addMember('  ', [alex], { id: 'x' }, T0)).toMatchObject({ allowed: false });
-    expect(moveMember([alex, sam], 'm-sam', 'up')).toEqual(['m-sam', 'm-alex']);
-    expect(moveMember([alex, sam], 'm-alex', 'up')).toEqual(['m-alex', 'm-sam']);
-    const jo = { ...granted(addMember('Jo', [alex, sam], { id: 'm-jo' }, T0)), retiredAt: T1 };
-    expect(activeMembers([jo, sam, alex]).map((m) => m.name)).toEqual(['Alex', 'Sam']);
-    expect(retiredMembers([jo, sam, alex]).map((m) => m.name)).toEqual(['Jo']);
+    const you = granted(addMember(' You ', [], { id: 'm-you' }, T0));
+    expect(you).toMatchObject({ name: 'You', position: 0, retiredAt: null });
+    const member2 = granted(addMember('Guest', [you], { id: 'm-member2' }, T0));
+    expect(member2.position).toBe(1);
+    expect(addMember('you', [you, member2], { id: 'x' }, T0)).toMatchObject({ allowed: false, code: 'name_not_valid' });
+    expect(addMember('  ', [you], { id: 'x' }, T0)).toMatchObject({ allowed: false });
+    expect(moveMember([you, member2], 'm-member2', 'up')).toEqual(['m-member2', 'm-you']);
+    expect(moveMember([you, member2], 'm-you', 'up')).toEqual(['m-you', 'm-member2']);
+    const guest2 = { ...granted(addMember('Guest 2', [you, member2], { id: 'm-guest2' }, T0)), retiredAt: T1 };
+    expect(activeMembers([guest2, member2, you]).map((m) => m.name)).toEqual(['You', 'Guest']);
+    expect(retiredMembers([guest2, member2, you]).map((m) => m.name)).toEqual(['Guest 2']);
     // A retired name may be used again.
-    expect(addMember('Jo', [alex, sam, jo], { id: 'm-jo-2' }, T1).allowed).toBe(true);
+    expect(addMember('Guest 2', [you, member2, guest2], { id: 'm-guest2-2' }, T1).allowed).toBe(true);
   });
 });
 
@@ -178,19 +178,19 @@ describe('reading the records', () => {
     expect(mealTypeLabel('none')).toBeNull();
     expect(mealTypeLabel(null)).toBeNull();
     const members = [
-      { id: 'm-sam', name: 'Sam', position: 1, retiredAt: null, createdAt: T0 },
-      { id: 'm-alex', name: 'Alex', position: 0, retiredAt: null, createdAt: T0 },
+      { id: 'm-member2', name: 'Guest', position: 1, retiredAt: null, createdAt: T0 },
+      { id: 'm-you', name: 'You', position: 0, retiredAt: null, createdAt: T0 },
     ];
     const base = { cookId: 'c', guestName: null, notEaten: false, line: null, ratedAt: T1 };
-    const sam = { ...base, id: 'r-sam', memberId: 'm-sam', stars: null, notEaten: true } as const;
-    const alex = { ...base, id: 'r-alex', memberId: 'm-alex', stars: 1 } as const;
-    const guest = { ...base, id: 'r-jo', memberId: null, guestName: 'Jo', stars: 5 } as const;
-    expect(orderRatings([guest, sam, alex], members).map((r) => r.id)).toEqual(['r-alex', 'r-sam', 'r-jo']);
-    expect(raterName(guest, members)).toBe('Jo');
-    expect(raterName(alex, members)).toBe('Alex');
-    expect(ratingAnswerText(alex)).toBe('1 star');
+    const member2 = { ...base, id: 'r-member2', memberId: 'm-member2', stars: null, notEaten: true } as const;
+    const you = { ...base, id: 'r-you', memberId: 'm-you', stars: 1 } as const;
+    const guest = { ...base, id: 'r-guest2', memberId: null, guestName: 'Guest 2', stars: 5 } as const;
+    expect(orderRatings([guest, member2, you], members).map((r) => r.id)).toEqual(['r-you', 'r-member2', 'r-guest2']);
+    expect(raterName(guest, members)).toBe('Guest 2');
+    expect(raterName(you, members)).toBe('You');
+    expect(ratingAnswerText(you)).toBe('1 star');
     expect(ratingAnswerText(guest)).toBe('5 stars');
-    expect(ratingAnswerText(sam)).toBe('N/A (didn’t eat it)');
+    expect(ratingAnswerText(member2)).toBe('N/A (didn’t eat it)');
   });
 });
 
@@ -235,47 +235,47 @@ describe('the services, on real SQLite', () => {
 
   it('rates per person: a member, a guest; changed in place; removed when it says nothing', async () => {
     const { cookRecord, ratings, householdWorkflow } = db.data;
-    granted(await householdWorkflow.add('Alex', { id: 'm-alex' }, T0));
-    granted(await householdWorkflow.add('Sam', { id: 'm-sam' }, T0));
+    granted(await householdWorkflow.add('You', { id: 'm-you' }, T0));
+    granted(await householdWorkflow.add('Guest', { id: 'm-member2' }, T0));
 
-    granted(await cookRecord.rate('cook-1', { memberId: 'm-alex' }, { stars: 4, notEaten: false, line: null }, { id: 'r-1' }, 'user', T1));
+    granted(await cookRecord.rate('cook-1', { memberId: 'm-you' }, { stars: 4, notEaten: false, line: null }, { id: 'r-1' }, 'user', T1));
     const changed = granted(
-      await cookRecord.rate('cook-1', { memberId: 'm-alex' }, { stars: 5, notEaten: false, line: 'Best yet.' }, { id: 'r-new' }, 'user', T2),
+      await cookRecord.rate('cook-1', { memberId: 'm-you' }, { stars: 5, notEaten: false, line: 'Best yet.' }, { id: 'r-new' }, 'user', T2),
     );
     expect(changed?.id).toBe('r-1');
-    granted(await cookRecord.rate('cook-1', { memberId: 'm-sam' }, { stars: null, notEaten: true, line: null }, { id: 'r-2' }, 'user', T2));
-    granted(await cookRecord.rate('cook-1', { guestName: 'Jo' }, { stars: 3, notEaten: false, line: null }, { id: 'r-3' }, 'user', T2));
+    granted(await cookRecord.rate('cook-1', { memberId: 'm-member2' }, { stars: null, notEaten: true, line: null }, { id: 'r-2' }, 'user', T2));
+    granted(await cookRecord.rate('cook-1', { guestName: 'Guest 2' }, { stars: 3, notEaten: false, line: null }, { id: 'r-3' }, 'user', T2));
     // The same guest, typed differently, is the same rating.
-    granted(await cookRecord.rate('cook-1', { guestName: 'jo' }, { stars: 2, notEaten: false, line: null }, { id: 'r-4' }, 'user', T3));
+    granted(await cookRecord.rate('cook-1', { guestName: 'guest 2' }, { stars: 2, notEaten: false, line: null }, { id: 'r-4' }, 'user', T3));
 
     const rows = await ratings.listForCook('cook-1');
     expect(rows).toHaveLength(3);
-    expect(rows.find((r) => r.memberId === 'm-alex')).toMatchObject({ stars: 5, line: 'Best yet.' });
-    expect(rows.find((r) => r.memberId === 'm-sam')).toMatchObject({ stars: null, notEaten: true });
+    expect(rows.find((r) => r.memberId === 'm-you')).toMatchObject({ stars: 5, line: 'Best yet.' });
+    expect(rows.find((r) => r.memberId === 'm-member2')).toMatchObject({ stars: null, notEaten: true });
     expect(rows.find((r) => r.guestName !== null)).toMatchObject({ id: 'r-3', stars: 2 });
-    expect(await ratings.listGuestNames()).toEqual(['jo']);
+    expect(await ratings.listGuestNames()).toEqual(['guest 2']);
 
-    expect(granted(await cookRecord.rate('cook-1', { memberId: 'm-sam' }, { stars: null, notEaten: false, line: null }, { id: 'x' }, 'user', T3))).toBeNull();
+    expect(granted(await cookRecord.rate('cook-1', { memberId: 'm-member2' }, { stars: null, notEaten: false, line: null }, { id: 'x' }, 'user', T3))).toBeNull();
     expect(await ratings.listForCook('cook-1')).toHaveLength(2);
   });
 
   it('retires a member without losing their ratings, and brings them back', async () => {
     const { cookRecord, ratings, household, householdWorkflow } = db.data;
-    granted(await householdWorkflow.add('Alex', { id: 'm-alex' }, T0));
-    granted(await householdWorkflow.add('Sam', { id: 'm-sam' }, T0));
-    granted(await cookRecord.rate('cook-1', { memberId: 'm-sam' }, { stars: 2, notEaten: false, line: null }, { id: 'r-1' }, 'user', T1));
+    granted(await householdWorkflow.add('You', { id: 'm-you' }, T0));
+    granted(await householdWorkflow.add('Guest', { id: 'm-member2' }, T0));
+    granted(await cookRecord.rate('cook-1', { memberId: 'm-member2' }, { stars: 2, notEaten: false, line: null }, { id: 'r-1' }, 'user', T1));
 
-    granted(await householdWorkflow.retire('m-sam', T2));
-    expect(activeMembers(await household.list()).map((m) => m.name)).toEqual(['Alex']);
+    granted(await householdWorkflow.retire('m-member2', T2));
+    expect(activeMembers(await household.list()).map((m) => m.name)).toEqual(['You']);
     expect(await ratings.listForCook('cook-1')).toHaveLength(1);
     // Nothing can delete a member a rating points at.
-    await expect(db.adapter.execute({ sql: "DELETE FROM household_members WHERE id = 'm-sam'" })).rejects.toThrow();
+    await expect(db.adapter.execute({ sql: "DELETE FROM household_members WHERE id = 'm-member2'" })).rejects.toThrow();
 
-    granted(await householdWorkflow.restore('m-sam'));
-    expect(activeMembers(await household.list()).map((m) => m.name)).toEqual(['Alex', 'Sam']);
-    const moved = await householdWorkflow.move('m-sam', 'up');
-    expect(activeMembers(moved).map((m) => m.name)).toEqual(['Sam', 'Alex']);
-    expect(await householdWorkflow.add('sam', { id: 'm-x' }, T3)).toMatchObject({ allowed: false });
+    granted(await householdWorkflow.restore('m-member2'));
+    expect(activeMembers(await household.list()).map((m) => m.name)).toEqual(['You', 'Guest']);
+    const moved = await householdWorkflow.move('m-member2', 'up');
+    expect(activeMembers(moved).map((m) => m.name)).toEqual(['Guest', 'You']);
+    expect(await householdWorkflow.add('guest', { id: 'm-x' }, T3)).toMatchObject({ allowed: false });
   });
 
   it('remembers that the household question was asked', async () => {
@@ -350,14 +350,14 @@ describe('deleting a cook takes update 2 with it, and Undo brings it back exactl
   beforeEach(async () => {
     db = await openTestDatabase('cook-record-delete.db');
     const { capture, cookRecord, householdWorkflow } = db.data;
-    granted(await householdWorkflow.add('Alex', { id: 'm-alex' }, T0));
+    granted(await householdWorkflow.add('You', { id: 'm-you' }, T0));
     for (const id of ['cook-gone', 'cook-keep']) {
       granted(await capture.startCook({ id, title: id, startedAt: T0 }, 'user', T0));
       granted(await cookRecord.setMealType(id, 'snack', 'user', T0));
       granted(await cookRecord.saveIngredients(id, `${id} list`, { id: `${id}-ing` }, 'user', T0));
       granted(await capture.saveReview(id, 'Fine.', 'user', T1));
-      granted(await cookRecord.rate(id, { memberId: 'm-alex' }, { stars: 3, notEaten: false, line: null }, { id: `${id}-r` }, 'user', T1));
-      granted(await cookRecord.rate(id, { guestName: 'Jo' }, { stars: null, notEaten: true, line: null }, { id: `${id}-g` }, 'user', T1));
+      granted(await cookRecord.rate(id, { memberId: 'm-you' }, { stars: 3, notEaten: false, line: null }, { id: `${id}-r` }, 'user', T1));
+      granted(await cookRecord.rate(id, { guestName: 'Guest 2' }, { stars: null, notEaten: true, line: null }, { id: `${id}-g` }, 'user', T1));
       granted(await cookRecord.addNextTime(id, 'More salt.', { id: `${id}-l` }, 'user', T1));
       granted(await cookRecord.reviseNextTime(`${id}-l`, 'Much more salt.', { id: `${id}-lr` }, 'user', T2));
     }

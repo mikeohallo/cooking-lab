@@ -1,5 +1,5 @@
 /**
- * A cook's ratings on one line of its Home card (0.3.0): "★ 5 Alex · ★ 4 Sam".
+ * A cook's ratings on one line of its Home card (0.3.0): "★ 5 You · ★ 4 Guest".
  *
  * From the data only: each person who gave stars, in the order the review
  * shows them (household order, then guests). N/A is left out — "didn't eat
@@ -29,7 +29,7 @@ export function starredRatings(
   );
 }
 
-/** The same line as words, for TalkBack: "Alex 5 stars, Sam 4 stars". */
+/** The same line as words, for TalkBack: "You 5 stars, Guest 4 stars". */
 export function ratingsSpoken(starred: readonly StarredRating[]): string {
   return starred
     .map((rating) => `${rating.name} ${rating.stars === 1 ? '1 star' : `${rating.stars} stars`}`)

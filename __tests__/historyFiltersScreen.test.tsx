@@ -77,7 +77,7 @@ afterEach(async () => {
 
 describe('History: search and filters', () => {
   beforeEach(async () => {
-    await household('Alex', 'Sam');
+    await household('You', 'Guest');
     const { data } = harness.storage;
     const cook = async (id: string, title: string, meal: 'breakfast' | 'dessert' | null, ingredients: string | null) => {
       await startCook(id, title);
@@ -92,10 +92,10 @@ describe('History: search and filters', () => {
     await cook('cook-pancakes', 'Pancakes', 'breakfast', 'flour\nbuttermilk\neggs');
     await cook('cook-tart', 'Lemon tart', 'dessert', 'lemons\neggs\nbutter');
     await cook('cook-stew', 'Stew', null, 'beef\ncarrots');
-    granted(await data.cookRecord.rate('cook-pancakes', { memberId: 'm-alex' }, { stars: 5, notEaten: false, line: null }, { id: 'r1' }, 'user', harness.tick()));
-    granted(await data.cookRecord.rate('cook-tart', { memberId: 'm-alex' }, { stars: 3, notEaten: false, line: null }, { id: 'r2' }, 'user', harness.tick()));
-    granted(await data.cookRecord.rate('cook-stew', { memberId: 'm-alex' }, { stars: null, notEaten: true, line: null }, { id: 'r3' }, 'user', harness.tick()));
-    granted(await data.cookRecord.rate('cook-stew', { guestName: 'Jo' }, { stars: 4, notEaten: false, line: null }, { id: 'r4' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-pancakes', { memberId: 'm-you' }, { stars: 5, notEaten: false, line: null }, { id: 'r1' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-tart', { memberId: 'm-you' }, { stars: 3, notEaten: false, line: null }, { id: 'r2' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-stew', { memberId: 'm-you' }, { stars: null, notEaten: true, line: null }, { id: 'r3' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-stew', { guestName: 'Guest 2' }, { stars: 4, notEaten: false, line: null }, { id: 'r4' }, 'user', harness.tick()));
   });
 
   const listed = () =>
@@ -133,7 +133,7 @@ describe('History: search and filters', () => {
     await screen.findByTestId('history-list');
 
     await fireEvent.press(screen.getByTestId('history-who-toggle'));
-    await fireEvent.press(await screen.findByTestId('history-who-member-m-alex'));
+    await fireEvent.press(await screen.findByTestId('history-who-member-m-you'));
     await fireEvent.press(screen.getByTestId('history-who-stars-3'));
     await waitFor(() => expect(listed().sort()).toEqual(['cook-pancakes', 'cook-tart']));
     expect(screen.getByTestId('history-who-active')).toBeOnTheScreen();
@@ -145,7 +145,7 @@ describe('History: search and filters', () => {
 
     // A guest used before can be picked too.
     await fireEvent.press(screen.getByTestId('history-who-toggle'));
-    await fireEvent.press(await screen.findByTestId('history-who-guest-jo'));
+    await fireEvent.press(await screen.findByTestId('history-who-guest-guest 2'));
     await fireEvent.press(screen.getByTestId('history-who-stars-1'));
     await waitFor(() => expect(listed()).toEqual(['cook-stew']));
 

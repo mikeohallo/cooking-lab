@@ -326,8 +326,8 @@ describe('a cook’s card', () => {
   it('shows the meal type above the title, the date, the stars and the notes', async () => {
     const { data } = harness.storage;
     for (const [id, name] of [
-      ['m-alex', 'Alex'],
-      ['m-sam', 'Sam'],
+      ['m-you', 'You'],
+      ['m-member2', 'Guest'],
     ] as const) {
       granted(await data.householdWorkflow.add(name, { id }, harness.tick()));
     }
@@ -348,9 +348,9 @@ describe('a cook’s card', () => {
           harness.tick(),
         ),
       );
-    await rate({ guestName: 'Jo' }, 4, 'r-jo');
-    await rate({ memberId: 'm-sam' }, null, 'r-sam');
-    await rate({ memberId: 'm-alex' }, 5, 'r-alex');
+    await rate({ guestName: 'Guest 2' }, 4, 'r-guest2');
+    await rate({ memberId: 'm-member2' }, null, 'r-member2');
+    await rate({ memberId: 'm-you' }, 5, 'r-you');
 
     await renderHome();
     const card = await screen.findByTestId('cook-card-soup-1');
@@ -360,10 +360,10 @@ describe('a cook’s card', () => {
       .map((node) => node.props.testID);
     expect(ids).toEqual(['cook-meal-soup-1', 'cook-title-soup-1', 'cook-ratings-soup-1', 'cook-notes-soup-1']);
     expect(within(card).getByText('Lunch/Dinner')).toBeOnTheScreen();
-    // Household order, then the guest; Sam's N/A is left out.
+    // Household order, then the guest; Guest's N/A is left out.
     const ratings = screen.getByTestId('cook-ratings-soup-1');
-    expect(ratings).toHaveTextContent('★ 5 Alex · ★ 4 Jo');
-    expect(ratings.props.accessibilityLabel).toBe('Alex 5 stars, Jo 4 stars');
+    expect(ratings).toHaveTextContent('★ 5 You · ★ 4 Guest 2');
+    expect(ratings.props.accessibilityLabel).toBe('You 5 stars, Guest 2 4 stars');
     expect(screen.getByTestId('cook-notes-soup-1').props.numberOfLines).toBe(2);
   });
 

@@ -4,7 +4,7 @@
  * card, History's search and filters, and the text export.
  *
  * Every screen is the real one, writing through the real services to real
- * SQLite. The people are made up: Alex, Sam and Jo.
+ * SQLite. The people are made up: You, Guest and Guest 2.
  */
 
 import {
@@ -198,7 +198,7 @@ describe('the review', () => {
     await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
 
     expect(await screen.findByText(WHO_USUALLY_EATS)).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByTestId('household-prompt-editor-name'), 'Alex');
+    await fireEvent.changeText(screen.getByTestId('household-prompt-editor-name'), 'You');
     await fireEvent.press(screen.getByTestId('household-prompt-editor-add'));
     await waitFor(() => expect(screen.getByTestId('household-prompt-editor-member-id-01')).toBeOnTheScreen());
     await fireEvent.press(screen.getByText(HOUSEHOLD_DONE));
@@ -206,7 +206,7 @@ describe('the review', () => {
     expect(await harness.db.data.settings.get(HOUSEHOLD_ASKED_KEY)).toBe('yes');
 
     // The new person's row is there at once.
-    expect(screen.getByText('Alex')).toBeOnTheScreen();
+    expect(screen.getByText('You')).toBeOnTheScreen();
   });
 
   it('can be skipped, and is not asked again', async () => {
@@ -224,7 +224,7 @@ describe('the review', () => {
   });
 
   it('is in order — who ate it, meal type, your notes, next time — and nothing on it is required', async () => {
-    await household('Alex', 'Sam');
+    await household('You', 'Guest');
     await startCook('cook-1', 'Risotto');
     const onFinished = jest.fn();
     await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={onFinished} />);
@@ -245,62 +245,62 @@ describe('the review', () => {
   });
 
   it('rates with labelled star buttons, N/A, a line and a guest — each saved at once', async () => {
-    await household('Alex', 'Sam');
+    await household('You', 'Guest');
     await startCook('cook-1', 'Risotto');
     await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
-    const alexRow = await screen.findByTestId('who-ate-it-member-m-alex');
+    const youRow = await screen.findByTestId('who-ate-it-member-m-you');
 
     // Five star buttons, named for TalkBack.
     for (const name of ['1 star', '2 stars', '3 stars', '4 stars', '5 stars']) {
-      expect(within(alexRow).getByRole('radio', { name })).toBeOnTheScreen();
+      expect(within(youRow).getByRole('radio', { name })).toBeOnTheScreen();
     }
-    await fireEvent.press(within(alexRow).getByRole('radio', { name: '4 stars' }));
+    await fireEvent.press(within(youRow).getByRole('radio', { name: '4 stars' }));
     await waitFor(async () =>
       expect(await harness.db.data.ratings.listForCook('cook-1')).toEqual([
-        expect.objectContaining({ memberId: 'm-alex', stars: 4, notEaten: false }),
+        expect.objectContaining({ memberId: 'm-you', stars: 4, notEaten: false }),
       ]),
     );
 
-    const samRow = screen.getByTestId('who-ate-it-member-m-sam');
-    await fireEvent.press(within(samRow).getByTestId('who-ate-it-member-m-sam-na'));
+    const memberRow = screen.getByTestId('who-ate-it-member-m-guest');
+    await fireEvent.press(within(memberRow).getByTestId('who-ate-it-member-m-guest-na'));
     await waitFor(async () =>
-      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-sam')).toMatchObject({
+      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-guest')).toMatchObject({
         stars: null,
         notEaten: true,
       }),
     );
 
-    await fireEvent.press(within(alexRow).getByTestId('who-ate-it-member-m-alex-add-line'));
-    await fireEvent.changeText(screen.getByTestId('who-ate-it-member-m-alex-line-input'), 'Creamy.');
-    await fireEvent.press(screen.getByTestId('who-ate-it-member-m-alex-line-save'));
+    await fireEvent.press(within(youRow).getByTestId('who-ate-it-member-m-you-add-line'));
+    await fireEvent.changeText(screen.getByTestId('who-ate-it-member-m-you-line-input'), 'Creamy.');
+    await fireEvent.press(screen.getByTestId('who-ate-it-member-m-you-line-save'));
     await waitFor(async () =>
-      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-alex')).toMatchObject({
+      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-you')).toMatchObject({
         stars: 4,
         line: 'Creamy.',
       }),
     );
 
     await fireEvent.press(screen.getByTestId('who-ate-it-someone-else'));
-    await fireEvent.changeText(screen.getByTestId('who-ate-it-guest-name'), 'Jo');
+    await fireEvent.changeText(screen.getByTestId('who-ate-it-guest-name'), 'Guest 2');
     await fireEvent.press(screen.getByTestId('who-ate-it-guest-add'));
-    const joRow = await screen.findByTestId('who-ate-it-guest-jo');
-    await fireEvent.press(within(joRow).getByRole('radio', { name: '5 stars' }));
+    const guestRow = await screen.findByTestId('who-ate-it-guest-guest 2');
+    await fireEvent.press(within(guestRow).getByRole('radio', { name: '5 stars' }));
     await waitFor(async () =>
-      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.guestName === 'Jo')).toMatchObject({
+      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.guestName === 'Guest 2')).toMatchObject({
         stars: 5,
         memberId: null,
       }),
     );
 
     // A tap on the chosen star clears it; with nothing else said, the rating goes.
-    await fireEvent.press(within(screen.getByTestId('who-ate-it-guest-jo')).getByRole('radio', { name: '5 stars' }));
+    await fireEvent.press(within(screen.getByTestId('who-ate-it-guest-guest 2')).getByRole('radio', { name: '5 stars' }));
     await waitFor(async () =>
-      expect((await harness.db.data.ratings.listForCook('cook-1')).some((r) => r.guestName === 'Jo')).toBe(false),
+      expect((await harness.db.data.ratings.listForCook('cook-1')).some((r) => r.guestName === 'Guest 2')).toBe(false),
     );
   });
 
   it('stores "Your notes" as the verdict and "Next time" as the user lesson', async () => {
-    await household('Alex');
+    await household('You');
     await startCook('cook-1', 'Risotto');
     const onFinished = jest.fn();
     await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={onFinished} />);
@@ -320,7 +320,7 @@ describe('the review', () => {
 
 describe('a reviewed cook, and cooking it again', () => {
   beforeEach(async () => {
-    await household('Alex', 'Sam');
+    await household('You', 'Guest');
     await startCook('cook-1', 'Lamb tagine');
     const { data } = harness.storage;
     granted(await data.cookRecord.setMealType('cook-1', 'lunch_dinner', 'user', harness.tick()));
@@ -329,8 +329,8 @@ describe('a reviewed cook, and cooking it again', () => {
     await data.cookTags.link({ cookId: 'cook-1', tagId: tag.id });
     await note('cook-1', 'Browned.');
     granted(await data.capture.saveReview('cook-1', 'Tender.\nToo sweet.', 'user', harness.tick()));
-    granted(await data.cookRecord.rate('cook-1', { memberId: 'm-alex' }, { stars: 5, notEaten: false, line: null }, { id: 'r-1' }, 'user', harness.tick()));
-    granted(await data.cookRecord.rate('cook-1', { memberId: 'm-sam' }, { stars: null, notEaten: true, line: null }, { id: 'r-2' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-1', { memberId: 'm-you' }, { stars: 5, notEaten: false, line: null }, { id: 'r-1' }, 'user', harness.tick()));
+    granted(await data.cookRecord.rate('cook-1', { memberId: 'm-guest' }, { stars: null, notEaten: true, line: null }, { id: 'r-2' }, 'user', harness.tick()));
     granted(await data.cookRecord.addNextTime('cook-1', 'Half the apricots.', { id: 'lesson-1' }, 'user', harness.tick()));
   });
 
@@ -340,14 +340,14 @@ describe('a reviewed cook, and cooking it again', () => {
     expect(screen.getByTestId('verdict-words')).toHaveTextContent(/Tender\.\s+Too sweet\./);
     expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Lunch/Dinner');
     const ratings = screen.getByTestId('ratings-card');
-    expect(within(ratings).getByTestId('who-ate-it-member-m-sam-na')).toBeChecked();
+    expect(within(ratings).getByTestId('who-ate-it-member-m-guest-na')).toBeChecked();
 
     // A rating changed after the review.
     await fireEvent.press(
-      within(within(ratings).getByTestId('who-ate-it-member-m-alex')).getByRole('radio', { name: '3 stars' }),
+      within(within(ratings).getByTestId('who-ate-it-member-m-you')).getByRole('radio', { name: '3 stars' }),
     );
     await waitFor(async () =>
-      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-alex')?.stars).toBe(3),
+      expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-you')?.stars).toBe(3),
     );
 
     // A next-time line edited, its first words kept.
@@ -380,8 +380,8 @@ describe('a reviewed cook, and cooking it again', () => {
     const openIt = jest.fn();
     await harness.render(<CookScreen cookId={newId} onBack={() => {}} onReview={() => {}} onOpenCook={openIt} />);
     const card = await screen.findByTestId('last-time');
-    expect(within(card).getByText('Alex: 5 stars')).toBeOnTheScreen();
-    expect(within(card).getByText('Sam: N/A (didn’t eat it)')).toBeOnTheScreen();
+    expect(within(card).getByText('You: 5 stars')).toBeOnTheScreen();
+    expect(within(card).getByText('Guest: N/A (didn’t eat it)')).toBeOnTheScreen();
     expect(within(card).getByText('• Half the apricots.')).toBeOnTheScreen();
     expect(within(card).getByTestId('last-time-meal')).toHaveTextContent('Lunch/Dinner');
     expect(screen.getByTestId('times-cooked')).toHaveTextContent('2nd time cooking this');
@@ -416,21 +416,21 @@ describe('Who’s eating', () => {
       await fireEvent.press(screen.getByTestId('household-add'));
       await waitFor(() => expect(screen.getByText(name)).toBeOnTheScreen());
     };
-    await add('Alex');
-    await add('Sam');
+    await add('You');
+    await add('Guest');
     const names = async () => (await harness.db.data.household.list()).filter((m) => m.retiredAt === null).map((m) => m.name);
-    expect(await names()).toEqual(['Alex', 'Sam']);
+    expect(await names()).toEqual(['You', 'Guest']);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Move up: Sam' }));
-    await waitFor(async () => expect(await names()).toEqual(['Sam', 'Alex']));
+    await fireEvent.press(screen.getByRole('button', { name: 'Move up: Guest' }));
+    await waitFor(async () => expect(await names()).toEqual(['Guest', 'You']));
 
     await fireEvent.press(screen.getByTestId('household-retire-id-01'));
-    await waitFor(async () => expect(await names()).toEqual(['Sam']));
+    await waitFor(async () => expect(await names()).toEqual(['Guest']));
     expect(await screen.findByTestId('household-retired')).toBeOnTheScreen();
     expect(await harness.db.data.household.list()).toHaveLength(2);
 
     await fireEvent.press(screen.getByTestId('household-restore-id-01'));
-    await waitFor(async () => expect(await names()).toEqual(['Sam', 'Alex']));
+    await waitFor(async () => expect(await names()).toEqual(['Guest', 'You']));
   });
 });
 
