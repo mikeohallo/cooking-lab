@@ -5,11 +5,14 @@ import {
   COOK_EVENT_KINDS,
   COOK_STATUSES,
   CREATED_BY_VALUES,
+  CUISINES,
   FINDING_CLASSES,
   IMPORT_BATCH_STATUSES,
+  MEAL_TYPES_BEFORE_SIDE,
   PROPOSAL_STATUSES,
   PROVENANCES,
   REVISED_FIELDS,
+  STORED_MEAL_TYPES,
   TAG_KINDS,
 } from '../src/domain/enums';
 import type { Migration } from '../src/data/schema/migrations';
@@ -42,6 +45,9 @@ const V3_STATEMENTS = statementsOf(3);
 const V3_TABLES: readonly string[] = ['revisions', 'cook_deletions'];
 const V4_TABLES: readonly string[] = ['cook_meal_types', 'ingredient_versions', 'household_members', 'ratings', 'lesson_revisions', 'app_settings'];
 const V4_STATEMENTS = statementsOf(4);
+/** The table version 5 adds; it also rebuilds `cook_meal_types`, which is version 4's. */
+const V5_TABLES: readonly string[] = ['cook_cuisines'];
+const V5_STATEMENTS = statementsOf(5);
 
 /**
  * A `CREATE TABLE` for a table, out of one migration's statements.
@@ -114,6 +120,13 @@ const FROZEN_V2_STATEMENT_COUNT = 15;
 const FROZEN_V3_DIGEST = '50046d51b4cacd200a5898f2891c079844a62497581bd4b124badbba7a4c00d2';
 const FROZEN_V3_STATEMENT_COUNT = 6;
 
+/**
+ * Version 4's text, pinned the same way (0.4.0, part 1). Version 5 is the next
+ * new entry, so version 4 is history from here on too.
+ */
+const FROZEN_V4_DIGEST = '4b0b20598e06c46d4b6f08cabf05f28249c3f9d7dc308d4b0bbd8c6acb4b17da';
+const FROZEN_V4_STATEMENT_COUNT = 14;
+
 const migration = (version: number, statements: readonly string[] = ['CREATE TABLE t (a TEXT)']): Migration => ({
   version,
   name: `m${version}`,
@@ -132,14 +145,22 @@ describe('migration list', () => {
     expect(LATEST_SCHEMA_VERSION).toBe(MIGRATIONS.length);
   });
 
-  it('is the four versions this build knows, in order and named', () => {
+  it('is the five versions this build knows, in order and named', () => {
     expect(MIGRATIONS.map((migration) => [migration.version, migration.name])).toEqual([
       [1, 'local_foundation'],
       [2, 'tags_without_a_kind'],
       [3, 'revisions_and_cook_deletions'],
       [4, 'meal_type_ingredients_household_ratings'],
+      [5, 'side_and_cuisine'],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(4);
+    expect(LATEST_SCHEMA_VERSION).toBe(5);
+  });
+
+  it('has not edited version 4, which version 5 now follows', () => {
+    const digest = createHash('sha256').update(V4_STATEMENTS.join('\n')).digest('hex');
+
+    expect(digest).toBe(FROZEN_V4_DIGEST);
+    expect(V4_STATEMENTS).toHaveLength(FROZEN_V4_STATEMENT_COUNT);
   });
 
   it('makes version 4 six new tables and nothing else: no existing table is altered, dropped or written', () => {
@@ -229,9 +250,9 @@ describe('pendingMigrations', () => {
 });
 
 describe('schema v1 columns', () => {
-  it('creates every table the app expects but those of versions 3 and 4, and no others', () => {
+  it('creates every table the app expects but those of versions 3, 4 and 5, and no others', () => {
     const v1Tables = SCHEMA_TABLES.filter(
-      (table) => !V3_TABLES.includes(table) && !V4_TABLES.includes(table),
+      (table) => !V3_TABLES.includes(table) && !V4_TABLES.includes(table) && !V5_TABLES.includes(table),
     );
     for (const table of v1Tables) {
       expect(() => createStatementFor(table)).not.toThrow();
@@ -564,6 +585,88 @@ describe('schema version 3 — edits and pending deletions', () => {
 
   it('stamps version 3', () => {
     expect(V3_STATEMENTS.join('\n')).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '3')`);
+  });
+});
+
+describe('schema version 4 — meal types as they were', () => {
+  it('constrains a meal type to the four version 4 knew, which is what makes version 5 a rebuild', () => {
+    const mealTypes = createStatementIn(V4_STATEMENTS, 'cook_meal_types');
+    expect(checkListIn(mealTypes, 'meal_type')).toEqual([...MEAL_TYPES_BEFORE_SIDE]);
+  });
+});
+
+describe('schema version 5 — Side, and a cook’s cuisine', () => {
+  const sql = V5_STATEMENTS.join('\n');
+  const firstLines = V5_STATEMENTS.map((statement) => statement.split('\n')[0] ?? '');
+
+  it('rebuilds cook_meal_types with the five stored meal types, in the domain’s order', () => {
+    const rebuilt = createStatementIn(V5_STATEMENTS, 'cook_meal_types_v5');
+    expect(checkListIn(rebuilt, 'meal_type')).toEqual([...STORED_MEAL_TYPES]);
+    expect(STORED_MEAL_TYPES).toEqual(['breakfast', 'lunch_dinner', 'dessert', 'snack', 'side']);
+    // The same three columns, the same key and the same cascade as version 4.
+    expect(columnsIn(rebuilt)).toEqual(columnsIn(createStatementIn(V4_STATEMENTS, 'cook_meal_types')));
+    expect(rebuilt).toContain('cook_id   TEXT PRIMARY KEY NOT NULL');
+    expect(rebuilt).toContain('REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE');
+  });
+
+  it('creates, copies, drops and renames in that order, then adds the cuisines', () => {
+    const at = (prefix: string) => firstLines.findIndex((line) => line.startsWith(prefix));
+    const created = at('CREATE TABLE cook_meal_types_v5');
+    const copied = at('INSERT INTO cook_meal_types_v5');
+    const dropped = at('DROP TABLE cook_meal_types');
+    const renamed = at('ALTER TABLE cook_meal_types_v5 RENAME TO cook_meal_types');
+    const cuisines = at('CREATE TABLE cook_cuisines');
+
+    expect(created).toBe(0);
+    expect(copied).toBeGreaterThan(created);
+    expect(dropped).toBeGreaterThan(copied);
+    expect(renamed).toBeGreaterThan(dropped);
+    expect(cuisines).toBeGreaterThan(renamed);
+    // Every column, and the rowid, so the rows are the same rows in the same order.
+    expect(V5_STATEMENTS[copied]).toContain('(rowid, cook_id, meal_type, set_at)');
+    expect(V5_STATEMENTS[copied]).toContain('SELECT rowid, cook_id, meal_type, set_at FROM cook_meal_types');
+  });
+
+  it('drops and renames nothing else, deletes and updates no row, and reaches for no pragma', () => {
+    const drops = V5_STATEMENTS.filter((statement) => statement.startsWith('DROP '));
+    expect(drops).toEqual(['DROP TABLE cook_meal_types']);
+    const alters = V5_STATEMENTS.filter((statement) => statement.includes('ALTER TABLE'));
+    expect(alters).toEqual(['ALTER TABLE cook_meal_types_v5 RENAME TO cook_meal_types']);
+    expect(sql).not.toMatch(/^\s*DELETE FROM/m);
+    expect(sql).not.toMatch(/^\s*UPDATE /m);
+    expect(sql).not.toContain('PRAGMA');
+    const inserts = V5_STATEMENTS.filter((statement) => statement.startsWith('INSERT'));
+    expect(inserts.filter((statement) => !statement.startsWith('INSERT INTO schema_meta'))).toHaveLength(1);
+  });
+
+  it('leaves no working table behind', () => {
+    const created = V5_STATEMENTS.filter((statement) => statement.startsWith('CREATE TABLE ')).map(
+      (statement) => statement.split(' ')[2] ?? '',
+    );
+    expect(created).toEqual(['cook_meal_types_v5', 'cook_cuisines']);
+    expect(SCHEMA_TABLES).not.toContain('cook_meal_types_v5');
+    expect(SCHEMA_TABLES).toContain('cook_meal_types');
+    expect(SCHEMA_TABLES).toContain('cook_cuisines');
+  });
+
+  it('keeps a cuisine to the domain’s eleven, one per cook, going with its cook', () => {
+    const cuisines = createStatementIn(V5_STATEMENTS, 'cook_cuisines');
+    expect(checkListIn(cuisines, 'cuisine')).toEqual([...CUISINES]);
+    expect(columnsIn(cuisines)).toEqual(['cook_id', 'cuisine', 'other_words', 'set_at']);
+    expect(cuisines).toContain('cook_id     TEXT PRIMARY KEY NOT NULL');
+    expect(cuisines).toContain('REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE');
+  });
+
+  it('holds Other’s words to Other, trimmed and 1 to 40 characters', () => {
+    const cuisines = createStatementIn(V5_STATEMENTS, 'cook_cuisines');
+    expect(cuisines).toContain("(cuisine = 'other' AND other_words IS NOT NULL");
+    expect(cuisines).toContain('other_words = trim(other_words)');
+    expect(cuisines).toContain('length(other_words) BETWEEN 1 AND 40');
+    expect(cuisines).toContain("(cuisine <> 'other' AND other_words IS NULL)");
+  });
+
+  it('stamps version 5', () => {
+    expect(sql).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '5')`);
   });
 });
 

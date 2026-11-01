@@ -52,17 +52,17 @@ afterEach(async () => {
 
 async function fillWithUpdate2(): Promise<void> {
   const { capture, cookRecord, householdWorkflow } = db.data;
-  granted(await householdWorkflow.add('Alex', { id: 'm-alex' }, T0));
-  granted(await householdWorkflow.add('Sam', { id: 'm-sam' }, T0));
-  granted(await householdWorkflow.add('Jo', { id: 'm-jo' }, T0));
-  granted(await householdWorkflow.retire('m-jo', T1));
+  granted(await householdWorkflow.add('You', { id: 'm-you' }, T0));
+  granted(await householdWorkflow.add('Guest', { id: 'm-member2' }, T0));
+  granted(await householdWorkflow.add('Guest 2', { id: 'm-guest2' }, T0));
+  granted(await householdWorkflow.retire('m-guest2', T1));
   granted(await capture.startCook({ id: 'cook-dal', title: 'Dal', startedAt: T0 }, 'user', T0));
   granted(await cookRecord.setMealType('cook-dal', 'lunch_dinner', 'user', T0));
   granted(await cookRecord.saveIngredients('cook-dal', '200 g red lentils\n1 onion', { id: 'ing-1' }, 'user', T0));
   granted(await cookRecord.saveIngredients('cook-dal', '250 g red lentils\n1 onion\nginger', { id: 'ing-2' }, 'user', T1));
   granted(await capture.saveReview('cook-dal', '  Good.\nThicker next time.  ', 'user', T1));
-  granted(await cookRecord.rate('cook-dal', { memberId: 'm-alex' }, { stars: 4, notEaten: false, line: 'Lovely.' }, { id: 'r-alex' }, 'user', T1));
-  granted(await cookRecord.rate('cook-dal', { memberId: 'm-sam' }, { stars: null, notEaten: true, line: null }, { id: 'r-sam' }, 'user', T1));
+  granted(await cookRecord.rate('cook-dal', { memberId: 'm-you' }, { stars: 4, notEaten: false, line: 'Lovely.' }, { id: 'r-you' }, 'user', T1));
+  granted(await cookRecord.rate('cook-dal', { memberId: 'm-member2' }, { stars: null, notEaten: true, line: null }, { id: 'r-member2' }, 'user', T1));
   granted(await cookRecord.rate('cook-dal', { guestName: 'A neighbour' }, { stars: 5, notEaten: false, line: null }, { id: 'r-guest' }, 'user', T1));
   granted(await cookRecord.addNextTime('cook-dal', 'Less water.', { id: 'lesson-1' }, 'user', T1));
   granted(await cookRecord.reviseNextTime('lesson-1', 'Much less water.', { id: 'lr-1' }, 'user', T2));
@@ -77,10 +77,10 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 4, and it reads 1, 2, 3 and 4', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(4);
+  it('is 5 now (Side and cuisine), update 2 arrived with 4, and it reads 1 to 5', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(5);
     expect(FIRST_UPDATE_2_FORMAT_VERSION).toBe(4);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4]);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5]);
   });
 });
 
@@ -102,12 +102,12 @@ describe('a round trip with update 2 in it', () => {
     if (!parsed.ok) {
       return;
     }
-    expect(parsed.envelope.formatVersion).toBe(4);
-    expect(parsed.envelope.schemaVersion).toBe(4);
+    expect(parsed.envelope.formatVersion).toBe(5);
+    expect(parsed.envelope.schemaVersion).toBe(5);
     expect(parsed.envelope.entities).toEqual(snapshot);
     // N/A comes back as N/A, not as a number; the retired person is still there.
-    expect(parsed.envelope.entities.ratings.find((r) => r.id === 'r-sam')).toMatchObject({ stars: null, notEaten: true });
-    expect(parsed.envelope.entities.householdMembers.find((m) => m.id === 'm-jo')?.retiredAt).toBe(T1);
+    expect(parsed.envelope.entities.ratings.find((r) => r.id === 'r-member2')).toMatchObject({ stars: null, notEaten: true });
+    expect(parsed.envelope.entities.householdMembers.find((m) => m.id === 'm-guest2')?.retiredAt).toBe(T1);
     // And the same data serialises to the same bytes.
     expect(serialiseBackup(parsed.envelope)).toBe(text);
   });
@@ -124,6 +124,8 @@ function olderFile(version: number): Record<string, unknown> {
   for (const key of UPDATE_2_COLLECTIONS) {
     delete entities[key];
   }
+  // Format 5's collection too: `backupV5.test.ts` covers it.
+  delete entities.cookCuisines;
   if (version < 3) {
     delete entities.revisions;
   }
@@ -177,7 +179,7 @@ describe('what version 4 checks', () => {
   it('refuses a rating from a person who is not in the file', () => {
     const result = withEntities((entities) => {
       entities.householdMembers = (entities.householdMembers ?? []).filter(
-        (member) => (member as { id: string }).id !== 'synthetic-member-alex',
+        (member) => (member as { id: string }).id !== 'synthetic-member-you',
       );
     });
     expect(result.issues.map((issue) => issue.code)).toContain('dangling_reference');
@@ -187,10 +189,10 @@ describe('what version 4 checks', () => {
     const result = withEntities((entities) => {
       entities.ratings = (entities.ratings ?? []).map((rating) => {
         const row = rating as { id: string };
-        if (row.id === 'synthetic-rating-sam') {
+        if (row.id === 'synthetic-rating-member2') {
           return { ...row, stars: 3 };
         }
-        if (row.id === 'synthetic-rating-alex') {
+        if (row.id === 'synthetic-rating-you') {
           return { ...row, stars: 7 };
         }
         return row;
@@ -252,7 +254,7 @@ describe('what version 4 checks', () => {
     const result = withEntities((entities) => {
       entities.householdMembers = [
         ...(entities.householdMembers ?? []),
-        { id: 'synthetic-member-alex-2', name: 'alex', position: 5, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
+        { id: 'synthetic-member-you-2', name: 'you', position: 5, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
       ];
     });
     expect(result.issues.map((issue) => issue.code)).toContain('duplicate_key');

@@ -31,6 +31,7 @@ import {
 import {
   createCookAgainWriter,
   createCookRecordService,
+  createCuisineRepository,
   createHouseholdRepository,
   createHouseholdService,
   createIngredientRepository,
@@ -39,6 +40,7 @@ import {
   createRatingRepository,
   createSettingsRepository,
 } from './cookRecord';
+import { createCardPhotoService } from './cardPhotos';
 import {
   createBriefingService,
   createCookCaptureService,
@@ -68,6 +70,7 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
   const cookDeletions = createCookDeletionRepository(adapter);
   const schemaState = createSchemaStateRepository(adapter);
   const mealTypes = createMealTypeRepository(adapter);
+  const cuisines = createCuisineRepository(adapter);
   const ingredients = createIngredientRepository(adapter);
   const household = createHouseholdRepository(adapter);
   const ratings = createRatingRepository(adapter);
@@ -86,6 +89,8 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
     revisions,
     cookDeletions,
     mealTypes,
+    cuisines,
+    cardPhotos: createCardPhotoService(adapter),
     ingredients,
     household,
     ratings,
@@ -100,6 +105,7 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
       cookTags,
       lessons,
       mealTypes,
+      cuisines,
       ingredients,
       ratings,
       lessonRevisions,

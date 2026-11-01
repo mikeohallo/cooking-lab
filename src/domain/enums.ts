@@ -146,19 +146,64 @@ export const REVISED_FIELDS = ['note', 'verdict'] as const;
 export type RevisedField = (typeof REVISED_FIELDS)[number];
 
 /**
- * What kind of meal a cook was (schema version 4).
+ * What kind of meal a cook was (schema version 4; `side` from version 5).
  *
- * Four kinds, and `none`. Like a reading's kind, `none` is the *absence* of a
+ * Five kinds, and `none`. Like a reading's kind, `none` is the *absence* of a
  * stored value, not a value stored: every cook from before version 4 has none,
- * and nothing is guessed for it. Only the four are ever written down
+ * and nothing is guessed for it. Only the five are ever written down
  * (`cook_meal_types`), and clearing a meal type removes its row.
+ *
+ * `side` — a dish made to go with something else — came with schema version
+ * 5, which rebuilt `cook_meal_types` so its CHECK would allow it, and backup
+ * format 5. A file of an earlier format that carries it is wrong about itself.
  */
-export const MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack', 'none'] as const;
+export const MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack', 'side', 'none'] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
 /** The meal types that are written down. `none` is never one of them. */
-export const STORED_MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack'] as const;
+export const STORED_MEAL_TYPES = ['breakfast', 'lunch_dinner', 'dessert', 'snack', 'side'] as const;
 export type StoredMealType = (typeof STORED_MEAL_TYPES)[number];
+
+/** The meal types schema version 4 and backup format 4 knew. */
+export const MEAL_TYPES_BEFORE_SIDE = ['breakfast', 'lunch_dinner', 'dessert', 'snack'] as const;
+
+/**
+ * Where a dish comes from (schema version 5): optional, one per cook.
+ *
+ * Ten named cuisines and `other`, which carries the cook's own words
+ * (`CookCuisine.otherWords`) and is shown as those words. A cook with no
+ * cuisine has no row: like a meal type, "none" is an absence, and clearing a
+ * cuisine removes its row. Every cook from before version 5 has none.
+ */
+export const CUISINES = [
+  'american',
+  'italian',
+  'french',
+  'greek',
+  'middle_eastern',
+  'indian',
+  'japanese',
+  'korean',
+  'mexican',
+  'thai',
+  'other',
+] as const;
+export type Cuisine = (typeof CUISINES)[number];
+
+/** The cuisines with a name of their own: every one but `other`. */
+export const NAMED_CUISINES = [
+  'american',
+  'italian',
+  'french',
+  'greek',
+  'middle_eastern',
+  'indian',
+  'japanese',
+  'korean',
+  'mexican',
+  'thai',
+] as const;
+export type NamedCuisine = (typeof NAMED_CUISINES)[number];
 
 /**
  * A rating is whole stars, one to five (schema version 4).
@@ -206,6 +251,8 @@ export const isRevisedField = (v: unknown): v is RevisedField => isOneOf(REVISED
 export const isMealType = (v: unknown): v is MealType => isOneOf(MEAL_TYPES, v);
 export const isStoredMealType = (v: unknown): v is StoredMealType =>
   isOneOf(STORED_MEAL_TYPES, v);
+export const isCuisine = (v: unknown): v is Cuisine => isOneOf(CUISINES, v);
+export const isNamedCuisine = (v: unknown): v is NamedCuisine => isOneOf(NAMED_CUISINES, v);
 export const isStars = (v: unknown): v is Stars =>
   typeof v === 'number' && (STAR_VALUES as readonly number[]).includes(v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>

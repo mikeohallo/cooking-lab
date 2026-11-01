@@ -24,9 +24,16 @@
  * ate it and what they thought — N/A as "didn't eat it", a guest marked as a
  * guest — and the next-time lines as they now read. The verdict is "Your
  * notes", as it is on screen.
+ *
+ * From schema version 5 the cuisine shares the meal type's line —
+ * "Meal: Lunch/Dinner · Greek" — or, for a cook with a cuisine and no meal
+ * type, has a line of its own, "Cuisine: Greek". An Other cuisine is printed
+ * as the cook's own words.
  */
 
 import {
+  MEAL_AND_CUISINE_SEPARATOR,
+  cuisineLabel,
   currentIngredients,
   mealTypeLabel,
   nextTimeWords,
@@ -36,6 +43,7 @@ import {
 } from '../../domain/cookRecord';
 import type {
   Cook,
+  CookCuisine,
   CookEvent,
   HouseholdMember,
   IngredientVersion,
@@ -64,6 +72,8 @@ export type CookTextInput = {
   readonly revisions?: readonly Revision[];
   /** Its meal type, or none (0.3.0). */
   readonly mealType?: StoredMealType | null;
+  /** Its cuisine, or none (schema version 5). */
+  readonly cuisine?: Pick<CookCuisine, 'cuisine' | 'otherWords'> | null;
   /** Every version of its ingredients, oldest first (0.3.0). */
   readonly ingredients?: readonly IngredientVersion[];
   /** Who ate it and what they thought (0.3.0). */
@@ -176,6 +186,7 @@ export function renderCookAsText(input: CookTextInput): string {
   const ratings = orderRatings(input.ratings ?? [], household);
   const lessonRevisions = input.lessonRevisions ?? [];
   const meal = mealTypeLabel(input.mealType ?? null);
+  const cuisine = cuisineLabel(input.cuisine ?? null);
   const verdict = latestWords(
     cook.verdict,
     revisions.filter((revision) => revision.field === 'verdict'),
@@ -185,7 +196,9 @@ export function renderCookAsText(input: CookTextInput): string {
 
   lines.push(`Cooking Lab — ${title}`);
   if (meal !== null) {
-    lines.push(`Meal: ${meal}`);
+    lines.push(cuisine === null ? `Meal: ${meal}` : `Meal: ${meal}${MEAL_AND_CUISINE_SEPARATOR}${cuisine}`);
+  } else if (cuisine !== null) {
+    lines.push(`Cuisine: ${cuisine}`);
   }
   lines.push(`Started: ${formatDateTimeWithYear(cook.startedAt)}`);
   if (cook.status === 'reviewed') {

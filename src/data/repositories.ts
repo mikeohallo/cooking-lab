@@ -51,6 +51,7 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookCuisine,
   CookEventId,
   CookId,
   CookMealType,
@@ -78,6 +79,7 @@ import type {
 import type {
   CookEventKind,
   CookStatus,
+  Cuisine,
   FindingClass,
   ImportBatchStatus,
   MealType,
@@ -464,6 +466,49 @@ export type MealTypeRepository = {
   listForCooks(cookIds: readonly CookId[]): Promise<readonly CookMealType[]>;
 };
 
+/**
+ * A cook's cuisine (schema version 5). A cook with none has no row, as for
+ * a meal type.
+ */
+export type CuisineRepository = {
+  /** Set it, replacing any cuisine the cook had. */
+  set(row: CookCuisine): Promise<CookCuisine>;
+  /** Back to none. */
+  clear(cookId: CookId): Promise<void>;
+  findForCook(cookId: CookId): Promise<CookCuisine | null>;
+  listForCooks(cookIds: readonly CookId[]): Promise<readonly CookCuisine[]>;
+  /**
+   * The words of every Other cuisine on a cook still kept, each once ignoring
+   * case (the first written spelling wins), alphabetically ignoring case.
+   */
+  listOtherWords(): Promise<readonly string[]>;
+};
+
+/**
+ * The photograph a cook's card shows (0.4.0, part 1): the cook's own first
+ * photo; or, for a cook it has none of, the first photo of the nearest
+ * earlier cook along the Cook this again chain that has one.
+ */
+export type CardPhoto = {
+  /** The cook whose card this is. */
+  readonly cookId: CookId;
+  /** The photo's timeline entry: its `photoPath` is what the card draws. */
+  readonly event: CookEvent;
+  /** The cook the photo was taken for: this one, or an earlier one. */
+  readonly fromCookId: CookId;
+  /** True when the photo is an earlier cook's. */
+  readonly inherited: boolean;
+};
+
+export type CardPhotoService = {
+  /**
+   * The photo for each of these cooks' cards, by cook. A cook with no photo
+   * of its own and none along its chain is absent: its card shows a meal
+   * tile. A few statements however many cooks are asked for.
+   */
+  forCooks(cookIds: readonly CookId[]): Promise<ReadonlyMap<CookId, CardPhoto>>;
+};
+
 /** A cook's ingredients, every saved version. Append-only, like revisions. */
 export type IngredientRepository = {
   create(version: IngredientVersion): Promise<IngredientVersion>;
@@ -520,6 +565,8 @@ export type CookAgainPlan = {
   readonly cook: Cook;
   readonly tagIds: readonly TagId[];
   readonly mealType: CookMealType | null;
+  /** The earlier cook's cuisine, copied (schema version 5). */
+  readonly cuisine: CookCuisine | null;
   readonly ingredients: IngredientVersion | null;
 };
 
@@ -534,6 +581,17 @@ export type CookRecordService = {
     actor: Actor,
     at: IsoTimestamp,
   ): Promise<EvidenceDecision<CookMealType | null>>;
+  /**
+   * Set, change or clear (`null`) a cook's cuisine. `otherWords` are the
+   * cook's own words for `other`, and `null` for every named cuisine.
+   */
+  setCuisine(
+    cookId: CookId,
+    cuisine: Cuisine | null,
+    otherWords: string | null,
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<CookCuisine | null>>;
   saveIngredients(
     cookId: CookId,
     text: string,
@@ -565,7 +623,7 @@ export type CookRecordService = {
     actor: Actor,
     at: IsoTimestamp,
   ): Promise<EvidenceDecision<LessonRevision>>;
-  /** A new open cook from this one: title, tags, meal type, ingredients. */
+  /** A new open cook from this one: title, tags, meal type, cuisine, ingredients. */
   cookAgain(
     sourceId: CookId,
     identity: { readonly id: CookId; readonly ingredientsId: string },
@@ -599,6 +657,8 @@ export type DataLayer = {
   readonly revisions: RevisionRepository;
   readonly cookDeletions: CookDeletionRepository;
   readonly mealTypes: MealTypeRepository;
+  readonly cuisines: CuisineRepository;
+  readonly cardPhotos: CardPhotoService;
   readonly ingredients: IngredientRepository;
   readonly household: HouseholdRepository;
   readonly ratings: RatingRepository;

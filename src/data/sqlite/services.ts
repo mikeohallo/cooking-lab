@@ -90,6 +90,7 @@ import type {
 } from '../repositories';
 import { RecordNotFoundError } from './repositories';
 import {
+  COOK_CUISINE_COLUMNS,
   COOK_MEAL_TYPE_COLUMNS,
   HOUSEHOLD_MEMBER_COLUMNS,
   INGREDIENT_VERSION_COLUMNS,
@@ -99,6 +100,7 @@ import {
   toBriefingSource,
   toCook as toCookRecord,
   toCookEvent as toCookEventRecord,
+  toCookCuisine,
   toCookMealType,
   toCookTag,
   toFinding as toFindingRecord,
@@ -495,6 +497,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         householdMembers,
         ratings,
         lessonRevisions,
+        cookCuisines,
       ] = await Promise.all([
         rowsOf(`SELECT ${cookColumns} FROM cooks WHERE ${KEPT('id')} ORDER BY id ASC`),
         rowsOf(`SELECT ${eventColumns} FROM cook_events WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
@@ -530,6 +533,9 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         rowsOf(
           `SELECT ${LESSON_REVISION_COLUMNS} FROM lesson_revisions WHERE ${KEPT('cook_id')} ORDER BY id ASC`,
         ),
+        rowsOf(
+          `SELECT ${COOK_CUISINE_COLUMNS} FROM cook_cuisines WHERE ${KEPT('cook_id')} ORDER BY cook_id ASC`,
+        ),
       ]);
 
       return {
@@ -549,6 +555,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         householdMembers: householdMembers.map(toHouseholdMember),
         ratings: ratings.map(toRating),
         lessonRevisions: lessonRevisions.map(toLessonRevision),
+        cookCuisines: cookCuisines.map(toCookCuisine),
       };
     },
   };

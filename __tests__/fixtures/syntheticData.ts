@@ -29,6 +29,7 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookCuisine,
   CookMealType,
   CookTag,
   DatabaseSnapshot,
@@ -447,14 +448,19 @@ const SYNTHETIC_PHOTO_MANIFEST: readonly BackupPhotoManifestEntry[] = [
   },
 ];
 
-// Update 2 (schema version 4). Made-up people: Alex and Sam eat here, Jo did
+// Update 2 (schema version 4). Made-up people: You and Guest eat here, Guest 2 did
 // once and has since been retired, and a guest is named on one rating only.
-const MEMBER_ALEX = 'synthetic-member-alex';
-const MEMBER_SAM = 'synthetic-member-sam';
-const MEMBER_JO = 'synthetic-member-jo';
+const MEMBER_YOU = 'synthetic-member-you';
+const MEMBER_SECOND = 'synthetic-member-member2';
+const MEMBER_THIRD = 'synthetic-member-guest2';
 
 const SYNTHETIC_COOK_MEAL_TYPES: readonly CookMealType[] = [
   { cookId: COOK_BAKE, mealType: 'lunch_dinner', setAt: '2026-08-14T19:46:00.000Z' },
+];
+
+/** Backup format 5: a cuisine in the cook's own words. */
+const SYNTHETIC_COOK_CUISINES: readonly CookCuisine[] = [
+  { cookId: COOK_BAKE, cuisine: 'other', otherWords: 'Home baking', setAt: '2026-08-14T19:46:00.000Z' },
 ];
 
 const SYNTHETIC_INGREDIENT_VERSIONS: readonly IngredientVersion[] = [
@@ -473,11 +479,11 @@ const SYNTHETIC_INGREDIENT_VERSIONS: readonly IngredientVersion[] = [
 ];
 
 const SYNTHETIC_HOUSEHOLD: readonly HouseholdMember[] = [
-  { id: MEMBER_ALEX, name: 'Alex', position: 0, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
-  { id: MEMBER_SAM, name: 'Sam', position: 1, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
+  { id: MEMBER_YOU, name: 'You', position: 0, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
+  { id: MEMBER_SECOND, name: 'Guest', position: 1, retiredAt: null, createdAt: '2026-08-01T10:00:00.000Z' },
   {
-    id: MEMBER_JO,
-    name: 'Jo',
+    id: MEMBER_THIRD,
+    name: 'Guest 2',
     position: 2,
     retiredAt: '2026-08-20T10:00:00.000Z',
     createdAt: '2026-08-01T10:00:00.000Z',
@@ -486,9 +492,9 @@ const SYNTHETIC_HOUSEHOLD: readonly HouseholdMember[] = [
 
 const SYNTHETIC_RATINGS: readonly Rating[] = [
   {
-    id: 'synthetic-rating-alex',
+    id: 'synthetic-rating-you',
     cookId: COOK_BAKE,
-    memberId: MEMBER_ALEX,
+    memberId: MEMBER_YOU,
     guestName: null,
     stars: 4,
     notEaten: false,
@@ -496,9 +502,9 @@ const SYNTHETIC_RATINGS: readonly Rating[] = [
     ratedAt: '2026-08-14T19:46:00.000Z',
   },
   {
-    id: 'synthetic-rating-sam',
+    id: 'synthetic-rating-member2',
     cookId: COOK_BAKE,
-    memberId: MEMBER_SAM,
+    memberId: MEMBER_SECOND,
     guestName: null,
     stars: null,
     notEaten: true,
@@ -506,9 +512,9 @@ const SYNTHETIC_RATINGS: readonly Rating[] = [
     ratedAt: '2026-08-14T19:46:00.000Z',
   },
   {
-    id: 'synthetic-rating-jo',
+    id: 'synthetic-rating-guest2',
     cookId: COOK_IMPORTED,
-    memberId: MEMBER_JO,
+    memberId: MEMBER_THIRD,
     guestName: null,
     stars: 2,
     notEaten: false,
@@ -556,6 +562,7 @@ export function syntheticSnapshot(): DatabaseSnapshot {
     householdMembers: SYNTHETIC_HOUSEHOLD,
     ratings: SYNTHETIC_RATINGS,
     lessonRevisions: SYNTHETIC_LESSON_REVISIONS,
+    cookCuisines: SYNTHETIC_COOK_CUISINES,
   };
 }
 

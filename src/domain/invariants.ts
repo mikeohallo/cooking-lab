@@ -22,6 +22,7 @@ import type {
   BriefingSource,
   Cook,
   CookEvent,
+  CookCuisine,
   CookMealType,
   CookTag,
   EntityId,
@@ -47,6 +48,7 @@ import {
   isCookEventKind,
   isCookStatus,
   isCreatedBy,
+  isCuisine,
   isFindingClass,
   isImportBatchStatus,
   isProposalStatus,
@@ -78,6 +80,8 @@ export const MAX_TAG_ENTRY_LENGTH = 40;
 export const MAX_FILENAME_LENGTH = 255;
 /** Longest name for someone who eats: a household member or a guest (0.3.0). */
 export const MAX_PERSON_NAME_LENGTH = 40;
+/** Longest words an `other` cuisine may carry, once trimmed (schema version 5). */
+export const MAX_CUISINE_WORDS_LENGTH = 40;
 /** Longest "add a line" under a rating: a short line, not a review (0.3.0). */
 export const MAX_RATING_LINE_LENGTH = 200;
 
@@ -709,5 +713,31 @@ export function validateLessonRevision(revision: LessonRevision): readonly Valid
   checkId('cookId', revision.cookId, issues);
   checkRequiredText('text', revision.text, MAX_TEXT_LENGTH, issues);
   checkTimestamp('revisedAt', revision.revisedAt, issues);
+  return issues;
+}
+
+/**
+ * A cook's cuisine (schema version 5): one of the eleven, and the cook's own
+ * words exactly when it is `other` — trimmed, 1 to 40 characters.
+ */
+export function validateCookCuisine(row: CookCuisine): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('cookId', row.cookId, issues);
+  checkEnum('cuisine', row.cuisine, isCuisine, issues);
+  const words: unknown = row.otherWords;
+  if (row.cuisine === 'other') {
+    if (typeof words !== 'string' || words.trim() === '') {
+      issues.push(issue('otherWords', 'required', 'an other cuisine carries its own words'));
+    } else if (words !== words.trim()) {
+      issues.push(issue('otherWords', 'inconsistent_state', 'the words are stored trimmed'));
+    } else if (words.length > MAX_CUISINE_WORDS_LENGTH) {
+      issues.push(
+        issue('otherWords', 'too_long', `keep the words under ${MAX_CUISINE_WORDS_LENGTH} characters`),
+      );
+    }
+  } else if (words !== null) {
+    issues.push(issue('otherWords', 'inconsistent_state', 'only an other cuisine carries words'));
+  }
+  checkTimestamp('setAt', row.setAt, issues);
   return issues;
 }

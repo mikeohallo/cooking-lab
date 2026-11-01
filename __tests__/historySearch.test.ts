@@ -240,8 +240,8 @@ describe('putting cooks and their tags together', () => {
     const indexed = searchable([CHOPS, UNNAMED], new Map([[CHOPS.id, [tag('pork')]]]));
 
     expect(indexed).toEqual([
-      { cook: CHOPS, tags: [tag('pork')], ingredients: null },
-      { cook: UNNAMED, tags: [], ingredients: null },
+      { cook: CHOPS, tags: [tag('pork')], ingredients: null, cuisine: null },
+      { cook: UNNAMED, tags: [], ingredients: null, cuisine: null },
     ]);
   });
 });

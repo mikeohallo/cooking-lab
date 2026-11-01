@@ -21,7 +21,8 @@
  * history. Its text is frozen from here on; version 2 below is a new entry, as
  * the rule requires, and the first one. Version 2 has run on a device too
  * (0.2.0 and 0.2.1), so it is frozen as well, and version 3 (0.2.2) is the
- * next new entry.
+ * next new entry. Versions 3 and 4 are frozen in their turn; version 5 is the
+ * newest entry.
  *
  * WHAT THE SCHEMA DOES NOT CONTAIN
  * --------------------------------
@@ -481,6 +482,89 @@ INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
 
+// ---------------------------------------------------------------------------
+// Version 5 — Side, a fifth meal type, and a cook's cuisine (0.4.0, part 1)
+// ---------------------------------------------------------------------------
+//
+// Two changes, one transaction.
+//
+// SIDE. `cook_meal_types.meal_type` has a CHECK listing the four meal types
+// version 4 knew, and SQLite cannot change a CHECK in place: the table is
+// rebuilt. A new table under a working name, with the same three columns and
+// the five meal types; every row copied across, rowid and all, so the rows
+// are the same rows in the same order; the old table dropped; the new one
+// renamed to the old name. `cook_meal_types` had no index but its primary
+// key's, which comes with the new table, so there is none to recreate.
+//
+// The foreign keys, which version 2 had to work around for `tags`, are no
+// obstacle here, and it is worth saying why rather than assuming it:
+//
+//   * Nothing references `cook_meal_types`. It is a child of `cooks` and a
+//     parent of nothing, so `DROP TABLE cook_meal_types` — which, with foreign
+//     keys on, first deletes every row — has no cascade to perform: deleting a
+//     child row never touches its parent. (`__tests__/schemaV5.test.ts` reads
+//     every table's foreign keys to prove nothing points at it.)
+//   * `ALTER TABLE ... RENAME` rewrites other tables' REFERENCES to the table
+//     being renamed. Nothing references `cook_meal_types_v5` either, so there
+//     is nothing for it to rewrite. What version 2 avoided was renaming a
+//     table other tables point at; this renames a table nobody points at.
+//   * No `PRAGMA foreign_keys`: the runner's transaction would ignore it, and
+//     with foreign keys left on, every copied row is checked against `cooks`
+//     as it goes in. A row that pointed at no cook would fail the migration
+//     and roll it back, rather than be carried into the new table.
+//
+// CUISINE. `cook_cuisines` follows `cook_meal_types`' pattern: one row per
+// cook at most, cascading from `cooks`, so deleting a cook takes its cuisine
+// and Undo — which touches nothing — keeps it. Ten named cuisines and
+// `other`, which carries the cook's own words, trimmed, 1 to 40 characters;
+// a named cuisine carries none. Every cook starts with no row: nothing is
+// guessed.
+//
+// If any statement fails, all of it rolls back: the notebook stays at version
+// 4 with every row as it was, and the app says the notebook could not be
+// updated rather than opening an empty one.
+
+const V5_CREATE_COOK_MEAL_TYPES = `
+CREATE TABLE cook_meal_types_v5 (
+  cook_id   TEXT PRIMARY KEY NOT NULL
+            REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  meal_type TEXT NOT NULL CHECK (meal_type IN ('breakfast','lunch_dinner','dessert','snack','side')),
+  set_at    TEXT NOT NULL
+)`.trim();
+
+const V5_COPY_COOK_MEAL_TYPES = `
+INSERT INTO cook_meal_types_v5 (rowid, cook_id, meal_type, set_at)
+SELECT rowid, cook_id, meal_type, set_at FROM cook_meal_types ORDER BY rowid`.trim();
+
+const V5_DROP_OLD_COOK_MEAL_TYPES = 'DROP TABLE cook_meal_types';
+
+const V5_RENAME_COOK_MEAL_TYPES = 'ALTER TABLE cook_meal_types_v5 RENAME TO cook_meal_types';
+
+const V5_CREATE_COOK_CUISINES = `
+CREATE TABLE cook_cuisines (
+  cook_id     TEXT PRIMARY KEY NOT NULL
+              REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  cuisine     TEXT NOT NULL CHECK (cuisine IN ('american','italian','french','greek','middle_eastern','indian','japanese','korean','mexican','thai','other')),
+  other_words TEXT,
+  set_at      TEXT NOT NULL,
+  CHECK ((cuisine = 'other' AND other_words IS NOT NULL
+          AND other_words = trim(other_words)
+          AND length(other_words) BETWEEN 1 AND 40)
+      OR (cuisine <> 'other' AND other_words IS NULL))
+)`.trim();
+
+const V5_INDEX_COOK_CUISINES = 'CREATE INDEX ix_cook_cuisines_cuisine ON cook_cuisines (cuisine)';
+
+const V5_STAMP_SCHEMA_VERSION = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '5')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
+const V5_STAMP_APPLIED_AT = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
 const V2_STAMP_SCHEMA_VERSION = `
 INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_VERSION_KEY}', '2')
@@ -525,6 +609,9 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
  * Version 4 adds a cook's meal type, its ingredients (every version kept), the
  * household, their ratings, edits of a next-time line and the app's own
  * settings. It changes no existing table either.
+ *
+ * Version 5 rebuilds `cook_meal_types` so a cook can be a side, keeping every
+ * row, and adds `cook_cuisines`.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -601,6 +688,20 @@ export const MIGRATIONS: readonly Migration[] = [
       V4_STAMP_APPLIED_AT,
     ],
   },
+  {
+    version: 5,
+    name: 'side_and_cuisine',
+    statements: [
+      V5_CREATE_COOK_MEAL_TYPES,
+      V5_COPY_COOK_MEAL_TYPES,
+      V5_DROP_OLD_COOK_MEAL_TYPES,
+      V5_RENAME_COOK_MEAL_TYPES,
+      V5_CREATE_COOK_CUISINES,
+      V5_INDEX_COOK_CUISINES,
+      V5_STAMP_SCHEMA_VERSION,
+      V5_STAMP_APPLIED_AT,
+    ],
+  },
 ];
 
 /** The version a fully migrated database reports. */
@@ -630,6 +731,7 @@ export const SCHEMA_TABLES: readonly string[] = [
   'ratings',
   'lesson_revisions',
   'app_settings',
+  'cook_cuisines',
 ];
 
 export type MigrationDefect = {

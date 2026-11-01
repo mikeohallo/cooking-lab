@@ -51,7 +51,9 @@
  *      and starting it again are all written by the cook and never by the
  *      assistant. Ingredients and next-time lines keep every earlier version,
  *      as rule 11 keeps a note's. A rating is a current answer, changed in
- *      place, and "didn't eat it" is never a number.
+ *      place, and "didn't eat it" is never a number. From schema version 5
+ *      the cook's cuisine is one of them too: set, changed or cleared by the
+ *      cook on any cook, open or reviewed, and never by the assistant.
  *
  * `provenance` never appears in any of this. It records whether a row came from
  * live cooking or an import, and it is not a way of saying who wrote something.
@@ -65,6 +67,7 @@ import type {
   Cook,
   CookEvent,
   CookEventId,
+  CookCuisine,
   CookId,
   CookMealType,
   Finding,
@@ -87,14 +90,17 @@ import type {
   ConfidenceLevel,
   CookEventKind,
   CreatedBy,
+  Cuisine,
   FindingClass,
   MealType,
   ProposalStatus,
   Provenance,
   Stars,
 } from './enums';
-import { isStars, isStoredMealType } from './enums';
+import { NAMED_CUISINES, isCuisine, isStars, isStoredMealType } from './enums';
+import { CUISINE_LABELS } from './cookRecord';
 import {
+  MAX_CUISINE_WORDS_LENGTH,
   MAX_PERSON_NAME_LENGTH,
   MAX_RATING_LINE_LENGTH,
   MAX_TEXT_LENGTH,
@@ -143,6 +149,8 @@ export type EvidenceDenialCode =
   | 'nothing_changed'
   /** Rule 13: a rating that is not one person's whole stars or N/A. */
   | 'rating_not_valid'
+  /** Rule 13: a cuisine that is not one of the eleven, or Other without its words. */
+  | 'cuisine_not_valid'
   /** Rule 13: only a next-time line the cook approved can be edited by them. */
   | 'only_an_approved_lesson_may_be_reworded'
   /** The household: a name that is blank, too long or already on the list. */
@@ -576,6 +584,60 @@ export function setMealType(
   return allow({ cookId: cook.id, mealType, setAt: at });
 }
 
+/**
+ * Set, change or clear a cook's cuisine (schema version 5).
+ *
+ * `null` clears it: the decision is `null`, and the caller removes the row,
+ * as `none` does for a meal type. Any cook, open or reviewed.
+ *
+ * `other` needs the cook's own words, trimmed of the spaces around them, 1 to
+ * 40 characters on one line. Words that are exactly one of the ten names
+ * (ignoring case) are that cuisine, so "greek" typed under Other is Greek and
+ * the filter offers it once. A named cuisine carries no words; blank words
+ * with one are taken as none.
+ */
+export function setCuisine(
+  cook: Cook,
+  cuisine: Cuisine | null,
+  otherWords: string | null,
+  actor: Actor,
+  at: IsoTimestamp,
+): EvidenceDecision<CookCuisine | null> {
+  const denial = denyIfNotUser(actor, 'a cuisine');
+  if (denial) {
+    return denial;
+  }
+  if (cuisine === null) {
+    return allow(null);
+  }
+  if (!isCuisine(cuisine)) {
+    return deny('cuisine_not_valid', 'that is not a cuisine');
+  }
+  const words = otherWords === null ? '' : otherWords.trim();
+  if (cuisine !== 'other') {
+    if (words !== '') {
+      return deny('cuisine_not_valid', 'only Other carries your own words');
+    }
+    return allow({ cookId: cook.id, cuisine, otherWords: null, setAt: at });
+  }
+  if (words === '') {
+    return deny('cuisine_not_valid', 'say which cuisine: Other needs a word or two');
+  }
+  if (words.length > MAX_CUISINE_WORDS_LENGTH) {
+    return deny('cuisine_not_valid', `keep it under ${MAX_CUISINE_WORDS_LENGTH} characters`);
+  }
+  if (words.includes('\n') || words.includes('\r')) {
+    return deny('cuisine_not_valid', 'keep it to one line');
+  }
+  const named = NAMED_CUISINES.find(
+    (candidate) => CUISINE_LABELS[candidate].toLowerCase() === words.toLowerCase(),
+  );
+  if (named !== undefined) {
+    return allow({ cookId: cook.id, cuisine: named, otherWords: null, setAt: at });
+  }
+  return allow({ cookId: cook.id, cuisine: 'other', otherWords: words, setAt: at });
+}
+
 export type IngredientIdentity = { readonly id: string };
 
 /**
@@ -718,8 +780,8 @@ export function reviseLesson(
  * Start a new open cook from an earlier one ("Cook this again").
  *
  * The new cook has the same title and points back at the earlier one; the
- * caller copies the tags, the meal type and the current ingredients. Nothing
- * about the earlier cook changes.
+ * caller copies the tags, the meal type, the cuisine and the current
+ * ingredients. Nothing about the earlier cook changes.
  */
 export function cookAgain(
   source: Cook,

@@ -1,7 +1,7 @@
 /**
  * Update 2's storage (schema version 4): meal type, ingredients, the
  * household, ratings, next-time edits, the app's settings, and "Cook this
- * again".
+ * again" — and, from schema version 5, a cook's cuisine.
  *
  * The same rules as `./repositories.ts` and `./services.ts`, in one module of
  * its own: repositories store and never decide; every value is bound; rows
@@ -12,6 +12,7 @@
 
 import type {
   Cook,
+  CookCuisine,
   CookId,
   CookMealType,
   HouseholdMember,
@@ -24,7 +25,7 @@ import type {
   Rating,
   RatingId,
 } from '../../domain/entities';
-import type { MealType } from '../../domain/enums';
+import type { Cuisine, MealType } from '../../domain/enums';
 import type {
   Actor,
   EvidenceDecision,
@@ -39,6 +40,7 @@ import {
   rateCook,
   reviseLesson,
   saveIngredients as saveIngredientsRule,
+  setCuisine as setCuisineRule,
   setMealType as setMealTypeRule,
 } from '../../domain/evidence';
 import { addMember, moveMember, restoreMember, retireMember } from '../../domain/household';
@@ -48,6 +50,7 @@ import type {
   CookRecordService,
   CookRepository,
   CookTagRepository,
+  CuisineRepository,
   HouseholdRepository,
   HouseholdService,
   IngredientRepository,
@@ -61,11 +64,13 @@ import type {
 import { RecordNotFoundError } from './repositories';
 import {
   COOK_COLUMNS,
+  COOK_CUISINE_COLUMNS,
   COOK_MEAL_TYPE_COLUMNS,
   HOUSEHOLD_MEMBER_COLUMNS,
   INGREDIENT_VERSION_COLUMNS,
   LESSON_REVISION_COLUMNS,
   RATING_COLUMNS,
+  cookCuisineParams,
   cookMealTypeParams,
   cookParams,
   householdMemberParams,
@@ -73,6 +78,7 @@ import {
   lessonRevisionParams,
   placeholders,
   ratingParams,
+  toCookCuisine,
   toCookMealType,
   toHouseholdMember,
   toIngredientVersion,
@@ -125,6 +131,68 @@ export function createMealTypeRepository(adapter: DatabaseAdapter): MealTypeRepo
         params: [...cookIds],
       });
       return rows.map(toCookMealType);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cuisines (schema version 5)
+// ---------------------------------------------------------------------------
+
+export function createCuisineRepository(adapter: DatabaseAdapter): CuisineRepository {
+  return {
+    async set(row: CookCuisine): Promise<CookCuisine> {
+      await adapter.execute({
+        sql: `${insertInto('cook_cuisines', COOK_CUISINE_COLUMNS)}
+              ON CONFLICT(cook_id) DO UPDATE SET
+                cuisine = excluded.cuisine, other_words = excluded.other_words, set_at = excluded.set_at`,
+        params: cookCuisineParams(row),
+      });
+      return row;
+    },
+
+    async clear(cookId: CookId): Promise<void> {
+      await adapter.execute({ sql: 'DELETE FROM cook_cuisines WHERE cook_id = ?', params: [cookId] });
+    },
+
+    async findForCook(cookId: CookId): Promise<CookCuisine | null> {
+      const rows = await adapter.select({
+        sql: `SELECT ${COOK_CUISINE_COLUMNS} FROM cook_cuisines WHERE cook_id = ?`,
+        params: [cookId],
+      });
+      const first = rows[0];
+      return first === undefined ? null : toCookCuisine(first);
+    },
+
+    async listForCooks(cookIds: readonly CookId[]): Promise<readonly CookCuisine[]> {
+      if (cookIds.length === 0) {
+        return [];
+      }
+      const rows = await adapter.select({
+        sql: `SELECT ${COOK_CUISINE_COLUMNS} FROM cook_cuisines
+              WHERE cook_id IN (${placeholders(cookIds.length)}) ORDER BY cook_id ASC`,
+        params: [...cookIds],
+      });
+      return rows.map(toCookCuisine);
+    },
+
+    async listOtherWords(): Promise<readonly string[]> {
+      const rows = await adapter.select({
+        sql: `SELECT other_words FROM cook_cuisines
+              WHERE cuisine = 'other' AND other_words IS NOT NULL AND ${KEPT_COOK}
+              ORDER BY other_words COLLATE NOCASE ASC, set_at ASC, rowid ASC`,
+        params: [],
+      });
+      const seen = new Set<string>();
+      const words: string[] = [];
+      for (const row of rows) {
+        const text = String(row.other_words);
+        if (!seen.has(text.toLowerCase())) {
+          seen.add(text.toLowerCase());
+          words.push(text);
+        }
+      }
+      return words;
     },
   };
 }
@@ -418,6 +486,12 @@ export function createCookAgainWriter(adapter: DatabaseAdapter): {
             params: cookMealTypeParams(plan.mealType),
           });
         }
+        if (plan.cuisine !== null) {
+          await tx.execute({
+            sql: insertInto('cook_cuisines', COOK_CUISINE_COLUMNS),
+            params: cookCuisineParams(plan.cuisine),
+          });
+        }
         if (plan.ingredients !== null) {
           await tx.execute({
             sql: insertInto('ingredient_versions', INGREDIENT_VERSION_COLUMNS),
@@ -446,6 +520,7 @@ export type CookRecordDependencies = {
   readonly cookTags: CookTagRepository;
   readonly lessons: LessonRepository;
   readonly mealTypes: MealTypeRepository;
+  readonly cuisines: CuisineRepository;
   readonly ingredients: IngredientRepository;
   readonly ratings: RatingRepository;
   readonly lessonRevisions: LessonRevisionRepository;
@@ -475,6 +550,25 @@ export function createCookRecordService(deps: CookRecordDependencies): CookRecor
         return decision;
       }
       return { allowed: true, record: await deps.mealTypes.set(decision.record) };
+    },
+
+    async setCuisine(
+      cookId: CookId,
+      cuisine: Cuisine | null,
+      otherWords: string | null,
+      actor: Actor,
+      at: IsoTimestamp,
+    ): Promise<EvidenceDecision<CookCuisine | null>> {
+      const cook = await loadOrThrow(() => deps.cooks.findById(cookId), 'cook', cookId);
+      const decision = setCuisineRule(cook, cuisine, otherWords, actor, at);
+      if (!decision.allowed) {
+        return decision;
+      }
+      if (decision.record === null) {
+        await deps.cuisines.clear(cookId);
+        return decision;
+      }
+      return { allowed: true, record: await deps.cuisines.set(decision.record) };
     },
 
     async saveIngredients(
@@ -556,8 +650,8 @@ export function createCookRecordService(deps: CookRecordDependencies): CookRecor
 
     /**
      * Read the earlier cook, let the rule build the new one, then write the
-     * cook, its tags, its meal type and its first ingredients together. The
-     * earlier cook is only read.
+     * cook, its tags, its meal type, its cuisine and its first ingredients
+     * together. The earlier cook is only read.
      */
     async cookAgain(
       sourceId: CookId,
@@ -571,15 +665,20 @@ export function createCookRecordService(deps: CookRecordDependencies): CookRecor
         return decision;
       }
       const cook = decision.record;
-      const [tags, mealType, ingredients] = await Promise.all([
+      const [tags, mealType, cuisine, ingredients] = await Promise.all([
         deps.cookTags.listForCook(sourceId),
         deps.mealTypes.findForCook(sourceId),
+        deps.cuisines.findForCook(sourceId),
         currentIngredients(sourceId),
       ]);
       await deps.cookAgainWriter.write({
         cook,
         tagIds: tags.map((tag) => tag.id),
         mealType: mealType === null ? null : { cookId: cook.id, mealType: mealType.mealType, setAt: at },
+        cuisine:
+          cuisine === null
+            ? null
+            : { cookId: cook.id, cuisine: cuisine.cuisine, otherWords: cuisine.otherWords, setAt: at },
         ingredients:
           ingredients === null
             ? null

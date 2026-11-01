@@ -1,6 +1,6 @@
 /**
- * History's filters (0.3.0), as pure functions over records: meal type, and
- * "Who & stars". Search (`./search.ts`) then runs over what is left, so the
+ * History's filters (0.3.0), as pure functions over records: meal type,
+ * "Who & stars" and cuisine. Search (`./search.ts`) then runs over what is left, so the
  * two combine.
  *
  *   Meal type   any of the ones picked. A cook with no meal type matches no
@@ -9,10 +9,23 @@
  *               before — and a minimum number of stars. A cook matches when
  *               that person gave it at least that many. N/A ("didn't eat it")
  *               never matches: it is not a number of stars.
+ *   Cuisine     any of the ones picked (schema version 5): one of the ten
+ *               named cuisines, or an Other cuisine by its words, compared
+ *               ignoring case. A cook with no cuisine matches no cuisine
+ *               filter.
  */
 
-import type { Cook, CookId, HouseholdMember, HouseholdMemberId, Rating } from '../../domain/entities';
-import type { Stars, StoredMealType } from '../../domain/enums';
+import { CUISINE_LABELS } from '../../domain/cookRecord';
+import type {
+  Cook,
+  CookCuisine,
+  CookId,
+  HouseholdMember,
+  HouseholdMemberId,
+  Rating,
+} from '../../domain/entities';
+import type { NamedCuisine, Stars, StoredMealType } from '../../domain/enums';
+import { NAMED_CUISINES } from '../../domain/enums';
 
 /** Who the "Who & stars" filter is about. */
 export type PersonPick =
@@ -24,15 +37,91 @@ export type WhoAndStars = {
   readonly minStars: Stars;
 };
 
+/**
+ * A cuisine the filter can pick: one of the ten by its key, or an Other
+ * cuisine by its words. Other words are compared ignoring case and the spaces
+ * around them, so "Home baking" and "home baking" are one choice.
+ */
+export type CuisinePick =
+  | { readonly kind: 'named'; readonly cuisine: NamedCuisine }
+  | { readonly kind: 'other'; readonly words: string };
+
 export type CookFilters = {
   readonly mealTypes: readonly StoredMealType[];
   readonly who: WhoAndStars | null;
+  /** Any of these cuisines (schema version 5). Absent or empty: no cuisine filter. */
+  readonly cuisines?: readonly CuisinePick[];
 };
 
-export const NO_FILTERS: CookFilters = { mealTypes: [], who: null };
+export const NO_FILTERS: CookFilters = { mealTypes: [], who: null, cuisines: [] };
 
 export function filtersActive(filters: CookFilters): boolean {
-  return filters.mealTypes.length > 0 || filters.who !== null;
+  return filters.mealTypes.length > 0 || filters.who !== null || (filters.cuisines ?? []).length > 0;
+}
+
+function sameWords(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+/** A cook's cuisine as the filters read it. */
+export type CuisineValue = Pick<CookCuisine, 'cuisine' | 'otherWords'>;
+
+/** Whether a cook's cuisine is this pick. */
+export function cuisineIs(cuisine: CuisineValue | null | undefined, pick: CuisinePick): boolean {
+  if (cuisine === null || cuisine === undefined) {
+    return false;
+  }
+  if (pick.kind === 'named') {
+    return cuisine.cuisine === pick.cuisine;
+  }
+  return (
+    cuisine.cuisine === 'other' && cuisine.otherWords !== null && sameWords(cuisine.otherWords, pick.words)
+  );
+}
+
+export function sameCuisinePick(left: CuisinePick, right: CuisinePick): boolean {
+  if (left.kind === 'named' && right.kind === 'named') {
+    return left.cuisine === right.cuisine;
+  }
+  if (left.kind === 'other' && right.kind === 'other') {
+    return sameWords(left.words, right.words);
+  }
+  return false;
+}
+
+export type CuisineOption = {
+  readonly pick: CuisinePick;
+  /** What the chip says: the label, or the cook's own words. */
+  readonly label: string;
+  /** Stable and unique: `cuisine-greek`, or `cuisine-other-` and the words in lower case. */
+  readonly key: string;
+};
+
+/**
+ * Every cuisine the filter offers: the ten named ones in their order, then
+ * each Other cuisine's words in use (from `CuisineRepository.listOtherWords`:
+ * one spelling per word ignoring case, alphabetical), as the cook wrote them.
+ * Words that are one of the ten names, or already offered, are not offered
+ * twice.
+ */
+export function cuisineOptions(otherWordsInUse: readonly string[]): readonly CuisineOption[] {
+  const named: CuisineOption[] = NAMED_CUISINES.map((cuisine) => ({
+    pick: { kind: 'named', cuisine } as const,
+    label: CUISINE_LABELS[cuisine],
+    key: `cuisine-${cuisine}`,
+  }));
+  const taken = new Set(named.map((option) => option.label.toLowerCase()));
+  const others: CuisineOption[] = [];
+  for (const raw of otherWordsInUse) {
+    const words = raw.trim();
+    const key = words.toLowerCase();
+    if (words === '' || taken.has(key)) {
+      continue;
+    }
+    taken.add(key);
+    others.push({ pick: { kind: 'other', words } as const, label: words, key: `cuisine-other-${key}` });
+  }
+  return [...named, ...others];
 }
 
 /** Whether this rating is by this person. A guest's name ignores case. */
@@ -57,6 +146,8 @@ export function meetsWhoAndStars(ratings: readonly Rating[], who: WhoAndStars): 
 export type FilterInputs = {
   readonly mealTypes: Readonly<Record<CookId, StoredMealType>>;
   readonly ratingsByCook: ReadonlyMap<CookId, readonly Rating[]>;
+  /** Each cook's cuisine, by cook; absent for a cook with none (schema version 5). */
+  readonly cuisines?: Readonly<Record<CookId, CuisineValue>>;
 };
 
 /** The cooks that pass every active filter, in the order given. */
@@ -74,6 +165,13 @@ export function applyFilters(
     }
     if (filters.who !== null && !meetsWhoAndStars(inputs.ratingsByCook.get(cook.id) ?? [], filters.who)) {
       return false;
+    }
+    const cuisines = filters.cuisines ?? [];
+    if (cuisines.length > 0) {
+      const cuisine = inputs.cuisines?.[cook.id];
+      if (!cuisines.some((pick) => cuisineIs(cuisine, pick))) {
+        return false;
+      }
     }
     return true;
   });

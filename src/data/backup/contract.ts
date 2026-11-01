@@ -85,7 +85,17 @@
  * The app's own settings (`app_settings`) are not in a backup: they are not
  * the cook's record.
  *
- * This build writes version 4 and reads 1, 2, 3 and 4.
+ * WHAT CHANGED IN FORMAT VERSION 5 (0.4.0, part 1)
+ * -------------------------------------------------
+ * For schema version 5: a fifth meal type, `side`, and one new collection,
+ * `cookCuisines` (a cook's cuisine when it has one: one of ten named cuisines,
+ * or `other` with the cook's own words). A version 5 file must carry the
+ * collection, even empty. An earlier file has none and is read as having
+ * none; an earlier file that carries one, or a meal type of `side`, is wrong
+ * about itself and is reported, as format 4's collections are in an earlier
+ * file. A version 4 file is read unchanged and loads into schema version 5.
+ *
+ * This build writes version 5 and reads 1, 2, 3, 4 and 5.
  */
 
 import type {
@@ -100,10 +110,10 @@ import type {
 export const BACKUP_FORMAT = 'cooking-lab.backup';
 
 /** The envelope version this build writes. */
-export const BACKUP_FORMAT_VERSION = 4;
+export const BACKUP_FORMAT_VERSION = 5;
 
 /** Envelope versions this build can read. */
-export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3, 4];
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
 
 /**
  * The first version that carries `entities.revisions`.
@@ -128,6 +138,16 @@ export const UPDATE_2_COLLECTIONS = [
   'ratings',
   'lessonRevisions',
 ] as const;
+
+/**
+ * The first version that carries a cook's cuisine (`cookCuisines`) and the
+ * meal type `side` (schema version 5). The collection is absent and read as
+ * empty before it, and required from it on.
+ */
+export const FIRST_CUISINE_FORMAT_VERSION = 5;
+
+/** The collections format 5 added, in snapshot order. */
+export const FORMAT_5_COLLECTIONS = ['cookCuisines'] as const;
 
 /**
  * The first version in which a tag may have no kind.

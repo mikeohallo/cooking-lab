@@ -4,7 +4,7 @@
  * Meal type: any of the ones picked; a cook with none matches no meal-type
  * filter. Who & stars: that person gave at least that many; N/A never
  * matches. Search: titles, tags and the current ingredients, still grouped
- * All then Some. Made-up people: Alex, Sam, Jo.
+ * All then Some. Made-up people: You, Guest, Guest 2.
  */
 
 import type { Cook, HouseholdMember, Rating } from '../src/domain/entities';
@@ -56,9 +56,9 @@ const COOKS = [PANCAKES, TART, STEW];
 const INPUTS = {
   mealTypes: { 'c-pancakes': 'breakfast', 'c-tart': 'dessert' } as const,
   ratingsByCook: new Map<string, readonly Rating[]>([
-    ['c-pancakes', [rating('c-pancakes', { memberId: 'm-alex' }, 5)]],
-    ['c-tart', [rating('c-tart', { memberId: 'm-alex' }, 3), rating('c-tart', { memberId: 'm-sam' }, 4)]],
-    ['c-stew', [rating('c-stew', { memberId: 'm-alex' }, null, true), rating('c-stew', { guestName: 'Jo' }, 2)]],
+    ['c-pancakes', [rating('c-pancakes', { memberId: 'm-you' }, 5)]],
+    ['c-tart', [rating('c-tart', { memberId: 'm-you' }, 3), rating('c-tart', { memberId: 'm-member2' }, 4)]],
+    ['c-stew', [rating('c-stew', { memberId: 'm-you' }, null, true), rating('c-stew', { guestName: 'Guest 2' }, 2)]],
   ]),
 };
 
@@ -73,44 +73,51 @@ describe('meal-type filter', () => {
     expect(applyFilters(COOKS, INPUTS, { mealTypes: ['dessert', 'breakfast'], who: null })).toEqual([PANCAKES, TART]);
     expect(applyFilters(COOKS, INPUTS, { mealTypes: ['snack'], who: null })).toEqual([]);
   });
+
+  it('filters by Side, the fifth meal type, like any other (schema version 5)', () => {
+    const withSide = { ...INPUTS, mealTypes: { ...INPUTS.mealTypes, 'c-stew': 'side' } as const };
+    expect(applyFilters(COOKS, withSide, { mealTypes: ['side'], who: null })).toEqual([STEW]);
+    expect(applyFilters(COOKS, withSide, { mealTypes: ['side', 'dessert'], who: null })).toEqual([TART, STEW]);
+    expect(applyFilters(COOKS, INPUTS, { mealTypes: ['side'], who: null })).toEqual([]);
+  });
 });
 
 describe('who & stars', () => {
   it('matches at least that many stars from that person', () => {
-    const alexAtLeast = (minStars: 1 | 2 | 3 | 4 | 5) =>
-      applyFilters(COOKS, INPUTS, { mealTypes: [], who: { person: { kind: 'member', id: 'm-alex' }, minStars } });
-    expect(alexAtLeast(1)).toEqual([PANCAKES, TART]);
-    expect(alexAtLeast(4)).toEqual([PANCAKES]);
-    expect(alexAtLeast(5)).toEqual([PANCAKES]);
+    const youAtLeast = (minStars: 1 | 2 | 3 | 4 | 5) =>
+      applyFilters(COOKS, INPUTS, { mealTypes: [], who: { person: { kind: 'member', id: 'm-you' }, minStars } });
+    expect(youAtLeast(1)).toEqual([PANCAKES, TART]);
+    expect(youAtLeast(4)).toEqual([PANCAKES]);
+    expect(youAtLeast(5)).toEqual([PANCAKES]);
   });
 
   it('never matches N/A, at any number of stars', () => {
-    const naOnly = [rating('c', { memberId: 'm-alex' }, null, true)];
-    expect(meetsWhoAndStars(naOnly, { person: { kind: 'member', id: 'm-alex' }, minStars: 1 })).toBe(false);
+    const naOnly = [rating('c', { memberId: 'm-you' }, null, true)];
+    expect(meetsWhoAndStars(naOnly, { person: { kind: 'member', id: 'm-you' }, minStars: 1 })).toBe(false);
   });
 
   it('matches a guest by name, ignoring case', () => {
-    const who = { person: { kind: 'guest', name: 'jo' } as const, minStars: 2 as const };
+    const who = { person: { kind: 'guest', name: 'guest 2' } as const, minStars: 2 as const };
     expect(applyFilters(COOKS, INPUTS, { mealTypes: [], who })).toEqual([STEW]);
-    expect(ratingIsBy(rating('c', { guestName: 'Jo' }, 3), { kind: 'guest', name: ' JO ' })).toBe(true);
-    expect(ratingIsBy(rating('c', { memberId: 'm-jo' }, 3), { kind: 'guest', name: 'Jo' })).toBe(false);
+    expect(ratingIsBy(rating('c', { guestName: 'Guest 2' }, 3), { kind: 'guest', name: ' GUEST 2 ' })).toBe(true);
+    expect(ratingIsBy(rating('c', { memberId: 'm-guest2' }, 3), { kind: 'guest', name: 'Guest 2' })).toBe(false);
   });
 
   it('combines with the meal-type filter', () => {
-    const who = { person: { kind: 'member', id: 'm-alex' } as const, minStars: 1 as const };
+    const who = { person: { kind: 'member', id: 'm-you' } as const, minStars: 1 as const };
     expect(applyFilters(COOKS, INPUTS, { mealTypes: ['dessert'], who })).toEqual([TART]);
   });
 
   it('offers the household in order, retired after, then guests not already named', () => {
     const members: HouseholdMember[] = [
-      { id: 'm-sam', name: 'Sam', position: 1, retiredAt: null, createdAt: AT },
-      { id: 'm-jo', name: 'Jo', position: 0, retiredAt: AT, createdAt: AT },
-      { id: 'm-alex', name: 'Alex', position: 0, retiredAt: null, createdAt: AT },
+      { id: 'm-member2', name: 'Guest', position: 1, retiredAt: null, createdAt: AT },
+      { id: 'm-guest2', name: 'Guest 2', position: 0, retiredAt: AT, createdAt: AT },
+      { id: 'm-you', name: 'You', position: 0, retiredAt: null, createdAt: AT },
     ];
-    expect(peopleToPick(members, ['A neighbour', 'sam']).map((person) => person.name)).toEqual([
-      'Alex',
-      'Sam',
-      'Jo',
+    expect(peopleToPick(members, ['A neighbour', 'guest']).map((person) => person.name)).toEqual([
+      'You',
+      'Guest',
+      'Guest 2',
       'A neighbour',
     ]);
   });

@@ -24,6 +24,7 @@ import type {
   Briefing,
   BriefingSource,
   Cook,
+  CookCuisine,
   CookEvent,
   CookMealType,
   CookTag,
@@ -45,6 +46,7 @@ import {
   isCookEventKind,
   isCookStatus,
   isCreatedBy,
+  isCuisine,
   isFindingClass,
   isImportBatchStatus,
   isProposalStatus,
@@ -487,6 +489,22 @@ export function toCookMealType(row: SqlRow): CookMealType {
 
 export function cookMealTypeParams(row: CookMealType): readonly SqlValue[] {
   return [row.cookId, row.mealType, row.setAt];
+}
+
+export const COOK_CUISINE_COLUMNS = 'cook_id, cuisine, other_words, set_at';
+
+export function toCookCuisine(row: SqlRow): CookCuisine {
+  const table = 'cook_cuisines';
+  return {
+    cookId: requiredText(table, row, 'cook_id'),
+    cuisine: requiredEnum(table, row, 'cuisine', isCuisine),
+    otherWords: optionalText(table, row, 'other_words'),
+    setAt: requiredText(table, row, 'set_at'),
+  };
+}
+
+export function cookCuisineParams(row: CookCuisine): readonly SqlValue[] {
+  return [row.cookId, row.cuisine, row.otherWords, row.setAt];
 }
 
 export const INGREDIENT_VERSION_COLUMNS = 'id, cook_id, text, saved_at';

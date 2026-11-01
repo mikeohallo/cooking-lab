@@ -29,6 +29,10 @@ import {
 import { createNodeSqliteHarness } from './support/nodeSqlite';
 
 const UP_TO_V3: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 3);
+// Version 5 follows on in a real start; this file is about 3 → 4, and
+// `schemaV5.test.ts` covers 4 → 5.
+const UP_TO_V4: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 4);
+const V5_TABLES: readonly string[] = ['cook_cuisines'];
 const V4 = MIGRATIONS.find((entry) => entry.version === 4);
 const V4_TABLES: readonly string[] = [
   'cook_meal_types',
@@ -38,7 +42,8 @@ const V4_TABLES: readonly string[] = [
   'lesson_revisions',
   'app_settings',
 ];
-const V3_TABLES = SCHEMA_TABLES.filter((table) => !V4_TABLES.includes(table));
+const V4_SCHEMA_TABLES = SCHEMA_TABLES.filter((table) => !V5_TABLES.includes(table));
+const V3_TABLES = V4_SCHEMA_TABLES.filter((table) => !V4_TABLES.includes(table));
 const AT = '2026-10-30T18:00:00.000Z';
 const LATER = '2026-10-30T19:00:00.000Z';
 
@@ -172,19 +177,20 @@ describe('version 3 to version 4, with a notebook in it', () => {
     }
   });
 
-  it('applies version 4 only, and lands at the latest version', async () => {
-    const result = await runMigrations(opened.adapter);
+  it('applies version 4 only, and a real start carries on to the latest', async () => {
+    const result = await runMigrations(opened.adapter, UP_TO_V4);
 
     expect(result.applied).toEqual([4]);
-    expect(LATEST_SCHEMA_VERSION).toBe(4);
     expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(4);
+    expect((await runMigrations(opened.adapter)).applied).toEqual([5]);
+    expect(LATEST_SCHEMA_VERSION).toBe(5);
   });
 
   it('keeps the same row counts and the same content, row for row', async () => {
     const countsBefore = await census(opened.adapter);
     const rowsBefore = await everything(opened.adapter);
 
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V4);
 
     expect(await census(opened.adapter)).toEqual(countsBefore);
     expect(await everything(opened.adapter)).toEqual(rowsBefore);
@@ -196,9 +202,9 @@ describe('version 3 to version 4, with a notebook in it', () => {
   });
 
   it('adds its six tables, empty, and nothing else: no cook is given a meal type, ingredients or a rating', async () => {
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V4);
 
-    expect([...(await listTables(opened.adapter))].sort()).toEqual([...SCHEMA_TABLES].sort());
+    expect([...(await listTables(opened.adapter))].sort()).toEqual([...V4_SCHEMA_TABLES].sort());
     for (const table of V4_TABLES) {
       const [row] = await opened.adapter.select({ sql: `SELECT count(*) AS total FROM ${table}` });
       expect(Number(row?.total)).toBe(0);
@@ -206,7 +212,7 @@ describe('version 3 to version 4, with a notebook in it', () => {
   });
 
   it('leaves every foreign key intact, and ties the new tables in', async () => {
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V4);
 
     expect(await opened.adapter.select({ sql: 'PRAGMA foreign_key_check' })).toEqual([]);
     await expect(
@@ -225,7 +231,7 @@ describe('version 3 to version 4, with a notebook in it', () => {
   });
 
   it('holds the new rules in SQL too: whole stars, N/A without stars, one person', async () => {
-    await runMigrations(opened.adapter);
+    await runMigrations(opened.adapter, UP_TO_V4);
     const rate = (stars: number | null, notEaten: number, member: string | null, guest: string | null) =>
       opened.adapter.execute({
         sql: `INSERT INTO ratings (id, cook_id, member_id, guest_name, stars, not_eaten, line, rated_at)
@@ -234,24 +240,24 @@ describe('version 3 to version 4, with a notebook in it', () => {
       });
     await opened.adapter.execute({
       sql: `INSERT INTO household_members (id, name, position, retired_at, created_at)
-            VALUES ('m-alex', 'Alex', 0, NULL, ?)`,
+            VALUES ('m-you', 'You', 0, NULL, ?)`,
       params: [AT],
     });
 
-    await expect(rate(6, 0, 'm-alex', null)).rejects.toThrow();
-    await expect(rate(0, 0, 'm-alex', null)).rejects.toThrow();
-    await expect(rate(3, 1, 'm-alex', null)).rejects.toThrow();
-    await expect(rate(3, 0, 'm-alex', 'Sam')).rejects.toThrow();
+    await expect(rate(6, 0, 'm-you', null)).rejects.toThrow();
+    await expect(rate(0, 0, 'm-you', null)).rejects.toThrow();
+    await expect(rate(3, 1, 'm-you', null)).rejects.toThrow();
+    await expect(rate(3, 0, 'm-you', 'Guest')).rejects.toThrow();
     await expect(rate(3, 0, null, null)).rejects.toThrow();
-    await expect(rate(null, 0, null, 'Sam')).rejects.toThrow();
+    await expect(rate(null, 0, null, 'Guest')).rejects.toThrow();
     await expect(
       opened.adapter.execute({
         sql: "INSERT INTO cook_meal_types (cook_id, meal_type, set_at) VALUES ('cook-stew', 'none', ?)",
         params: [AT],
       }),
     ).rejects.toThrow();
-    await rate(null, 1, 'm-alex', null);
-    await rate(5, 0, null, 'Sam');
+    await rate(null, 1, 'm-you', null);
+    await rate(5, 0, null, 'Guest');
   });
 
   it('runs in one transaction: a failing version 4 rolls back to version 3 with nothing lost', async () => {

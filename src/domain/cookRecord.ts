@@ -15,7 +15,7 @@ import type {
   LessonRevision,
   Rating,
 } from './entities';
-import type { MealType } from './enums';
+import type { Cuisine, MealType, NamedCuisine } from './enums';
 
 /** The newest version: the list as it now stands, or `null` for none yet. */
 export function currentIngredients(
@@ -58,6 +58,7 @@ export const MEAL_TYPE_LABELS: Readonly<Record<Exclude<MealType, 'none'>, string
   lunch_dinner: 'Lunch/Dinner',
   dessert: 'Dessert',
   snack: 'Snack',
+  side: 'Side',
 };
 
 export function mealTypeLabel(mealType: MealType | null | undefined): string | null {
@@ -66,6 +67,40 @@ export function mealTypeLabel(mealType: MealType | null | undefined): string | n
   }
   return MEAL_TYPE_LABELS[mealType];
 }
+
+/** The names on screen for the ten named cuisines. `other` shows the cook's own words. */
+export const CUISINE_LABELS: Readonly<Record<NamedCuisine, string>> = {
+  american: 'American',
+  italian: 'Italian',
+  french: 'French',
+  greek: 'Greek',
+  middle_eastern: 'Middle Eastern',
+  indian: 'Indian',
+  japanese: 'Japanese',
+  korean: 'Korean',
+  mexican: 'Mexican',
+  thai: 'Thai',
+};
+
+/**
+ * A cook's cuisine in words: the label, or for `other` the cook's own words.
+ * `null` for a cook with none (or an `other` that somehow has no words).
+ */
+export function cuisineLabel(
+  value: { readonly cuisine: Cuisine; readonly otherWords: string | null } | null | undefined,
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (value.cuisine === 'other') {
+    const words = value.otherWords?.trim() ?? '';
+    return words === '' ? null : words;
+  }
+  return CUISINE_LABELS[value.cuisine];
+}
+
+/** Separates the meal type and the cuisine where they share a line. */
+export const MEAL_AND_CUISINE_SEPARATOR = ' · ';
 
 /** Who a rating is from, by name. A member no longer listed is "Someone". */
 export function raterName(rating: Rating, members: readonly HouseholdMember[]): string {

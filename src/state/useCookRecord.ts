@@ -1,6 +1,6 @@
 /**
  * Update 2's part of one cook, loaded for a screen (0.3.0): its meal type,
- * every version of its ingredients, its ratings, the household, the edits of
+ * its cuisine (schema version 5), every version of its ingredients, its ratings, the household, the edits of
  * its next-time lines, how many times the dish has been cooked, and — for a
  * cook started with "Cook this again" — what the earlier cook said.
  *
@@ -16,6 +16,7 @@ import { latestWords } from '../domain/evidence';
 import { timesCooked } from '../domain/cookRecord';
 import type {
   Cook,
+  CookCuisine,
   CookId,
   CookMealType,
   HouseholdMember,
@@ -24,6 +25,7 @@ import type {
   LessonRevision,
   Rating,
 } from '../domain/entities';
+import type { Cuisine } from '../domain/enums';
 import { useStorage } from './StorageProvider';
 
 /** What the "Last time" card shows about the cook this one came from. */
@@ -37,10 +39,14 @@ export type LastTime = {
   readonly notes: string | null;
   /** Its meal type, for the label above it. */
   readonly mealType: CookMealType | null;
+  /** Its cuisine (schema version 5). */
+  readonly cuisine: CookCuisine | null;
 };
 
 export type CookRecord = {
   readonly mealType: CookMealType | null;
+  /** Its cuisine, or `null` for none (schema version 5). */
+  readonly cuisine: CookCuisine | null;
   /** Oldest first; the last is the list as it now stands. */
   readonly ingredients: readonly IngredientVersion[];
   readonly ratings: readonly Rating[];
@@ -66,8 +72,9 @@ async function loadRecord(data: DataLayer, cookId: CookId): Promise<CookRecordLo
     if (cook === null) {
       return { status: 'failed', message: 'That cook isn’t here.' };
     }
-    const [mealType, ingredients, ratings, household, lessonRevisions] = await Promise.all([
+    const [mealType, cuisine, ingredients, ratings, household, lessonRevisions] = await Promise.all([
       data.mealTypes.findForCook(cookId),
+      data.cuisines.findForCook(cookId),
       data.ingredients.listForCook(cookId),
       data.ratings.listForCook(cookId),
       data.household.list(),
@@ -90,13 +97,14 @@ async function loadRecord(data: DataLayer, cookId: CookId): Promise<CookRecordLo
     let lastTime: LastTime | null = null;
     const parent = cook.parentCookId === null ? null : (chain.get(cook.parentCookId) ?? null);
     if (parent !== null) {
-      const [parentRatings, parentLessons, parentLessonEdits, parentRevisions, parentMeal] =
+      const [parentRatings, parentLessons, parentLessonEdits, parentRevisions, parentMeal, parentCuisine] =
         await Promise.all([
           data.ratings.listForCook(parent.id),
           data.lessons.list({ cookId: parent.id, status: 'approved', sort: 'oldest_first' }),
           data.lessonRevisions.listForCook(parent.id),
           data.revisions.listForCook(parent.id),
           data.mealTypes.findForCook(parent.id),
+          data.cuisines.findForCook(parent.id),
         ]);
       lastTime = {
         cook: parent,
@@ -108,12 +116,14 @@ async function loadRecord(data: DataLayer, cookId: CookId): Promise<CookRecordLo
           parentRevisions.filter((revision) => revision.field === 'verdict'),
         ).text,
         mealType: parentMeal,
+        cuisine: parentCuisine,
       };
     }
 
     return {
       status: 'ready',
       mealType,
+      cuisine,
       ingredients,
       ratings,
       household,
@@ -133,13 +143,21 @@ export function useCookRecord(
   record: CookRecordLoad;
   reload: () => Promise<void>;
   acceptMealType: (mealType: CookMealType | null) => void;
+  /** A cuisine as the store returned it, or cleared (`null`). */
+  acceptCuisine: (cuisine: CookCuisine | null) => void;
+  /**
+   * Set, change or clear (`null`) the cuisine, as the cook, now: rule 13
+   * decides, the store writes, and the local copy follows what was stored.
+   * Resolves with `null`, or with a message a screen can show.
+   */
+  setCuisine: (cuisine: Cuisine | null, otherWords?: string | null) => Promise<string | null>;
   acceptIngredients: (version: IngredientVersion) => void;
   /** A person's rating as the store returned it, or removed (`null`). */
   acceptRating: (rating: Rating | null, person: { memberId?: string; guestName?: string }) => void;
   acceptLessonRevision: (revision: LessonRevision) => void;
   acceptHousehold: (members: readonly HouseholdMember[]) => void;
 } {
-  const { data } = useStorage();
+  const { data, now } = useStorage();
   const [record, setRecord] = useState<CookRecordLoad>({ status: 'loading' });
 
   const reload = useCallback(async () => {
@@ -165,6 +183,25 @@ export function useCookRecord(
   const acceptMealType = useCallback(
     (mealType: CookMealType | null) => update(() => ({ mealType })),
     [update],
+  );
+  const acceptCuisine = useCallback(
+    (cuisine: CookCuisine | null) => update(() => ({ cuisine })),
+    [update],
+  );
+  const setCuisine = useCallback(
+    async (cuisine: Cuisine | null, otherWords: string | null = null): Promise<string | null> => {
+      try {
+        const decision = await data.cookRecord.setCuisine(cookId, cuisine, otherWords, 'user', now());
+        if (!decision.allowed) {
+          return decision.message;
+        }
+        acceptCuisine(decision.record);
+        return null;
+      } catch (cause: unknown) {
+        return cause instanceof Error ? cause.message : String(cause);
+      }
+    },
+    [data, cookId, now, acceptCuisine],
   );
   const acceptIngredients = useCallback(
     (version: IngredientVersion) => update((ready) => ({ ingredients: [...ready.ingredients, version] })),
@@ -197,6 +234,8 @@ export function useCookRecord(
     record,
     reload,
     acceptMealType,
+    acceptCuisine,
+    setCuisine,
     acceptIngredients,
     acceptRating,
     acceptLessonRevision,

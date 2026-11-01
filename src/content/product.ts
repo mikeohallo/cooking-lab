@@ -90,7 +90,7 @@ export const SHOW_MY_TAGS = 'Show me my tags';
 export const HIDE_MY_TAGS = 'Hide my tags';
 export const NO_TAGS_YET =
   'No tags yet. A tag is your own word for a cook — “pork chops”, “brown butter” — and you can add as many as you like.';
-export const REMOVE_TAG = 'Remove';
+export const REMOVE_TAG = 'Remove tag';
 export const TAG_FAILED_TITLE = 'That tag was not saved';
 
 // --- Search ---------------------------------------------------------------
@@ -267,3 +267,16 @@ export const atLeastStars = (stars: number): string =>
 export const CLEAR_FILTERS = 'Clear filters';
 export const FILTER_NO_RESULTS_TITLE = 'Nothing matches';
 export const FILTER_NO_RESULTS_BODY = 'No cook matches those filters. Try fewer of them.';
+
+/** Cuisine (schema version 5): the chips' group name, Other, and its field. */
+export const CUISINE_CHIPS_LABEL = 'Cuisine';
+export const CUISINE_CLEAR_HINT = 'Tap the chosen one again to clear it.';
+export const CUISINE_OTHER = 'Other';
+export const CUISINE_OTHER_FIELD_LABEL = 'Which cuisine?';
+export const CUISINE_OTHER_HINT = 'A word or two, up to 40 characters.';
+export const FILTER_CUISINE = 'Cuisine';
+/** A card with no photo of its own, showing one from an earlier time it was cooked. */
+export const CARD_PHOTO_FROM_EARLIER = 'Photo from an earlier time';
+
+/** The Next time card's label, in capitals in the copy (0.4.0). */
+export const NEXT_TIME_OVERLINE = 'NEXT TIME';

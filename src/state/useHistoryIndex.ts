@@ -1,13 +1,14 @@
 /**
  * What History's search and filters need beyond tags (0.3.0): each listed
- * cook's current ingredients and ratings, the household and every guest name
- * used before. Read once per visit, a statement per kind, like
+ * cook's current ingredients, ratings and cuisine, the household, every guest
+ * name used before and every Other cuisine's words in use. Read once per visit, a statement per kind, like
  * `useTagIndex`; nothing here writes anything.
  */
 
 import { useEffect, useState } from 'react';
 
-import type { CookId, HouseholdMember, Rating } from '../domain/entities';
+import { cuisineLabel } from '../domain/cookRecord';
+import type { CookCuisine, CookId, HouseholdMember, Rating } from '../domain/entities';
 import { useStorage } from './StorageProvider';
 
 export type HistoryIndex = {
@@ -17,6 +18,12 @@ export type HistoryIndex = {
   readonly ratingsByCook: ReadonlyMap<CookId, readonly Rating[]>;
   readonly household: readonly HouseholdMember[];
   readonly guestNames: readonly string[];
+  /** Cook id to its cuisine, for the filter (schema version 5). A cook with none is absent. */
+  readonly cuisines: Readonly<Record<CookId, CookCuisine>>;
+  /** Cook id to its cuisine in words, for the search. A cook with none is absent. */
+  readonly cuisineWordsByCook: ReadonlyMap<CookId, string>;
+  /** Every Other cuisine's words in use, for `cuisineOptions`. */
+  readonly otherCuisineWords: readonly string[];
   readonly problem: string | null;
 };
 
@@ -25,6 +32,9 @@ const EMPTY: HistoryIndex = {
   ratingsByCook: new Map(),
   household: [],
   guestNames: [],
+  cuisines: {},
+  cuisineWordsByCook: new Map(),
+  otherCuisineWords: [],
   problem: null,
 };
 
@@ -41,8 +51,10 @@ export function useHistoryIndex(cookIds: readonly CookId[], refreshToken = 0): H
       data.ratings.listForCooks(ids),
       data.household.list(),
       data.ratings.listGuestNames(),
+      data.cuisines.listForCooks(ids),
+      data.cuisines.listOtherWords(),
     ])
-      .then(([ingredients, ratings, household, guestNames]) => {
+      .then(([ingredients, ratings, household, guestNames, cuisineRows, otherCuisineWords]) => {
         if (!live) {
           return;
         }
@@ -55,11 +67,23 @@ export function useHistoryIndex(cookIds: readonly CookId[], refreshToken = 0): H
             list.push(rating);
           }
         }
+        const cuisines: Record<CookId, CookCuisine> = {};
+        const cuisineWordsByCook = new Map<CookId, string>();
+        for (const row of cuisineRows) {
+          cuisines[row.cookId] = row;
+          const words = cuisineLabel(row);
+          if (words !== null) {
+            cuisineWordsByCook.set(row.cookId, words);
+          }
+        }
         setIndex({
           ingredientsByCook: new Map(ingredients.map((version) => [version.cookId, version.text])),
           ratingsByCook,
           household,
           guestNames,
+          cuisines,
+          cuisineWordsByCook,
+          otherCuisineWords,
           problem: null,
         });
       })

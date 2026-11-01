@@ -25,6 +25,7 @@
 import type {
   ConfidenceLevel,
   CookEventKind,
+  Cuisine,
   CookStatus,
   CreatedBy,
   FindingClass,
@@ -149,6 +150,23 @@ export type Revision = {
 export type CookMealType = {
   readonly cookId: CookId;
   readonly mealType: StoredMealType;
+  readonly setAt: IsoTimestamp;
+};
+
+/**
+ * A cook's cuisine, when it has one (schema version 5).
+ *
+ * One per cook, like the meal type, and a cook with none has no row. `other`
+ * carries the cook's own words — trimmed, 1 to 40 characters — which are shown
+ * in place of a label; every other cuisine has none (`otherWords` is `null`).
+ * A label, not words the cook wrote about the dinner, so it is changed in
+ * place and not versioned.
+ */
+export type CookCuisine = {
+  readonly cookId: CookId;
+  readonly cuisine: Cuisine;
+  /** The cook's own words for an `other` cuisine; `null` for every named one. */
+  readonly otherWords: string | null;
   readonly setAt: IsoTimestamp;
 };
 
@@ -361,6 +379,8 @@ export type DatabaseSnapshot = {
   readonly householdMembers: readonly HouseholdMember[];
   readonly ratings: readonly Rating[];
   readonly lessonRevisions: readonly LessonRevision[];
+  /** Backup format 5 and later. */
+  readonly cookCuisines: readonly CookCuisine[];
 };
 
 /** The keys of `DatabaseSnapshot`, in a fixed order, for deterministic output. */
@@ -381,6 +401,7 @@ export const SNAPSHOT_ENTITY_KEYS = [
   'householdMembers',
   'ratings',
   'lessonRevisions',
+  'cookCuisines',
 ] as const;
 export type SnapshotEntityKey = (typeof SNAPSHOT_ENTITY_KEYS)[number];
 
@@ -403,5 +424,6 @@ export function emptySnapshot(): DatabaseSnapshot {
     householdMembers: [],
     ratings: [],
     lessonRevisions: [],
+    cookCuisines: [],
   };
 }

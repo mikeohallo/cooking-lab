@@ -22,6 +22,7 @@ import type {
   Briefing,
   BriefingSource,
   Cook,
+  CookCuisine,
   CookEvent,
   CookMealType,
   CookTag,
@@ -46,6 +47,7 @@ import {
   validateBriefing,
   validateBriefingSource,
   validateCook,
+  validateCookCuisine,
   validateCookEvent,
   validateCookMealType,
   validateCookTag,
@@ -65,13 +67,16 @@ import type { BackupEnvelope, BackupPhotoManifestEntry } from './contract';
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
+  FIRST_CUISINE_FORMAT_VERSION,
   FIRST_REVISIONS_FORMAT_VERSION,
   FIRST_UNTYPED_TAG_FORMAT_VERSION,
   FIRST_UPDATE_2_FORMAT_VERSION,
   SHA256_HEX_PATTERN,
+  FORMAT_5_COLLECTIONS,
   SUPPORTED_BACKUP_FORMAT_VERSIONS,
   UPDATE_2_COLLECTIONS,
 } from './contract';
+import { MEAL_TYPES_BEFORE_SIDE, isOneOf, isStoredMealType } from '../../domain/enums';
 
 export type BackupIssueCode =
   | 'not_an_object'
@@ -160,10 +165,15 @@ const RECORD_VALIDATORS: Readonly<Record<SnapshotEntityKey, RecordValidator>> = 
   householdMembers: (row) => validateHouseholdMember(row as unknown as HouseholdMember),
   ratings: (row) => validateRating(row as unknown as Rating),
   lessonRevisions: (row) => validateLessonRevision(row as unknown as LessonRevision),
+  cookCuisines: (row) => validateCookCuisine(row as unknown as CookCuisine),
 };
 
 function isUpdate2Collection(key: SnapshotEntityKey): boolean {
   return (UPDATE_2_COLLECTIONS as readonly string[]).includes(key);
+}
+
+function isFormat5Collection(key: SnapshotEntityKey): boolean {
+  return (FORMAT_5_COLLECTIONS as readonly string[]).includes(key);
 }
 
 /** The natural key of a row, used for duplicate detection and for sorting. */
@@ -185,7 +195,8 @@ function collectionKey(collection: SnapshotEntityKey, row: unknown): string {
       return [link.cookId, link.tagId].join('|');
     }
     case 'cookMealTypes':
-      // One meal type per cook: the cook is the key.
+    case 'cookCuisines':
+      // One meal type, and one cuisine, per cook: the cook is the key.
       return String((row as { cookId?: unknown }).cookId ?? '');
     case 'tags': {
       const tag = row as unknown as Tag;
@@ -290,6 +301,15 @@ export function validateBackup(candidate: unknown): BackupValidation {
       isUpdate2Collection(key) &&
       rows === undefined &&
       declaredVersion < FIRST_UPDATE_2_FORMAT_VERSION
+    ) {
+      collections.set(key, []);
+      continue;
+    }
+    // And the cuisines before format 5.
+    if (
+      isFormat5Collection(key) &&
+      rows === undefined &&
+      declaredVersion < FIRST_CUISINE_FORMAT_VERSION
     ) {
       collections.set(key, []);
       continue;
@@ -429,6 +449,38 @@ export function validateBackup(candidate: unknown): BackupValidation {
       );
     }
   }
+  // --- cuisine and Side, as format 5 carries them ---------------------------
+  for (const key of FORMAT_5_COLLECTIONS) {
+    if (formatVersion < FIRST_CUISINE_FORMAT_VERSION && (collections.get(key) ?? []).length > 0) {
+      issues.push(
+        problem(
+          `entities.${key}`,
+          'record_needs_a_later_format',
+          `${key} needs backup format ${FIRST_CUISINE_FORMAT_VERSION} or later`,
+        ),
+      );
+    }
+  }
+  if (formatVersion < FIRST_CUISINE_FORMAT_VERSION) {
+    (collections.get('cookMealTypes') ?? []).forEach((row, index) => {
+      const mealType = isRecordObject(row) ? row.mealType : undefined;
+      // A meal type this build knows that an earlier format did not: Side.
+      if (isStoredMealType(mealType) && !isOneOf(MEAL_TYPES_BEFORE_SIDE, mealType)) {
+        issues.push(
+          problem(
+            `entities.cookMealTypes[${index}].mealType`,
+            'record_needs_a_later_format',
+            `the meal type ${mealType} needs backup format ${FIRST_CUISINE_FORMAT_VERSION} or later`,
+          ),
+        );
+      }
+    });
+  }
+  (collections.get('cookCuisines') ?? []).forEach((row, index) => {
+    const cookId = isRecordObject(row) && typeof row.cookId === 'string' ? row.cookId : null;
+    checkReference(`entities.cookCuisines[${index}].cookId`, cookId, cookIds, 'cook', issues);
+  });
+
   const memberIds = collectIds(collections.get('householdMembers') ?? []);
   const lessonsById = new Map<string, Lesson>();
   for (const row of collections.get('lessons') ?? []) {
@@ -690,6 +742,7 @@ export function canonicaliseBackup(envelope: BackupEnvelope): BackupEnvelope {
     householdMembers: [...(source.householdMembers ?? [])].sort(byKey('householdMembers')),
     ratings: [...(source.ratings ?? [])].sort(byKey('ratings')),
     lessonRevisions: [...(source.lessonRevisions ?? [])].sort(byKey('lessonRevisions')),
+    cookCuisines: [...(source.cookCuisines ?? [])].sort(byKey('cookCuisines')),
   };
 
   return {
@@ -779,9 +832,10 @@ export function deserialiseBackup(text: string): BackupParseResult {
     return { ok: false, issues: validation.issues };
   }
   const envelope = parsed as BackupEnvelope;
-  // A file from before format 3 carries no edits, and one from before format
-  // 4 none of update 2's records; read each as carrying none, so every reader
-  // sees the same shape whatever version the file was.
+  // A file from before format 3 carries no edits, one from before format 4
+  // none of update 2's records, and one from before format 5 no cuisines;
+  // read each as carrying none, so every reader sees the same shape whatever
+  // version the file was.
   const given = envelope.entities as Partial<DatabaseSnapshot>;
   const entities: DatabaseSnapshot = {
     ...envelope.entities,
@@ -791,6 +845,7 @@ export function deserialiseBackup(text: string): BackupParseResult {
     householdMembers: given.householdMembers ?? [],
     ratings: given.ratings ?? [],
     lessonRevisions: given.lessonRevisions ?? [],
+    cookCuisines: given.cookCuisines ?? [],
   };
   return { ok: true, envelope: { ...envelope, entities } };
 }

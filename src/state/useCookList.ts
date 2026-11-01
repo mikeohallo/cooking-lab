@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 
 import type { CookQuery } from '../data/repositories';
-import type { Cook, CookId } from '../domain/entities';
+import type { Cook, CookCuisine, CookId } from '../domain/entities';
 import type { StoredMealType } from '../domain/enums';
 import { latestWords } from '../domain/evidence';
 import { useStorage } from './StorageProvider';
@@ -24,6 +24,8 @@ export type CookListLoad =
       readonly verdicts: Readonly<Record<CookId, string | null>>;
       /** Each listed cook's meal type, by cook. Absent for a cook with none (0.3.0). */
       readonly mealTypes: Readonly<Record<CookId, StoredMealType>>;
+      /** Each listed cook's cuisine, by cook. Absent for a cook with none (schema version 5). */
+      readonly cuisines: Readonly<Record<CookId, CookCuisine>>;
     };
 
 export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
@@ -40,10 +42,15 @@ export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
       .list(parsed)
       .then(async (cooks) => {
         const ids = cooks.map((cook) => cook.id);
-        const [edits, meals] = await Promise.all([
+        const [edits, meals, cuisineRows] = await Promise.all([
           data.revisions.listVerdictsForCooks(ids),
           data.mealTypes.listForCooks(ids),
+          data.cuisines.listForCooks(ids),
         ]);
+        const cuisines: Record<CookId, CookCuisine> = {};
+        for (const row of cuisineRows) {
+          cuisines[row.cookId] = row;
+        }
         const mealTypes: Record<CookId, StoredMealType> = {};
         for (const meal of meals) {
           mealTypes[meal.cookId] = meal.mealType;
@@ -56,7 +63,7 @@ export function useCookList(query: CookQuery, refreshToken = 0): CookListLoad {
           }
         }
         if (live) {
-          setLoad({ status: 'ready', cooks, verdicts, mealTypes });
+          setLoad({ status: 'ready', cooks, verdicts, mealTypes, cuisines });
         }
       })
       .catch((cause: unknown) => {

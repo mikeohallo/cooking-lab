@@ -87,6 +87,12 @@ export type SearchableCook = {
   readonly tags: readonly Tag[];
   /** The ingredients as they now stand, or `null` for none (0.3.0). */
   readonly ingredients?: string | null;
+  /**
+   * The cook's cuisine in words — its label, or an Other cuisine's own words
+   * (`cuisineLabel`) — or `null` for none (schema version 5). Matched like a
+   * title, from the start of a word; a result does not show it.
+   */
+  readonly cuisine?: string | null;
 };
 
 function normalise(raw: string): string {
@@ -232,11 +238,13 @@ function matchedTerms(
 ): readonly SearchTerm[] {
   const title = titleOf(entry.cook);
   const lines = ingredientLines(entry.ingredients ?? '');
+  const cuisine = entry.cuisine ?? '';
   return terms.filter(
     (term) =>
       wordStartMatches(title, term.text).length > 0 ||
       entry.tags.some((tag) => wordStartMatches(tag.name, term.text).length > 0) ||
-      lines.some((line) => wordStartMatches(line, term.text).length > 0),
+      lines.some((line) => wordStartMatches(line, term.text).length > 0) ||
+      wordStartMatches(cuisine, term.text).length > 0,
   );
 }
 
@@ -302,15 +310,20 @@ export function searchCooks(
   };
 }
 
-/** Index the tags and ingredients of several cooks by cook, for `searchCooks`. */
+/**
+ * Index the tags, ingredients and cuisines of several cooks by cook, for
+ * `searchCooks`. A cuisine is given in words (`cuisineLabel`).
+ */
 export function searchable(
   cooks: readonly Cook[],
   tagsByCook: ReadonlyMap<CookId, readonly Tag[]>,
   ingredientsByCook: ReadonlyMap<CookId, string> = new Map(),
+  cuisinesByCook: ReadonlyMap<CookId, string> = new Map(),
 ): readonly SearchableCook[] {
   return cooks.map((cook) => ({
     cook,
     tags: tagsByCook.get(cook.id) ?? [],
     ingredients: ingredientsByCook.get(cook.id) ?? null,
+    cuisine: cuisinesByCook.get(cook.id) ?? null,
   }));
 }
