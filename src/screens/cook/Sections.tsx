@@ -37,11 +37,13 @@ function readingWord(event: CookEvent): string {
 }
 
 /**
- * Readings as cards, two to a row (0.4.0): the icon in its tint, the word —
+ * Readings as cards, two to a row (0.4.0): the number under the word, or
+ * beside it where the cards are wide (the inner display turned sideways).
+ * The icon in its tint, the word —
  * Oven, Internal, never Inside, or where it was taken — and the number. In the
  * order they were taken. Times stay in the data.
  */
-export function ReadingsGrid({ readings }: { readings: readonly CookEvent[] }) {
+export function ReadingsGrid({ readings, narrow = true }: { readings: readonly CookEvent[]; narrow?: boolean }) {
   const styles = useStyles();
   return (
     <View style={styles.grid} testID="readings">
@@ -56,7 +58,7 @@ export function ReadingsGrid({ readings }: { readings: readonly CookEvent[] }) {
                   kind={kind === 'none' ? null : kind}
                   word={readingWord(event)}
                   value={formatCelsius(event)}
-                  narrow
+                  narrow={narrow}
                   valueTestID={`reading-value-${event.id}`}
                   iconTestID={kind === 'none' ? undefined : `reading-icon-${kind}`}
                   testID={`event-${event.id}`}

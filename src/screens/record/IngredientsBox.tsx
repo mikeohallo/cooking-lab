@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
+import { Zone } from '../../components/Zone';
 import { Notice } from '../../components/Notice';
 import { TextField } from '../../components/TextField';
 import {
@@ -24,6 +26,7 @@ import {
 import { currentIngredients, ingredientLines } from '../../domain/cookRecord';
 import type { IngredientVersion } from '../../domain/entities';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
+import { useKeptState } from '../../layout/KeptState';
 import { useScreenScroll } from '../../layout/ScreenScroll';
 import { makeStyles } from '../../theme/theme';
 import { size, space } from '../../theme/tokens';
@@ -51,6 +54,11 @@ type IngredientsBoxProps = {
   /** Saves a new version; resolves with a message when it was not saved. */
   onSave: (text: string) => Promise<string | null>;
   onShowVersions: (versions: readonly Version[]) => void;
+  /**
+   * The cook page's side column on the inner display (0.4.0): quiet sage, the
+   * fork and knife, "Ingredients · 12" and the list as bullets, always open.
+   */
+  asList?: boolean;
 };
 
 /** Every version but the newest, newest first, the first one marked original. */
@@ -80,12 +88,14 @@ export function IngredientsBox({
   open,
   onSave,
   onShowVersions,
+  asList = false,
 }: IngredientsBoxProps) {
   const styles = useStyles();
   const current = currentIngredients(versions);
   const startsAsField = open && current === null && !hasTimeline;
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(current?.text ?? '');
+  // Kept across folding: on the inner display the box moves to the side column.
+  const [editing, setEditing] = useKeptState(INGREDIENTS_EDITING_KEY, false);
+  const [draft, setDraft] = useKeptState(INGREDIENTS_DRAFT_KEY, current?.text ?? '');
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -120,7 +130,7 @@ export function IngredientsBox({
     const blank = draft.trim() === '';
     const tooLong = draft.length > MAX_TEXT_LENGTH;
     return (
-      <Card testID="ingredients">
+      <Shell asList={asList}>
         <View ref={editorRef} style={styles.block} testID="ingredients-editor">
           <View style={styles.headerRow}>
             <AppText variant="label" tone="inkMuted" accessibilityRole="header">
@@ -172,7 +182,7 @@ export function IngredientsBox({
             <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID="ingredients-failed" />
           ) : null}
         </View>
-      </Card>
+      </Shell>
     );
   }
 
@@ -184,7 +194,7 @@ export function IngredientsBox({
 
   if (current === null) {
     return (
-      <Card testID="ingredients">
+      <Shell asList={asList}>
         <View style={styles.headerRow}>
           <AppText variant="label" tone="inkMuted" accessibilityRole="header">
             {INGREDIENTS_TITLE}
@@ -194,21 +204,25 @@ export function IngredientsBox({
         <AppText variant="secondary" tone="inkMuted">
           {INGREDIENTS_NONE}
         </AppText>
-      </Card>
+      </Shell>
     );
   }
 
   const lines = ingredientLines(current.text);
-  const folds = foldable && hasTimeline && lines.length > FOLDED_INGREDIENT_LINES;
+  const folds = !asList && foldable && hasTimeline && lines.length > FOLDED_INGREDIENT_LINES;
   const shown = folds && !expanded ? lines.slice(0, FOLDED_INGREDIENT_LINES).join('\n') : current.text;
 
   return (
-    <Card testID="ingredients">
+    <Shell asList={asList}>
       <View style={styles.block}>
         <View style={styles.headerRow}>
-          <AppText variant="label" tone="inkMuted" accessibilityRole="header">
-            {INGREDIENTS_TITLE}
-          </AppText>
+          {asList ? (
+            <ListHeading count={lines.length} />
+          ) : (
+            <AppText variant="label" tone="inkMuted" accessibilityRole="header">
+              {INGREDIENTS_TITLE}
+            </AppText>
+          )}
           <Button
             label={INGREDIENTS_EDIT}
             variant="text"
@@ -217,9 +231,24 @@ export function IngredientsBox({
             testID="ingredients-edit"
           />
         </View>
-        <AppText variant="body" testID="ingredients-text">
-          {shown}
-        </AppText>
+        {asList ? (
+          <View style={styles.bullets} testID="ingredients-text" accessible accessibilityLabel={current.text}>
+            {lines.map((line, index) => (
+              <View key={`${index}-${line}`} style={styles.bullet}>
+                <AppText variant="body" accessibilityElementsHidden importantForAccessibility="no">
+                  {BULLET}
+                </AppText>
+                <AppText variant="body" style={styles.grow}>
+                  {line}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <AppText variant="body" testID="ingredients-text">
+            {shown}
+          </AppText>
+        )}
         <View style={styles.footerRow}>
           {folds ? (
             <Pressable
@@ -249,12 +278,64 @@ export function IngredientsBox({
           ) : null}
         </View>
       </View>
-    </Card>
+    </Shell>
+  );
+}
+
+/** Where the box keeps its words while it is being typed in, across folding. */
+export const INGREDIENTS_EDITING_KEY = 'ingredients-editing';
+export const INGREDIENTS_DRAFT_KEY = 'ingredients-draft';
+
+const BULLET = '•';
+
+/** A card on the cover display and in a pane; quiet sage in the cook page's side column. */
+function Shell({ asList, children }: { asList: boolean; children: ReactNode }) {
+  if (asList) {
+    return (
+      <Zone tone="quiet" testID="ingredients">
+        {children}
+      </Zone>
+    );
+  }
+  return <Card testID="ingredients">{children}</Card>;
+}
+
+/** The fork and knife, "Ingredients", and how many lines: "· 12". */
+function ListHeading({ count }: { count: number }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.listHeading}>
+      <Icon name="forkKnife" color="zoneIcon" size={size.icon - 2} />
+      <AppText
+        variant="bodyStrong"
+        accessibilityRole="header"
+        accessibilityLabel={`${INGREDIENTS_TITLE}, ${count}`}
+      >
+        {INGREDIENTS_TITLE}
+        <AppText variant="secondary" tone="inkMuted">{` · ${count}`}</AppText>
+      </AppText>
+    </View>
   );
 }
 
 const useStyles = makeStyles(() =>
   StyleSheet.create({
+    listHeading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.sm,
+      flexShrink: 1,
+    },
+    bullets: {
+      gap: space.xxs,
+    },
+    bullet: {
+      flexDirection: 'row',
+      gap: space.sm,
+    },
+    grow: {
+      flex: 1,
+    },
     block: {
       gap: space.xs,
     },

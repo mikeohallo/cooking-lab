@@ -8,7 +8,8 @@ import type { IngredientVersion } from '../../domain/entities';
 import { makeStyles } from '../../theme/theme';
 import { space } from '../../theme/tokens';
 import type { Version } from '../cook/VersionsSheet';
-import { IngredientsBox } from './IngredientsBox';
+import { useKeptState } from '../../layout/KeptState';
+import { INGREDIENTS_DRAFT_KEY, INGREDIENTS_EDITING_KEY, IngredientsBox } from './IngredientsBox';
 
 type IngredientsSectionProps = {
   versions: readonly IngredientVersion[];
@@ -26,8 +27,14 @@ type IngredientsSectionProps = {
  */
 export function IngredientsSection({ versions, open, startOpen, onSave, onShowVersions }: IngredientsSectionProps) {
   const styles = useStyles();
-  const [shown, setShown] = useState(startOpen);
   const current = currentIngredients(versions);
+  // Folded mid-edit from the inner display's side column: open, so the words
+  // being typed are still in sight.
+  const [editingElsewhere] = useKeptState(INGREDIENTS_EDITING_KEY, false);
+  const [draftElsewhere] = useKeptState(INGREDIENTS_DRAFT_KEY, '');
+  const [shown, setShown] = useState(
+    startOpen || editingElsewhere || (open && current === null && draftElsewhere !== ''),
+  );
   const count = current === null ? 0 : ingredientLines(current.text).length;
   return (
     <View style={styles.section}>

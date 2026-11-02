@@ -16,7 +16,7 @@ import { Icon } from '../components/Icon';
 import { CuisinePill } from '../components/CuisinePill';
 import { MealLabel } from '../components/MealLabel';
 import { NextTimeCard } from '../components/NextTimeCard';
-import { ScreenContainer } from '../components/ScreenContainer';
+import { EmbeddedPane, ScreenContainer } from '../components/ScreenContainer';
 import { RatingBadge, SectionGroup } from '../components/SectionGroup';
 import { RatingRow } from '../components/StarRating';
 import { Notice } from '../components/Notice';
@@ -73,6 +73,7 @@ import type { Cook, CookEvent, CookEventId, CookId, JsonObject, Revision } from 
 import { latestWords } from '../domain/evidence';
 import { photoPlacedWhenAdded } from '../domain/photoTime';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
+import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
 import { COOK_SIDE_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDayAndTime, formatTime } from '../format/dateTime';
@@ -113,7 +114,8 @@ type CookScreenProps = {
   inFront?: boolean;
   /**
    * Drawn inside Home's right-hand pane on the inner display (0.3.0), rather
-   * than as a screen of its own: no Back, one column, no screen container.
+   * than as a screen of its own: no Back, one column, its own scrolling area
+   * with Cook this again and Edit review pinned to the pane's foot (0.4.0).
    */
   embedded?: boolean;
 };
@@ -131,10 +133,9 @@ function Frame({
 >) {
   if (embedded) {
     return (
-      <View testID={testID}>
+      <EmbeddedPane testID={testID} footer={footer}>
         {children}
-        {footer}
-      </View>
+      </EmbeddedPane>
     );
   }
   return (
@@ -173,10 +174,15 @@ export function CookScreen({
   embedded = false,
 }: CookScreenProps) {
   const styles = useStyles();
-  // On the inner display a cook's page has two panes: the page and the
-  // composer on the left, Last time and the whole ingredients list on the
-  // right. Inside Home's pane it is one column. Part 3 redraws the inner screen.
-  const split = useLayoutMetrics().twoPane && !embedded;
+  // On the inner display a cook takes the whole screen in two columns (0.4.0):
+  // the page and the composer on the left; Next time, Last time and the whole
+  // ingredients list in a side column on the right. Sideways, Notes and Photos
+  // sit side by side. Inside Home's pane it is one column.
+  const { twoPane, sideways: turned } = useLayoutMetrics();
+  const split = twoPane && !embedded;
+  const sideways = split && turned;
+  // Words being typed, kept while a part moves between columns on folding.
+  const kept = useKeptStore();
   const back = embedded ? undefined : onBack;
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
   const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken);
@@ -358,6 +364,26 @@ export function CookScreen({
 
   const lastTime =
     ready?.lastTime ? <LastTimeCard lastTime={ready.lastTime} onOpen={onOpenCook} /> : null;
+  /** Next time: first on the page, or at the top of the side column, a size up. */
+  const nextTime = (large: boolean) => (
+    <NextTimeCard label={NEXT_TIME_OVERLINE} lines={nextTimeLines} large={large} testID="next-time-card">
+      {editedLessons.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edited. Show earlier versions"
+          onPress={() =>
+            setVersions(editedLessons.flatMap((lesson) => earlierNextTimeVersions(lesson, ready?.lessonRevisions ?? [])))
+          }
+          style={styles.link}
+          testID="next-time-edited"
+        >
+          <AppText variant="secondary" tone="link" style={styles.underline}>
+            {EDITED}
+          </AppText>
+        </Pressable>
+      ) : null}
+    </NextTimeCard>
+  );
   const notesList = (
     <NotesList
       notes={notes}
@@ -418,7 +444,7 @@ export function CookScreen({
             </View>
           ) : null}
           {/* The title can be changed on any cook, open or reviewed (0.2.2). */}
-          <EditableTitle cook={cook} onSave={saveTitle} writeState={titleWrite.state} />
+          <EditableTitle cook={cook} onSave={saveTitle} writeState={titleWrite.state} compact={twoPane} />
           <View style={styles.labels}>
             <AppText variant="secondary" tone="inkMuted" testID="times-cooked">
               {[formatDayAndTime(cook.startedAt), timesLine].filter(Boolean).join(' · ')}
@@ -469,278 +495,278 @@ export function CookScreen({
   const average = ratingAverage(ratings);
 
   return (
-    <Frame
-      embedded={embedded}
-      testID={readOnly ? 'cook-detail-screen' : 'cook-screen'}
-      side={
-        split
-          ? {
-              testID: 'cook-side',
-              children: (
-                <View style={styles.page}>
-                  {lastTime}
-                  {ready ? (
-                    <IngredientsBox
-                      versions={ready.ingredients}
-                      hasTimeline={events.length > 0}
-                      foldable={false}
-                      open={!readOnly}
-                      onSave={saveIngredients}
-                      onShowVersions={setVersions}
-                    />
-                  ) : null}
-                </View>
-              ),
-            }
-          : undefined
-      }
-      fixed={{ pane: 'side', width: COOK_SIDE_PANE_WIDTH }}
-      footer={footer}
-    >
-      {header}
-
-      <View style={styles.page} testID="timeline">
-        {photoProblem ? <PhotoProblemNotice problem={photoProblem} /> : null}
-        {againWrite.state.status === 'failed' ? (
-          <Notice title={againWrite.state.message} tone="problem" testID="cook-this-again-failed" />
-        ) : null}
-        {record.status === 'failed' ? (
-          <Notice
-            title="Part of this cook could not be loaded"
-            body={`Nothing was changed. ${record.message}`}
-            tone="problem"
-            action={{ label: RETRY, onPress: () => void reloadRecord() }}
-            testID="cook-record-failed"
-          />
-        ) : null}
-
-        {nextTimeLines.length > 0 ? (
-          <NextTimeCard label={NEXT_TIME_OVERLINE} lines={nextTimeLines} testID="next-time-card">
-            {editedLessons.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edited. Show earlier versions"
-                onPress={() =>
-                  setVersions(
-                    editedLessons.flatMap((lesson) => earlierNextTimeVersions(lesson, ready?.lessonRevisions ?? [])),
-                  )
-                }
-                style={styles.link}
-                testID="next-time-edited"
-              >
-                <AppText variant="secondary" tone="link" style={styles.underline}>
-                  {EDITED}
-                </AppText>
-              </Pressable>
-            ) : null}
-          </NextTimeCard>
-        ) : null}
-
-        {readOnly ? (
-          <>
-            {ready ? (
-              <SectionGroup
-                title={WHO_ATE_IT}
-                trailing={average ? <RatingBadge average={average.value} testID="ratings-average" /> : null}
-                testID="ratings-card"
-              >
-                <Card style={styles.tight}>
-                  {ratings.length === 0 ? (
-                    <AppText variant="secondary" tone="inkMuted" style={styles.nobody}>
-                      {LAST_TIME_NO_RATINGS}
-                    </AppText>
-                  ) : null}
-                  {ratings.map((rating, index) => {
-                    const name = raterName(rating, ready.household);
-                    return (
-                      <View key={rating.id} style={index > 0 ? styles.divided : null}>
-                        <RatingRow
-                          name={name}
-                          mark={rating.guestName !== null ? GUEST_MARK : null}
-                          line={rating.line}
-                          stars={rating.stars}
-                          notEaten={rating.notEaten}
-                          notEatenLabel={NOT_EATEN}
-                          spoken={
-                            rating.notEaten
-                              ? `${name}, didn’t eat it`
-                              : `${name}, ${rating.stars ?? 0} stars${rating.line ? `, ${rating.line}` : ''}`
-                          }
-                          testID={`rating-${rating.id}`}
-                        />
-                      </View>
-                    );
-                  })}
-                </Card>
-              </SectionGroup>
-            ) : null}
-
-            <SectionGroup title={YOUR_NOTES}>
-              <Card testID="verdict-card">
-                <View style={styles.verdictRow}>
-                  <View style={styles.noteCircle}>
-                    <Icon name="page" color="ink" size={size.iconSmall + 2} />
-                  </View>
-                  <View style={styles.grow}>
-                    {verdictNow.text !== null && verdictNow.text.trim() !== '' ? (
-                      <AppText variant="body" testID="verdict-words">
-                        {verdictNow.text}
-                      </AppText>
-                    ) : (
-                      <AppText variant="body" tone="inkMuted">
-                        {NO_NOTES}
-                      </AppText>
-                    )}
-                    {verdictNow.edited ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Edited. Show earlier versions"
-                        onPress={() =>
-                          setVersions(
-                            earlierVersions(cook.verdict, cook.reviewSavedAt ?? cook.startedAt, verdictEdits),
-                          )
-                        }
-                        style={styles.link}
-                        testID="verdict-edited"
-                      >
-                        <AppText variant="secondary" tone="link" style={styles.underline}>
-                          {EDITED}
-                        </AppText>
-                      </Pressable>
+    <KeptStateProvider store={kept}>
+      <Frame
+        embedded={embedded}
+        testID={readOnly ? 'cook-detail-screen' : 'cook-screen'}
+        side={
+          split
+            ? {
+                testID: 'cook-side',
+                surface: true,
+                children: (
+                  <View style={styles.page}>
+                    {nextTimeLines.length > 0 ? nextTime(true) : null}
+                    {readOnly ? null : lastTime}
+                    {ready ? (
+                      <IngredientsBox
+                        versions={ready.ingredients}
+                        hasTimeline={events.length > 0}
+                        foldable={false}
+                        open={!readOnly}
+                        onSave={saveIngredients}
+                        onShowVersions={setVersions}
+                        asList
+                      />
                     ) : null}
                   </View>
-                </View>
-              </Card>
-            </SectionGroup>
-
-            {ready ? (
-              <IngredientsSection
-                versions={ready.ingredients}
-                open={false}
-                startOpen={false}
-                onSave={saveIngredients}
-                onShowVersions={setVersions}
-              />
-            ) : null}
-
-            <SectionGroup title={FROM_THE_COOK}>
-              {events.length === 0 ? (
-                <AppText variant="secondary" tone="inkMuted">
-                  {NOTHING_NOTED}
-                </AppText>
-              ) : (
-                <FromTheCookCard>
-                  {readings.length > 0 ? <ReadingChips readings={readings} /> : null}
-                  {notes.length > 0 ? notesList : null}
-                  {photos.length > 0 ? <PhotoGrid photos={photos} uris={photoUris} onOpen={openPhoto} /> : null}
-                  {others.map((event) => (
-                    <OtherEntry key={event.id} event={event} />
-                  ))}
-                </FromTheCookCard>
-              )}
-            </SectionGroup>
-          </>
-        ) : (
-          <>
-            {split ? null : lastTime}
-            {split || !ready ? null : (
-              <IngredientsSection
-                versions={ready.ingredients}
-                open
-                startOpen={ready.ingredients.length === 0 && events.length === 0}
-                onSave={saveIngredients}
-                onShowVersions={setVersions}
-              />
-            )}
-            {events.length === 0 ? <Notice title={EMPTY_TIMELINE_TITLE} body={EMPTY_TIMELINE_BODY} /> : null}
-            {readings.length > 0 ? (
-              <SectionGroup title={READINGS} count={readings.length}>
-                <ReadingsGrid readings={readings} />
-              </SectionGroup>
-            ) : null}
-            {notes.length > 0 ? (
-              <SectionGroup title={NOTES} count={notes.length}>
-                <Card style={styles.tight}>{notesList}</Card>
-              </SectionGroup>
-            ) : null}
-            {photos.length > 0 ? (
-              <SectionGroup title={PHOTOS} count={photos.length}>
-                <PhotoGrid photos={photos} uris={photoUris} onOpen={openPhoto} onAdd={() => setPhotoSheet(true)} />
-              </SectionGroup>
-            ) : null}
-            {others.map((event) => (
-              <OtherEntry key={event.id} event={event} />
-            ))}
-          </>
-        )}
-      </View>
-
-      <ReadingSheet
-        opening={reading}
-        onAdd={addTemperature}
-        onClose={() => setReading(null)}
-        pending={eventWrite.state.status === 'pending'}
-        now={now}
-      />
-
-      <PhotoSourceSheet visible={photoSheet} onPick={(origin) => void addPhoto(origin)} onClose={() => setPhotoSheet(false)} />
-
-      <NoteOptionsSheet
-        note={
-          menuNote && menuWords
-            ? {
-                words: menuWords.text ?? '',
-                time: formatTime(menuNote.ts),
-                edited: menuWords.edited,
-                earlier: editsOf(menuNote).length,
-                testID: `note-${menuNote.id}`,
-                canEdit: true,
+                ),
               }
-            : null
+            : undefined
         }
-        onEdit={() => {
-          if (menuNote) {
-            setEditingNote(menuNote.id);
-          }
-          setNoteMenu(null);
-        }}
-        onVersions={() => {
-          if (menuNote) {
-            setVersions(earlierVersions(menuNote.body, menuNote.ts, editsOf(menuNote)));
-          }
-          setNoteMenu(null);
-        }}
-        onClose={() => setNoteMenu(null)}
-      />
+        fixed={{ pane: 'side', width: COOK_SIDE_PANE_WIDTH }}
+        footer={footer}
+      >
+        {header}
 
-      <PhotoViewer photo={viewing} onClose={() => setViewing(null)} onRemove={removePhoto} canRemove={!readOnly} />
-
-      <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
-
-      <CookActions
-        cook={actionsOpen ? cook : null}
-        onClose={() => setActionsOpen(false)}
-        // Deleted from its own page: go back, and the Undo is on the screen
-        // the cook lands on. Inside Home's pane, Home simply shows the next.
-        onDeleted={embedded ? undefined : onBack}
-        extra={
-          <View style={styles.export} testID="export-section">
-            <Button
-              label={EXPORT_COOK}
-              onPress={() => void exportOne.run(() => exporter.exportCook(cook.id))}
-              variant="outlined"
-              block
-              pending={exportOne.state.status === 'pending'}
-              testID="export-cook"
+        <View style={styles.page} testID="timeline">
+          {photoProblem ? <PhotoProblemNotice problem={photoProblem} /> : null}
+          {againWrite.state.status === 'failed' ? (
+            <Notice title={againWrite.state.message} tone="problem" testID="cook-this-again-failed" />
+          ) : null}
+          {record.status === 'failed' ? (
+            <Notice
+              title="Part of this cook could not be loaded"
+              body={`Nothing was changed. ${record.message}`}
+              tone="problem"
+              action={{ label: RETRY, onPress: () => void reloadRecord() }}
+              testID="cook-record-failed"
             />
-            <AppText variant="secondary" tone="inkMuted">
-              {EXPORT_COOK_HINT}
-            </AppText>
-            <ExportNotice state={exportOne.state} testID="export-cook" />
-          </View>
-        }
-      />
-    </Frame>
+          ) : null}
+
+          {nextTimeLines.length > 0 && !split ? nextTime(false) : null}
+
+          {readOnly ? (
+            <>
+              {ready ? (
+                <SectionGroup
+                  title={WHO_ATE_IT}
+                  trailing={average ? <RatingBadge average={average.value} testID="ratings-average" /> : null}
+                  testID="ratings-card"
+                >
+                  <Card style={styles.tight}>
+                    {ratings.length === 0 ? (
+                      <AppText variant="secondary" tone="inkMuted" style={styles.nobody}>
+                        {LAST_TIME_NO_RATINGS}
+                      </AppText>
+                    ) : null}
+                    {ratings.map((rating, index) => {
+                      const name = raterName(rating, ready.household);
+                      return (
+                        <View key={rating.id} style={index > 0 ? styles.divided : null}>
+                          <RatingRow
+                            name={name}
+                            mark={rating.guestName !== null ? GUEST_MARK : null}
+                            line={rating.line}
+                            stars={rating.stars}
+                            notEaten={rating.notEaten}
+                            notEatenLabel={NOT_EATEN}
+                            spoken={
+                              rating.notEaten
+                                ? `${name}, didn’t eat it`
+                                : `${name}, ${rating.stars ?? 0} stars${rating.line ? `, ${rating.line}` : ''}`
+                            }
+                            testID={`rating-${rating.id}`}
+                          />
+                        </View>
+                      );
+                    })}
+                  </Card>
+                </SectionGroup>
+              ) : null}
+
+              <SectionGroup title={YOUR_NOTES}>
+                <Card testID="verdict-card">
+                  <View style={styles.verdictRow}>
+                    <View style={styles.noteCircle}>
+                      <Icon name="page" color="ink" size={size.iconSmall + 2} />
+                    </View>
+                    <View style={styles.grow}>
+                      {verdictNow.text !== null && verdictNow.text.trim() !== '' ? (
+                        <AppText variant="body" testID="verdict-words">
+                          {verdictNow.text}
+                        </AppText>
+                      ) : (
+                        <AppText variant="body" tone="inkMuted">
+                          {NO_NOTES}
+                        </AppText>
+                      )}
+                      {verdictNow.edited ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Edited. Show earlier versions"
+                          onPress={() =>
+                            setVersions(
+                              earlierVersions(cook.verdict, cook.reviewSavedAt ?? cook.startedAt, verdictEdits),
+                            )
+                          }
+                          style={styles.link}
+                          testID="verdict-edited"
+                        >
+                          <AppText variant="secondary" tone="link" style={styles.underline}>
+                            {EDITED}
+                          </AppText>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                </Card>
+              </SectionGroup>
+
+              {ready && !split ? (
+                <IngredientsSection
+                  versions={ready.ingredients}
+                  open={false}
+                  startOpen={false}
+                  onSave={saveIngredients}
+                  onShowVersions={setVersions}
+                />
+              ) : null}
+
+              <SectionGroup title={FROM_THE_COOK}>
+                {events.length === 0 ? (
+                  <AppText variant="secondary" tone="inkMuted">
+                    {NOTHING_NOTED}
+                  </AppText>
+                ) : (
+                  <FromTheCookCard>
+                    {readings.length > 0 ? <ReadingChips readings={readings} /> : null}
+                    {notes.length > 0 ? notesList : null}
+                    {photos.length > 0 ? <PhotoGrid photos={photos} uris={photoUris} onOpen={openPhoto} /> : null}
+                    {others.map((event) => (
+                      <OtherEntry key={event.id} event={event} />
+                    ))}
+                  </FromTheCookCard>
+                )}
+              </SectionGroup>
+            </>
+          ) : (
+            <>
+              {split ? null : lastTime}
+              {split || !ready ? null : (
+                <IngredientsSection
+                  versions={ready.ingredients}
+                  open
+                  startOpen={ready.ingredients.length === 0 && events.length === 0}
+                  onSave={saveIngredients}
+                  onShowVersions={setVersions}
+                />
+              )}
+              {events.length === 0 ? <Notice title={EMPTY_TIMELINE_TITLE} body={EMPTY_TIMELINE_BODY} /> : null}
+              {readings.length > 0 ? (
+                <SectionGroup title={READINGS} count={readings.length}>
+                  <ReadingsGrid readings={readings} narrow={!sideways} />
+                </SectionGroup>
+              ) : null}
+              {/* Notes and Photos: stacked, or side by side with the inner
+                  display turned. The same views either way, so turning never
+                  draws a note being edited afresh. */}
+              <View style={sideways ? styles.beside : styles.stacked} testID="notes-and-photos">
+                {notes.length > 0 ? (
+                  <View style={sideways ? styles.half : null} testID="notes-column">
+                    <SectionGroup title={NOTES} count={notes.length}>
+                      <Card style={styles.tight}>{notesList}</Card>
+                    </SectionGroup>
+                  </View>
+                ) : null}
+                {photos.length > 0 ? (
+                  <View style={sideways ? styles.half : null} testID="photos-column">
+                    <SectionGroup title={PHOTOS} count={photos.length}>
+                      <PhotoGrid
+                        photos={photos}
+                        uris={photoUris}
+                        onOpen={openPhoto}
+                        onAdd={() => setPhotoSheet(true)}
+                        columns={sideways ? 2 : split ? 3 : 4}
+                      />
+                    </SectionGroup>
+                  </View>
+                ) : null}
+              </View>
+              {others.map((event) => (
+                <OtherEntry key={event.id} event={event} />
+              ))}
+            </>
+          )}
+        </View>
+
+        <ReadingSheet
+          opening={reading}
+          onAdd={addTemperature}
+          onClose={() => setReading(null)}
+          pending={eventWrite.state.status === 'pending'}
+          now={now}
+        />
+
+        <PhotoSourceSheet visible={photoSheet} onPick={(origin) => void addPhoto(origin)} onClose={() => setPhotoSheet(false)} />
+
+        <NoteOptionsSheet
+          note={
+            menuNote && menuWords
+              ? {
+                  words: menuWords.text ?? '',
+                  time: formatTime(menuNote.ts),
+                  edited: menuWords.edited,
+                  earlier: editsOf(menuNote).length,
+                  testID: `note-${menuNote.id}`,
+                  canEdit: true,
+                }
+              : null
+          }
+          onEdit={() => {
+            if (menuNote) {
+              setEditingNote(menuNote.id);
+            }
+            setNoteMenu(null);
+          }}
+          onVersions={() => {
+            if (menuNote) {
+              setVersions(earlierVersions(menuNote.body, menuNote.ts, editsOf(menuNote)));
+            }
+            setNoteMenu(null);
+          }}
+          onClose={() => setNoteMenu(null)}
+        />
+
+        <PhotoViewer photo={viewing} onClose={() => setViewing(null)} onRemove={removePhoto} canRemove={!readOnly} />
+
+        <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
+
+        <CookActions
+          cook={actionsOpen ? cook : null}
+          onClose={() => setActionsOpen(false)}
+          // Deleted from its own page: go back, and the Undo is on the screen
+          // the cook lands on. Inside Home's pane, Home simply shows the next.
+          onDeleted={embedded ? undefined : onBack}
+          extra={
+            <View style={styles.export} testID="export-section">
+              <Button
+                label={EXPORT_COOK}
+                onPress={() => void exportOne.run(() => exporter.exportCook(cook.id))}
+                variant="outlined"
+                block
+                pending={exportOne.state.status === 'pending'}
+                testID="export-cook"
+              />
+              <AppText variant="secondary" tone="inkMuted">
+                {EXPORT_COOK_HINT}
+              </AppText>
+              <ExportNotice state={exportOne.state} testID="export-cook" />
+            </View>
+          }
+        />
+      </Frame>
+    </KeptStateProvider>
   );
 }
 
@@ -796,10 +822,12 @@ type EditableTitleProps = {
   cook: Cook;
   onSave: (title: string | null) => Promise<boolean>;
   writeState: WriteState;
+  /** The inner display: the title a size down, beside its photo. */
+  compact?: boolean;
 };
 
 /** The title, tappable to edit in place. Optional, and user-authored only. */
-function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
+function EditableTitle({ cook, onSave, writeState, compact = false }: EditableTitleProps) {
   const styles = useStyles();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cook.title ?? '');
@@ -817,7 +845,11 @@ function EditableTitle({ cook, onSave, writeState }: EditableTitleProps) {
         style={styles.titlePressable}
         testID="cook-title"
       >
-        <AppText variant="title" tone={cook.title ? 'ink' : 'inkMuted'} accessibilityRole="header">
+        <AppText
+          variant={compact ? 'titleCompact' : 'title'}
+          tone={cook.title ? 'ink' : 'inkMuted'}
+          accessibilityRole="header"
+        >
           {cook.title ?? UNTITLED_COOK}
         </AppText>
       </Pressable>
@@ -948,6 +980,18 @@ const useStyles = makeStyles(({ colors }) =>
     },
     underline: {
       textDecorationLine: 'underline',
+    },
+    stacked: {
+      gap: space.md,
+    },
+    beside: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.sm,
+    },
+    half: {
+      flex: 1,
+      minWidth: 0,
     },
     footRow: {
       flexDirection: 'row',
