@@ -67,6 +67,29 @@ export function addMember(
   };
 }
 
+/**
+ * Give someone a new name (0.4.0). Trimmed, as when they were added, and still
+ * new among the people who eat here now. Every rating they gave stays theirs:
+ * a rating points at the person, not at the name.
+ */
+export function renameMember(
+  member: HouseholdMember,
+  name: string,
+  members: readonly HouseholdMember[],
+): EvidenceDecision<HouseholdMember> {
+  const trimmed = name.trim();
+  if (trimmed === '') {
+    return refuse('Write a name first.');
+  }
+  if (trimmed.length > MAX_PERSON_NAME_LENGTH) {
+    return refuse(`Keep a name under ${MAX_PERSON_NAME_LENGTH} characters.`);
+  }
+  if (activeMembers(members).some((other) => other.id !== member.id && sameName(other.name, trimmed))) {
+    return refuse(`${trimmed} is already on the list.`);
+  }
+  return { allowed: true, record: { ...member, name: trimmed } };
+}
+
 /** Retire someone: off the review's rows, every rating they gave kept. */
 export function retireMember(
   member: HouseholdMember,

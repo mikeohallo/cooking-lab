@@ -43,7 +43,7 @@ import {
   setCuisine as setCuisineRule,
   setMealType as setMealTypeRule,
 } from '../../domain/evidence';
-import { addMember, moveMember, restoreMember, retireMember } from '../../domain/household';
+import { addMember, moveMember, renameMember, restoreMember, retireMember } from '../../domain/household';
 import type { DatabaseAdapter, SqlValue } from '../adapters';
 import type {
   CookAgainPlan,
@@ -697,6 +697,15 @@ export function createHouseholdService(household: HouseholdRepository): Househol
         return decision;
       }
       return { allowed: true, record: await household.create(decision.record) };
+    },
+
+    async rename(id, name) {
+      const member = await loadOrThrow(() => household.findById(id), 'household member', id);
+      const decision = renameMember(member, name, await household.list());
+      if (!decision.allowed) {
+        return decision;
+      }
+      return { allowed: true, record: await household.save(decision.record) };
     },
 
     async retire(id, at) {

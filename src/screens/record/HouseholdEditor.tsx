@@ -4,19 +4,24 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
 import { TextField } from '../../components/TextField';
 import {
+  ADD_SOMEONE,
+  CANCEL,
   HOUSEHOLD_ADD,
   HOUSEHOLD_NAME_PLACEHOLDER,
   MOVE_DOWN,
   MOVE_UP,
   NO_HOUSEHOLD_YET,
+  RENAME,
   RESTORE,
   RETIRE,
   RETIRED_BODY,
   RETIRED_HEADING,
+  SAVE_NAME,
 } from '../../content/product';
-import type { HouseholdMember } from '../../domain/entities';
+import type { HouseholdMember, HouseholdMemberId } from '../../domain/entities';
 import { activeMembers, retiredMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH } from '../../domain/invariants';
 import { useStorage } from '../../state/StorageProvider';
@@ -31,25 +36,29 @@ type HouseholdEditorProps = {
 };
 
 /**
- * Who usually eats (0.3.0): add a name, put the names in order, and say when
- * someone no longer eats here. Nobody is deleted — a retired person keeps
- * every rating they gave and can be brought back.
+ * Who usually eats (0.4.0): a numbered card per person with Rename and the
+ * bin, then + Add someone.
  *
- * Reordering is by Move up / Move down, one 48 dp button each, so it never
- * depends on a drag a screen reader cannot do.
+ * Nobody is deleted. The bin means "no longer eats here": the person leaves
+ * the review's rows and keeps every rating they gave, and can be brought back
+ * from the list underneath. The order is the number; it is changed with Move
+ * up and Move down, offered to a screen reader on each card.
  */
 export function HouseholdEditor({ members, onChanged, testID = 'household' }: HouseholdEditorProps) {
   const styles = useStyles();
   const { data, newId, now } = useStorage();
+  const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+  const [renaming, setRenaming] = useState<HouseholdMemberId | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const active = activeMembers(members);
   const retired = retiredMembers(members);
 
-  const run = async (work: () => Promise<string | null>) => {
+  const run = async (work: () => Promise<string | null>): Promise<boolean> => {
     if (busy) {
-      return;
+      return false;
     }
     setBusy(true);
     setProblem(null);
@@ -57,8 +66,10 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
       const failure = await work();
       setProblem(failure);
       onChanged(await data.household.list());
+      return failure === null;
     } catch (cause: unknown) {
       setProblem(cause instanceof Error ? cause.message : String(cause));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -71,8 +82,22 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
         return decision.message;
       }
       setDraft('');
+      setAdding(false);
       return null;
     });
+
+  const rename = (id: HouseholdMemberId) =>
+    void run(async () => {
+      const decision = await data.householdWorkflow.rename(id, renameDraft);
+      if (!decision.allowed) {
+        return decision.message;
+      }
+      setRenaming(null);
+      return null;
+    });
+
+  const move = (id: HouseholdMemberId, direction: 'up' | 'down') =>
+    void run(async () => (await data.householdWorkflow.move(id, direction), null));
 
   return (
     <View style={styles.block} testID={testID}>
@@ -81,67 +106,143 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
           {NO_HOUSEHOLD_YET}
         </AppText>
       ) : null}
-      {active.map((member, index) => (
-        <Card key={member.id} testID={`${testID}-member-${member.id}`}>
-          <View style={styles.memberRow}>
-            <AppText variant="bodyStrong" style={styles.name}>
-              {member.name}
-            </AppText>
-            <View style={styles.memberActions}>
-              <Arrow
-                glyph="↑"
-                label={`${MOVE_UP}: ${member.name}`}
+      {active.map((member, index) =>
+        renaming === member.id ? (
+          <Card key={member.id} testID={`${testID}-member-${member.id}`}>
+            <TextField
+              value={renameDraft}
+              onChangeText={setRenameDraft}
+              accessibilityLabel={`${RENAME}: ${member.name}`}
+              autoFocus
+              onSubmitEditing={() => rename(member.id)}
+              invalid={renameDraft.trim().length > MAX_PERSON_NAME_LENGTH}
+              helper={problem ?? undefined}
+              testID={`${testID}-rename-input-${member.id}`}
+            />
+            <View style={styles.formActions}>
+              <Button
+                label={MOVE_UP}
+                variant="outlined"
                 disabled={index === 0 || busy}
-                onPress={() => void run(async () => (await data.householdWorkflow.move(member.id, 'up'), null))}
+                onPress={() => move(member.id, 'up')}
                 testID={`${testID}-up-${member.id}`}
               />
-              <Arrow
-                glyph="↓"
-                label={`${MOVE_DOWN}: ${member.name}`}
+              <Button
+                label={MOVE_DOWN}
+                variant="outlined"
                 disabled={index === active.length - 1 || busy}
-                onPress={() => void run(async () => (await data.householdWorkflow.move(member.id, 'down'), null))}
+                onPress={() => move(member.id, 'down')}
                 testID={`${testID}-down-${member.id}`}
               />
             </View>
-          </View>
-          <Button
-            label={RETIRE}
-            variant="text"
-            accessibilityHint={`${member.name}. Their ratings are kept.`}
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                const decision = await data.householdWorkflow.retire(member.id, now());
-                return decision.allowed ? null : decision.message;
-              })
-            }
-            testID={`${testID}-retire-${member.id}`}
-            style={styles.retire}
-          />
-        </Card>
-      ))}
+            <View style={styles.formActions}>
+              <Button label={CANCEL} variant="text" onPress={() => setRenaming(null)} />
+              <Button
+                label={SAVE_NAME}
+                variant="secondary"
+                disabled={renameDraft.trim() === '' || busy}
+                onPress={() => rename(member.id)}
+                testID={`${testID}-rename-save-${member.id}`}
+              />
+            </View>
+          </Card>
+        ) : (
+          <Card
+            key={member.id}
+            testID={`${testID}-member-${member.id}`}
+            style={styles.card}
+          >
+            <View
+              style={styles.memberRow}
+              accessible={false}
+              accessibilityActions={[
+                ...(index > 0 ? [{ name: 'up', label: `${MOVE_UP}: ${member.name}` }] : []),
+                ...(index < active.length - 1 ? [{ name: 'down', label: `${MOVE_DOWN}: ${member.name}` }] : []),
+              ]}
+              onAccessibilityAction={(event) => {
+                const action = event.nativeEvent.actionName;
+                if (action === 'up' || action === 'down') {
+                  move(member.id, action);
+                }
+              }}
+              testID={`${testID}-row-${member.id}`}
+            >
+              <View style={styles.number}>
+                <AppText variant="bodyStrong">{String(index + 1)}</AppText>
+              </View>
+              <AppText variant="cardTitle" style={styles.name}>
+                {member.name}
+              </AppText>
+              <Button
+                label={RENAME}
+                variant="text"
+                accessibilityHint={member.name}
+                disabled={busy}
+                onPress={() => {
+                  setProblem(null);
+                  setRenameDraft(member.name);
+                  setRenaming(member.id);
+                }}
+                testID={`${testID}-rename-${member.id}`}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${RETIRE}: ${member.name}`}
+                accessibilityHint="Their ratings are kept, and they can be brought back"
+                accessibilityState={{ disabled: busy }}
+                disabled={busy}
+                onPress={() =>
+                  void run(async () => {
+                    const decision = await data.householdWorkflow.retire(member.id, now());
+                    return decision.allowed ? null : decision.message;
+                  })
+                }
+                style={({ pressed }) => [styles.bin, pressed && styles.pressed]}
+                testID={`${testID}-retire-${member.id}`}
+              >
+                <Icon name="trash" color="danger" size={size.icon - 2} />
+              </Pressable>
+            </View>
+          </Card>
+        ),
+      )}
 
-      <View style={styles.addRow}>
-        <View style={styles.addField}>
+      {adding ? (
+        <View style={styles.addForm} testID={`${testID}-add-form`}>
           <TextField
             value={draft}
             onChangeText={setDraft}
             placeholder={HOUSEHOLD_NAME_PLACEHOLDER}
             accessibilityLabel={HOUSEHOLD_NAME_PLACEHOLDER}
+            autoFocus
             onSubmitEditing={add}
             invalid={draft.trim().length > MAX_PERSON_NAME_LENGTH}
-            helper={problem ?? undefined}
+            helper={renaming === null ? (problem ?? undefined) : undefined}
             testID={`${testID}-name`}
           />
+          <View style={styles.formActions}>
+            <Button label={CANCEL} variant="text" onPress={() => setAdding(false)} />
+            <Button
+              label={HOUSEHOLD_ADD}
+              variant="secondary"
+              disabled={draft.trim() === '' || busy}
+              onPress={add}
+              testID={`${testID}-add`}
+            />
+          </View>
         </View>
+      ) : (
         <Button
-          label={HOUSEHOLD_ADD}
-          variant="outlined"
-          disabled={draft.trim() === '' || busy}
-          onPress={add}
-          testID={`${testID}-add`}
+          label={ADD_SOMEONE}
+          icon="plus"
+          variant="secondary"
+          onPress={() => {
+            setProblem(null);
+            setAdding(true);
+          }}
+          testID={`${testID}-add-someone`}
         />
-      </View>
+      )}
 
       {retired.length > 0 ? (
         <View style={styles.block} testID={`${testID}-retired`}>
@@ -152,7 +253,7 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
             {RETIRED_BODY}
           </AppText>
           {retired.map((member) => (
-            <View key={member.id} style={styles.memberRow}>
+            <View key={member.id} style={styles.retiredRow}>
               <AppText variant="body" tone="inkMuted" style={styles.name}>
                 {member.name}
               </AppText>
@@ -176,79 +277,54 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
   );
 }
 
-/** A 48 dp arrow with a spoken name, so reordering never depends on a drag. */
-function Arrow({
-  glyph,
-  label,
-  disabled,
-  onPress,
-  testID,
-}: {
-  glyph: string;
-  label: string;
-  disabled: boolean;
-  onPress: () => void;
-  testID: string;
-}) {
-  const styles = useStyles();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.arrow, pressed && styles.arrowPressed, disabled && styles.arrowDisabled]}
-      testID={testID}
-    >
-      <AppText variant="bodyStrong" tone="ink" importantForAccessibility="no">
-        {glyph}
-      </AppText>
-    </Pressable>
-  );
-}
-
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     block: {
-      gap: space.xs,
+      gap: space.sm,
+    },
+    card: {
+      paddingVertical: space.xs,
     },
     memberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.sm,
+    },
+    number: {
+      width: size.iconCircleInner,
+      height: size.iconCircleInner,
+      borderRadius: radius.pill,
+      backgroundColor: colors.zone,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    name: {
+      flex: 1,
+    },
+    bin: {
+      width: size.targetMin,
+      height: size.targetMin,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      backgroundColor: colors.dangerSoft,
+    },
+    retiredRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: space.xs,
     },
-    name: {
-      flexShrink: 1,
-    },
-    memberActions: {
-      flexDirection: 'row',
-      gap: space.xxs,
-    },
-    arrow: {
-      minWidth: size.targetMin,
-      minHeight: size.targetMin,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.field,
-    },
-    arrowPressed: {
-      backgroundColor: colors.surfaceRaised,
-    },
-    arrowDisabled: {
-      opacity: 0.35,
-    },
-    retire: {
-      alignSelf: 'flex-start',
-    },
-    addRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
+    addForm: {
       gap: space.xs,
     },
-    addField: {
-      flex: 1,
+    formActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      flexWrap: 'wrap',
+      gap: space.xs,
     },
   }),
 );

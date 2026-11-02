@@ -634,6 +634,8 @@ export type CookRecordService = {
 
 export type HouseholdService = {
   add(name: string, identity: { readonly id: HouseholdMemberId }, at: IsoTimestamp): Promise<EvidenceDecision<HouseholdMember>>;
+  /** A new name for someone; their ratings stay theirs (0.4.0). */
+  rename(id: HouseholdMemberId, name: string): Promise<EvidenceDecision<HouseholdMember>>;
   retire(id: HouseholdMemberId, at: IsoTimestamp): Promise<EvidenceDecision<HouseholdMember>>;
   restore(id: HouseholdMemberId): Promise<EvidenceDecision<HouseholdMember>>;
   move(id: HouseholdMemberId, direction: 'up' | 'down'): Promise<readonly HouseholdMember[]>;
