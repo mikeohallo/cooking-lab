@@ -349,8 +349,30 @@ describe('the cook page on the inner screen (11, 14)', () => {
     await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
     await screen.findByTestId('cook-side');
     await fireEvent.press(screen.getByTestId('note-n-1-more'));
-    expect(await screen.findByTestId('note-n-1-menu')).toBeOnTheScreen();
-    expect(screen.queryByText('Delete note')).toBeNull();
+    const menu = await screen.findByTestId('note-n-1-menu');
+    // Delete note last, in the danger colour (0.4.0, part 4).
+    const rows = idsInOrder(menu).filter((id) => id.startsWith('note-n-1-'));
+    expect(rows[rows.length - 1]).toBe('note-n-1-delete');
+    expect(within(menu).getByLabelText('Delete note')).toBeOnTheScreen();
+  });
+
+  it('deletes a note from the inner page at once, with Undo in the main pane, and Undo brings it back', async () => {
+    await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
+    const side = await screen.findByTestId('cook-side');
+    expect(side).toBeOnTheScreen();
+    expect(screen.getByLabelText('Notes, 2')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('note-n-1-more'));
+    await fireEvent.press(await screen.findByTestId('note-n-1-delete'));
+
+    await waitFor(() => expect(screen.queryByTestId('event-n-1')).toBeNull());
+    expect(screen.getByLabelText('Notes, 1')).toBeOnTheScreen();
+    expect(screen.getByText('Note deleted')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('cook-side')).queryByTestId('undo-bar')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('undo-delete'));
+    expect(await screen.findByTestId('event-n-1')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Notes, 2')).toBeOnTheScreen();
+    await act(async () => {});
   });
 });
 

@@ -1,6 +1,7 @@
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
+import { usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
 import { useCardPhotoUris } from '../state/useCardPhotos';
 import { useCook } from '../state/useCook';
@@ -46,6 +47,7 @@ import {
   MORE_COOK_ACTIONS,
   NEXT_TIME_OVERLINE,
   NOTES,
+  NOTE_NOT_DELETED,
   NOTHING_NOTED,
   NOT_EATEN,
   NO_NOTES,
@@ -185,7 +187,10 @@ export function CookScreen({
   const kept = useKeptStore();
   const back = embedded ? undefined : onBack;
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
-  const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken);
+  // A note deleted (0.4.0) is left out at once, while its Undo is up; when the
+  // window passes or Undo is pressed, `version` changes and the cook reloads.
+  const { pendingNote, requestDeleteNote, version: deletionVersion } = usePendingDeletion();
+  const { load, reload, acceptCook, acceptEvent, acceptRevision } = useCook(cookId, refreshToken + deletionVersion);
   const { record, acceptIngredients, reload: reloadRecord } = useCookRecord(cookId, refreshToken);
   const againWrite = useWrite();
   const eventWrite = useWrite();
@@ -194,7 +199,12 @@ export function CookScreen({
   const [photoPending, setPhotoPending] = useState(false);
   const [photoProblem, setPhotoProblem] = useState<PhotoProblem | null>(null);
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
-  const events = load.status === 'ready' ? load.events : EMPTY_EVENTS;
+  const [noteProblem, setNoteProblem] = useState<string | null>(null);
+  const loadedEvents = load.status === 'ready' ? load.events : EMPTY_EVENTS;
+  const events = useMemo(
+    () => (pendingNote === null ? loadedEvents : loadedEvents.filter((event) => event.id !== pendingNote)),
+    [loadedEvents, pendingNote],
+  );
   const photoUris = usePhotoUris(events);
   const photoCount = events.filter((event) => event.kind === 'photo').length;
   const titlePhoto = useCardPhotoUris([cookId], refreshToken * 1000 + photoCount).get(cookId) ?? null;
@@ -248,6 +258,22 @@ export function CookScreen({
   const others = events.filter((event) => event.kind === 'assistant_msg' || event.kind === 'plan');
   const editsOf = (event: CookEvent): readonly Revision[] =>
     revisions.filter((revision) => revision.cookEventId === event.id);
+
+  /**
+   * Delete note (0.4.0): no question first. The note goes from the page at
+   * once and the Undo bar offers it back; rule 14 decides.
+   */
+  const deleteNote = async (event: CookEvent): Promise<void> => {
+    setNoteMenu(null);
+    setNoteProblem(null);
+    if (editingNote === event.id) {
+      setEditingNote(null);
+    }
+    const failure = await requestDeleteNote(event.id);
+    if (failure !== null) {
+      setNoteProblem(failure);
+    }
+  };
 
   /** Save new words for a note: a new version beside the old ones. */
   const saveNote = async (event: CookEvent, text: string): Promise<string | null> => {
@@ -531,6 +557,9 @@ export function CookScreen({
 
         <View style={styles.page} testID="timeline">
           {photoProblem ? <PhotoProblemNotice problem={photoProblem} /> : null}
+          {noteProblem !== null ? (
+            <Notice title={NOTE_NOT_DELETED} body={noteProblem} tone="problem" testID="note-not-deleted" />
+          ) : null}
           {againWrite.state.status === 'failed' ? (
             <Notice title={againWrite.state.message} tone="problem" testID="cook-this-again-failed" />
           ) : null}
@@ -720,6 +749,7 @@ export function CookScreen({
                   earlier: editsOf(menuNote).length,
                   testID: `note-${menuNote.id}`,
                   canEdit: true,
+                  canDelete: true,
                 }
               : null
           }
@@ -734,6 +764,11 @@ export function CookScreen({
               setVersions(earlierVersions(menuNote.body, menuNote.ts, editsOf(menuNote)));
             }
             setNoteMenu(null);
+          }}
+          onDelete={() => {
+            if (menuNote) {
+              void deleteNote(menuNote);
+            }
           }}
           onClose={() => setNoteMenu(null)}
         />

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '../../components/AppText';
 import { BottomSheet } from '../../components/BottomSheet';
 import { Icon, type IconName } from '../../components/Icon';
-import { EARLIER_VERSIONS_SHORT, EDITED, EDIT_NOTE } from '../../content/product';
+import { DELETE_NOTE, EARLIER_VERSIONS_SHORT, EDITED, EDIT_NOTE } from '../../content/product';
 import { PaneSheet } from '../../layout/panes';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
@@ -16,24 +16,28 @@ export type NoteOptions = {
   readonly edited: boolean;
   /** How many earlier versions there are. */
   readonly earlier: number;
-  /** The note's own test id, so the sheet's rows are `<id>-edit` and `<id>-versions`. */
+  /** The note's own test id, so the sheet's rows are `<id>-edit`, `<id>-versions` and `<id>-delete`. */
   readonly testID: string;
   readonly canEdit: boolean;
+  /** Delete note, last, in the danger colour (0.4.0). */
+  readonly canDelete: boolean;
 };
 
 type NoteOptionsSheetProps = {
   note: NoteOptions | null;
   onEdit: () => void;
   onVersions: () => void;
+  onDelete: () => void;
   onClose: () => void;
 };
 
 /**
  * Note options (0.4.0): the note at the top with its time and "edited", then
- * Edit note and Earlier versions with how many. A note is never deleted — the
- * rules keep everything written down — so there is no Delete here.
+ * Edit note, Earlier versions with how many, and Delete note in the danger
+ * colour, as drawn. Delete note asks nothing more: the note goes at once and
+ * the Undo bar offers it back (rule 14).
  */
-export function NoteOptionsSheet({ note, onEdit, onVersions, onClose }: NoteOptionsSheetProps) {
+export function NoteOptionsSheet({ note, onEdit, onVersions, onDelete, onClose }: NoteOptionsSheetProps) {
   const styles = useStyles();
   return (
     <PaneSheet visible={note !== null} onRequestClose={onClose} testID="note-options">
@@ -63,6 +67,9 @@ export function NoteOptionsSheet({ note, onEdit, onVersions, onClose }: NoteOpti
                 testID={`${note.testID}-versions`}
               />
             ) : null}
+            {note.canDelete ? (
+              <OptionRow icon="trash" label={DELETE_NOTE} onPress={onDelete} testID={`${note.testID}-delete`} danger />
+            ) : null}
           </BottomSheet>
         )
       }
@@ -76,12 +83,14 @@ function OptionRow({
   detail,
   onPress,
   testID,
+  danger = false,
 }: {
   icon: IconName;
   label: string;
   detail?: string;
   onPress: () => void;
   testID: string;
+  danger?: boolean;
 }) {
   const styles = useStyles();
   return (
@@ -92,8 +101,8 @@ function OptionRow({
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       testID={testID}
     >
-      <Icon name={icon} color="ink" />
-      <AppText variant="bodyStrong" style={styles.rowLabel}>
+      <Icon name={icon} color={danger ? 'danger' : 'ink'} />
+      <AppText variant="bodyStrong" tone={danger ? 'danger' : 'ink'} style={styles.rowLabel}>
         {label}
       </AppText>
       {detail ? (

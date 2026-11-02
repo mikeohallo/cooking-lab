@@ -155,7 +155,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const window = useWindowDimensions();
   const { data, exporter, newId, now } = useStorage();
   // A cook deleted, or brought back with Undo, changes the lists too.
-  const { version } = usePendingDeletion();
+  const { version, pendingNote } = usePendingDeletion();
   const reload = refreshToken + version;
   const open = useCookList({ status: 'open', sort: 'newest_first' }, reload);
   const reviewed = useCookList({ status: 'reviewed', sort: 'newest_first' }, reload);
@@ -165,7 +165,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const openIds = openCooks.map((cook) => cook.id);
   const tagIndex = useTagIndex(ids, reload);
   const index = useHistoryIndex(ids, reload);
-  const noteCounts = useNoteCounts(openIds, reload);
+  const noteCounts = useNoteCounts(openIds, reload, pendingNote);
 
   const [typed, setTyped] = useState('');
   const [meal, setMeal] = useState<StoredMealType | null>(null);

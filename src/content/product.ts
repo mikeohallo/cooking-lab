@@ -177,6 +177,12 @@ export const MORE_COOK_ACTIONS = 'More actions for this cook';
 export const COOK_ACTIONS_CANCEL = 'Cancel';
 export const DELETE_FAILED_TITLE = 'This cook was not deleted';
 
+// --- Deleting a note (0.4.0) -----------------------------------------------
+
+export const DELETE_NOTE = 'Delete note';
+export const NOTE_DELETED = 'Note deleted';
+export const NOTE_NOT_DELETED = 'This note was not deleted';
+
 // --- Editing (0.2.2) -------------------------------------------------------
 
 export const EDIT = 'Edit';
