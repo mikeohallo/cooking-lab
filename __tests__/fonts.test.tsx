@@ -79,7 +79,8 @@ describe('the typeface', () => {
       </FontGate>,
     );
     expect(styleOf('body')).toMatchObject({ fontFamily: 'PlusJakartaSans_400Regular', fontWeight: 'normal' });
-    expect(styleOf('title')).toMatchObject({ fontFamily: 'PlusJakartaSans_700Bold' });
+    // A label is 600 since 0.4.0 part 7.
+    expect(styleOf('title')).toMatchObject({ fontFamily: 'PlusJakartaSans_600SemiBold' });
     expect(styleOf('display')).toMatchObject({ fontFamily: 'PlusJakartaSans_800ExtraBold' });
   });
 
@@ -94,7 +95,8 @@ describe('the typeface', () => {
     );
     const style = styleOf('body');
     expect(style.fontFamily).toBeUndefined();
-    expect(style.fontWeight).toBe('700');
+    // bodyStrong is 600 since 0.4.0 part 7.
+    expect(style.fontWeight).toBe('600');
   });
 
   it('keeps Android font scaling', async () => {

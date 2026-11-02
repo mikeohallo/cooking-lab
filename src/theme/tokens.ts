@@ -413,25 +413,25 @@ type TypeEntry = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'let
  * line height, weight and tracking together.
  */
 export const type = {
-  appTitle: { fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
+  appTitle: { fontSize: 26, lineHeight: 32, fontWeight: '800', letterSpacing: -0.6 },
   /** The app name on the inner screen. */
-  appTitleInner: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8 },
-  title: { fontSize: 28, lineHeight: 33, fontWeight: '800', letterSpacing: -0.6 },
-  titleCompact: { fontSize: 24, lineHeight: 29, fontWeight: '800', letterSpacing: -0.5 },
-  heading: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.3 },
-  cardTitle: { fontSize: 17, lineHeight: 22, fontWeight: '800', letterSpacing: -0.2 },
-  nextTime: { fontSize: 17, lineHeight: 25, fontWeight: '700' },
+  appTitleInner: { fontSize: 24, lineHeight: 30, fontWeight: '800', letterSpacing: -0.6 },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.5 },
+  titleCompact: { fontSize: 20, lineHeight: 26, fontWeight: '800', letterSpacing: -0.4 },
+  heading: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
+  cardTitle: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -0.2 },
+  nextTime: { fontSize: 16, lineHeight: 24, fontWeight: '600' },
   /** Next time's words in the inner screen's side column. */
-  nextTimeLarge: { fontSize: 18, lineHeight: 26, fontWeight: '700' },
-  body: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
-  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  secondary: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
-  overline: { fontSize: 13, lineHeight: 18, fontWeight: '800', letterSpacing: 1 },
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  chip: { fontSize: 14, lineHeight: 18, fontWeight: '700' },
-  button: { fontSize: 16, lineHeight: 20, fontWeight: '800' },
-  buttonMain: { fontSize: 17, lineHeight: 22, fontWeight: '800' },
-  readingNumber: { fontSize: 30, lineHeight: 34, fontWeight: '800', letterSpacing: -0.6 },
+  nextTimeLarge: { fontSize: 17, lineHeight: 25, fontWeight: '600' },
+  body: { fontSize: 16, lineHeight: 22, fontWeight: '400' },
+  bodyStrong: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  secondary: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  overline: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8 },
+  label: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  chip: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  button: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  buttonMain: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  readingNumber: { fontSize: 24, lineHeight: 28, fontWeight: '700', letterSpacing: -0.5 },
 } as const satisfies Record<string, TypeEntry>;
 
 /**
