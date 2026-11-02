@@ -292,11 +292,12 @@ describe('the screens at each size and font scale', () => {
     const controls = await screen.findByTestId('who-ate-it-member-m-you-controls');
 
     expect(styleOf('screen-main-pane').width).toBe(expected === null ? '100%' : expected.list);
-    // The name, then one group that sits beside it or wraps under it whole.
+    // The name, then one row that sits beside it or goes under it whole,
+    // and never wraps inside itself (part 6).
     const group = StyleSheet.flatten(controls.props.style);
     expect(group.flexBasis).toBe('auto');
     expect(group.flexGrow).toBe(0);
-    expect(group.minWidth).toBe(0);
+    expect(group.flexWrap).toBe('nowrap');
     // The foot: Finish review at full width, never squeezed.
     const finish = styleOf('finish-review');
     expect(finish.alignSelf).toBe('stretch');

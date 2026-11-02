@@ -378,10 +378,12 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
       gap: space.xxs,
     },
-    // The name, then the stars, N/A and pencil as one group (0.4.0, part 5).
-    // The group sits beside the name when it fits, and wraps under it as one
-    // block when it does not; only where even that line is too narrow (the
-    // cover screen) does the group wrap inside itself.
+    // The name, then the stars, N/A and pencil as one row (0.4.0, part 6).
+    // The row sits beside the name when it fits and under it when it does
+    // not, and never wraps inside itself. Where even the line under the name
+    // is too narrow, the space either side of each star closes up first
+    // (`StarButtons`, 38 down to 30 dp a star); N/A and the pencil never
+    // shrink.
     name: {
       flexGrow: 1,
       flexShrink: 1,
@@ -391,13 +393,13 @@ const useStyles = makeStyles(({ colors }) =>
       flexGrow: 0,
       flexShrink: 1,
       flexBasis: 'auto',
-      minWidth: 0,
       flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexWrap: 'nowrap',
       alignItems: 'center',
       gap: space.xxs,
     },
     pencil: {
+      flexShrink: 0,
       width: size.targetMin,
       height: size.targetMin,
       borderRadius: radius.pill,

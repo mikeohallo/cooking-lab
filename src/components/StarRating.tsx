@@ -23,6 +23,10 @@ type StarButtonsProps = {
  * Five star buttons, each 30 dp drawn in a 48 dp tall target and named "1
  * star" to "5 stars" for TalkBack. Filled in star, empty in star-empty. A tap
  * on the chosen star is the caller's to clear.
+ *
+ * Each button is 38 dp wide where there is room. In a row too narrow for
+ * that, the space either side of the star closes up, down to the star's own
+ * 30 dp, so the row stays on one line (0.4.0, part 6).
  */
 export function StarButtons({ stars, onTap, labelFor, hintFor, disabled = false, testID }: StarButtonsProps) {
   const styles = useStyles();
@@ -138,9 +142,13 @@ const useStyles = makeStyles(({ colors }) =>
     stars: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexShrink: 1,
     },
     star: {
-      width: size.starTarget,
+      flexBasis: size.starTarget,
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: size.starButton,
       minHeight: size.targetMin,
       alignItems: 'center',
       justifyContent: 'center',
@@ -153,6 +161,7 @@ const useStyles = makeStyles(({ colors }) =>
       opacity: DISABLED_OPACITY,
     },
     na: {
+      flexShrink: 0,
       minHeight: size.targetMin,
       minWidth: size.targetMin,
       paddingHorizontal: space.sm,

@@ -398,19 +398,43 @@ describe('the review on the inner screen (12, 15)', () => {
     expect(within(screen.getByTestId('screen-side-footer')).getByTestId('finish-review')).toBeOnTheScreen();
     expect(within(main).queryByTestId('finish-review')).toBeNull();
 
-    // The name, then the stars, N/A and pencil as one group, which sits
-    // beside the name when it fits and wraps under it as one block when not.
+    // The name, then the stars, N/A and pencil as one row, which sits
+    // beside the name when it fits and goes under it, whole, when not.
     const controls = StyleSheet.flatten(within(side).getByTestId('who-ate-it-member-m-you-controls').props.style);
     expect(controls.flexBasis).toBe('auto');
     expect(controls.flexGrow).toBe(0);
   });
 
-  it('lets the group wrap inside itself only as a last resort, on the cover screen', async () => {
-    mockWindow.figures = COVER;
+  it.each([
+    ['the cover screen', COVER],
+    ['the inner screen upright', UPRIGHT],
+    ['the bench upright', BENCH_UPRIGHT],
+    ['the bench sideways', BENCH_SIDEWAYS],
+  ])('keeps the stars, N/A and pencil one row that never wraps inside itself, on %s (part 6)', async (_label, figures) => {
+    mockWindow.figures = figures;
     await harness.render(<ReviewScreen cookId="cook-r" onBack={() => {}} onFinished={() => {}} />);
-    const controls = StyleSheet.flatten((await screen.findByTestId('who-ate-it-member-m-you-controls')).props.style);
-    expect(controls.flexWrap).toBe('wrap');
-    expect(controls.flexShrink).toBe(1);
+    const id = 'who-ate-it-member-m-you';
+    const flat = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props.style);
+    const row = StyleSheet.flatten((await screen.findByTestId(`${id}-controls`)).props.style);
+
+    // The person's line wraps, so the whole row can go under the name ...
+    const line = StyleSheet.flatten(screen.getByTestId(`${id}-controls`).parent?.props.style);
+    expect(line.flexWrap).toBe('wrap');
+    // ... and the row itself never does.
+    expect(row.flexDirection).toBe('row');
+    expect(row.flexWrap).toBe('nowrap');
+    expect(row.flexBasis).toBe('auto');
+
+    // Too narrow even under the name: the stars close up, 38 down to 30 dp,
+    // and N/A and the pencil keep their size.
+    const star = StyleSheet.flatten(screen.getByTestId(`${id}-star-1`).props.style);
+    expect(star.flexBasis).toBe(size.starTarget);
+    expect(star.flexShrink).toBe(1);
+    expect(star.minWidth).toBe(size.starButton);
+    expect(star.width).toBeUndefined();
+    expect(flat(`${id}-na`).flexShrink).toBe(0);
+    expect(flat(`${id}-pencil`).flexShrink).toBe(0);
+    expect(flat(`${id}-pencil`).width).toBe(size.targetMin);
   });
 });
 

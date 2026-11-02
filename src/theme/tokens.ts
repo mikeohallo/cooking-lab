@@ -373,7 +373,7 @@ export const size = {
  */
 export const widthTokens = {
   /** Touch targets: the smallest a control may be. */
-  target: ['targetMin', 'targetMain', 'starTarget', 'filterButton', 'inlineButton'],
+  target: ['targetMin', 'targetMain', 'starTarget', 'starButton', 'filterButton', 'inlineButton'],
   /** Line length: the widest text and cards may grow. */
   line: ['measure', 'column'],
   /** A pane's minimum and maximum. */
