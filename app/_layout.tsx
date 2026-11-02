@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FontGate } from '../src/state/FontGate';
@@ -42,7 +43,7 @@ function gated({ children }: { children: ReactNode }) {
  * opens once, and each screen shows the starting or failure state in place
  * until it has — never an apparently empty Home.
  */
-export default function RootLayout() {
+function AppLayout() {
   // Light or dark follows the phone, live; the system bars' icons follow it
   // too, dark on the light page and light on the dark one.
   const { name, colors } = useTheme();
@@ -65,4 +66,20 @@ export default function RootLayout() {
       </StorageProvider>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * The web preview's shell (`src/preview/`, 0.4.0 part 7), in a browser only.
+ * `Platform.OS` is a constant in each bundle, so Metro drops this require,
+ * and everything under it, from an Android bundle;
+ * `__tests__/previewNotInAndroid.test.ts` holds it to that.
+ */
+const PreviewShell: ((props: { children: ReactNode }) => ReactNode) | null =
+  Platform.OS === 'web'
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../src/preview/PreviewShell.web').PreviewShell
+    : null;
+
+export default function RootLayout() {
+  return PreviewShell === null ? <AppLayout /> : <PreviewShell><AppLayout /></PreviewShell>;
 }

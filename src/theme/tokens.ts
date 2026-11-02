@@ -20,7 +20,7 @@
  * 3:1.
  */
 
-import type { TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 import type { StoredMealType } from '../domain/enums';
 
@@ -433,6 +433,17 @@ export const type = {
   buttonMain: { fontSize: 17, lineHeight: 22, fontWeight: '800' },
   readingNumber: { fontSize: 30, lineHeight: 34, fontWeight: '800', letterSpacing: -0.6 },
 } as const satisfies Record<string, TypeEntry>;
+
+/**
+ * The web preview only (0.4.0, part 7): a browser has no font scale, so
+ * `?fontScale=` scales these rows there, once, before any style is built.
+ * `Platform.OS` is a constant in each bundle, so Metro drops this from an
+ * Android bundle, where Android scales the text itself.
+ */
+if (Platform.OS === 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../preview/typeScale.web').applyPreviewFontScale(type);
+}
 
 export type TypeStyle = keyof typeof type;
 

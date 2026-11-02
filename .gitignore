@@ -5,6 +5,8 @@ node_modules/
 .expo/
 dist/
 web-build/
+# The web preview's export (npm run preview:web). Built, never committed.
+/preview-web/
 expo-env.d.ts
 
 # --- Continuous Native Generation -------------------------------------------

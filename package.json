@@ -7,6 +7,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "preview:web": "expo export --platform web --output-dir preview-web --clear",
+    "preview:serve": "node scripts/serve-preview.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest",

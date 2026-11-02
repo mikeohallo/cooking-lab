@@ -66,7 +66,9 @@ function filesUnder(folder: string): string[] {
     if (statSync(path).isDirectory()) {
       return filesUnder(path);
     }
-    return /\.(ts|tsx)$/.test(name) ? [path] : [];
+    // Not the web preview's files (0.4.0 part 7): a browser has no font scale,
+    // and the preview's stand-in comes from its URL, never from the device.
+    return /\.(ts|tsx)$/.test(name) && !/\.web\.(ts|tsx)$/.test(name) ? [path] : [];
   });
 }
 

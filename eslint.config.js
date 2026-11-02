@@ -9,6 +9,7 @@ module.exports = [
       'ios/**',
       '.expo/**',
       'dist/**',
+      'preview-web/**',
       'coverage/**',
     ],
   },

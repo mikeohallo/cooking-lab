@@ -46,7 +46,9 @@ function sourceFilesUnder(directory: string): readonly string[] {
         walk(entryPath);
         continue;
       }
-      if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+      // A web-only file (`.web.ts`, the web preview of 0.4.0 part 7) is never in
+      // the phone's bundle; `previewNotInAndroid.test.ts` holds it there.
+      if (/\.(ts|tsx|js|jsx)$/.test(entry) && !/\.web\.(ts|tsx|js|jsx)$/.test(entry)) {
         found.push(entryPath);
       }
     }
