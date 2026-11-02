@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
 import { NotApplicableToggle, StarButtons } from '../../components/StarRating';
+import { Icon } from '../../components/Icon';
 import { TextField } from '../../components/TextField';
+import { Zone } from '../../components/Zone';
 import {
   ADD_A_LINE,
   ADD_GUEST,
@@ -16,6 +18,8 @@ import {
   NO_HOUSEHOLD_YET,
   RATING_LINE_PLACEHOLDER,
   SAVE_LINE,
+  EDIT_LINE,
+  NOT_EATEN_LINE,
   SOMEONE_ELSE,
   starsLabel,
 } from '../../content/product';
@@ -24,7 +28,10 @@ import type { RatingAnswer, RatingPerson } from '../../domain/evidence';
 import { activeMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH, MAX_RATING_LINE_LENGTH } from '../../domain/invariants';
 import { makeStyles } from '../../theme/theme';
-import { size, space } from '../../theme/tokens';
+import { radius, size, space } from '../../theme/tokens';
+
+/** "Someone else", after the + the zone draws as an icon. */
+const SOMEONE_ELSE_LABEL = SOMEONE_ELSE.replace(/^\+\s*/, '');
 
 type WhoAteItProps = {
   household: readonly HouseholdMember[];
@@ -86,9 +93,10 @@ function rowsFor(
 }
 
 /**
- * "Who ate it?" (0.3.0): a row per person who usually eats, in their order —
- * five star buttons, an N/A toggle and "+ Add a line" — and "+ Someone else"
- * for a guest named for this cook only.
+ * "Who ate it?" (0.3.0, redrawn in 0.4.0): a row per person who usually eats,
+ * in their order, on a rail — the name, five star buttons, N/A and a pencil
+ * for their own line — then "+ Someone else" for a guest named for this cook
+ * only.
  *
  * Every tap saves at once, as a tag does: nothing here waits for *Finish
  * review*, and nothing is required. A tap on the chosen star clears it. N/A
@@ -118,9 +126,18 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
           {NO_HOUSEHOLD_YET}
         </AppText>
       ) : null}
-      {rows.map((row) => (
-        <RatingRow key={row.key} row={row} onRate={onRate} testID={`${testID}-${row.key}`} />
-      ))}
+      <View>
+        {rows.map((row, index) => (
+          <RatingRow
+            key={row.key}
+            row={row}
+            first={index === 0}
+            last={index === rows.length - 1}
+            onRate={onRate}
+            testID={`${testID}-${row.key}`}
+          />
+        ))}
+      </View>
       {addingGuest ? (
         <View style={styles.guestForm} testID={`${testID}-guest-form`}>
           <TextField
@@ -137,7 +154,7 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
             <Button label={CANCEL} variant="text" onPress={() => setAddingGuest(false)} />
             <Button
               label={ADD_GUEST}
-              variant="outlined"
+              variant="secondary"
               disabled={guestDraft.trim() === '' || guestDraft.trim().length > MAX_PERSON_NAME_LENGTH}
               onPress={addGuest}
               testID={`${testID}-guest-add`}
@@ -145,13 +162,16 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
           </View>
         </View>
       ) : (
-        <Button
-          label={SOMEONE_ELSE}
-          variant="text"
+        <Zone
           onPress={() => setAddingGuest(true)}
+          accessibilityLabel={SOMEONE_ELSE_LABEL}
+          accessibilityHint="A guest, for this cook only"
           style={styles.someoneElse}
           testID={`${testID}-someone-else`}
-        />
+        >
+          <Icon name="plus" color="zoneIcon" size={size.iconSmall + 2} />
+          <AppText variant="bodyStrong">{SOMEONE_ELSE_LABEL}</AppText>
+        </Zone>
       )}
     </View>
   );
@@ -159,10 +179,14 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
 
 function RatingRow({
   row,
+  first,
+  last,
   onRate,
   testID,
 }: {
   row: Row;
+  first: boolean;
+  last: boolean;
   onRate: WhoAteItProps['onRate'];
   testID: string;
 }) {
@@ -190,93 +214,112 @@ function RatingRow({
   const tapStar = (value: number) =>
     void send({ stars: value === stars ? null : value, notEaten: false, line });
   const tapNotEaten = () => void send({ stars: null, notEaten: !notEaten, line });
+  const openLine = () => {
+    setLineDraft(line ?? '');
+    setEditingLine(true);
+  };
 
   return (
     <View style={styles.row} testID={testID}>
-      <AppText variant="bodyStrong">
-        {row.name}
-        {row.guest ? (
-          <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText>
-        ) : null}
-      </AppText>
-      <View style={styles.controls}>
-        <StarButtons
-          stars={stars}
-          onTap={tapStar}
-          labelFor={starsLabel}
-          hintFor={(value) => (value === stars ? 'Tap again to clear' : row.name)}
-          disabled={pending}
-          testID={testID}
-        />
-        <NotApplicableToggle
-          label={NOT_EATEN}
-          accessibilityLabel={NOT_EATEN_LONG}
-          on={notEaten}
-          onPress={tapNotEaten}
-          disabled={pending}
-          testID={`${testID}-na`}
-        />
+      {/* The rail: a dot per person, joined by a line. */}
+      <View style={styles.rail}>
+        <View style={[styles.railTop, first && styles.railHidden]} />
+        <View style={[styles.dot, notEaten ? styles.dotOff : styles.dotOn]} />
+        <View style={[styles.railBottom, last && styles.railHidden]} />
       </View>
-
-      {editingLine ? (
-        <View style={styles.lineForm}>
-          <TextField
-            value={lineDraft}
-            onChangeText={setLineDraft}
-            placeholder={RATING_LINE_PLACEHOLDER}
-            accessibilityLabel={`${RATING_LINE_PLACEHOLDER}, ${row.name}`}
-            autoFocus
-            invalid={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
-            testID={`${testID}-line-input`}
-          />
-          <View style={styles.formActions}>
-            <Button label={CANCEL} variant="text" onPress={() => setEditingLine(false)} />
-            <Button
-              label={SAVE_LINE}
-              variant="outlined"
-              pending={pending}
-              disabled={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
-              onPress={() =>
-                void send({ stars, notEaten, line: lineDraft }).then((saved) => {
-                  if (saved) {
-                    setEditingLine(false);
-                  }
-                })
-              }
-              testID={`${testID}-line-save`}
+      <View style={[styles.body, !last && styles.divided]}>
+        <View style={styles.controls}>
+          <AppText variant="cardTitle" tone={notEaten ? 'inkMuted' : 'ink'} style={styles.name}>
+            {row.name}
+            {row.guest ? <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText> : null}
+          </AppText>
+          <View style={styles.controlsRight}>
+            <StarButtons
+              stars={stars}
+              onTap={tapStar}
+              labelFor={starsLabel}
+              hintFor={(value) => (value === stars ? 'Tap again to clear' : row.name)}
+              disabled={pending}
+              testID={testID}
             />
+            <NotApplicableToggle
+              label={NOT_EATEN}
+              accessibilityLabel={NOT_EATEN_LONG}
+              on={notEaten}
+              onPress={tapNotEaten}
+              disabled={pending}
+              testID={`${testID}-na`}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${EDIT_LINE}, ${row.name}`}
+              onPress={openLine}
+              style={({ pressed }) => [styles.pencil, pressed && styles.pressed]}
+              testID={`${testID}-pencil`}
+            >
+              <Icon name="pencil" color="ink" size={size.iconSmall + 2} />
+            </Pressable>
           </View>
         </View>
-      ) : line !== null ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityHint="Change this line"
-          onPress={() => {
-            setLineDraft(line);
-            setEditingLine(true);
-          }}
-          style={styles.lineShown}
-          testID={`${testID}-line`}
-        >
-          <AppText variant="secondary">{`“${line}”`}</AppText>
-        </Pressable>
-      ) : (
-        <Button
-          label={ADD_A_LINE}
-          variant="text"
-          onPress={() => {
-            setLineDraft('');
-            setEditingLine(true);
-          }}
-          style={styles.addLine}
-          testID={`${testID}-add-line`}
-        />
-      )}
-      {problem ? (
-        <AppText variant="secondary" tone="danger" testID={`${testID}-failed`}>
-          {problem}
-        </AppText>
-      ) : null}
+
+        {editingLine ? (
+          <View style={styles.lineForm}>
+            <TextField
+              value={lineDraft}
+              onChangeText={setLineDraft}
+              placeholder={RATING_LINE_PLACEHOLDER}
+              accessibilityLabel={`${RATING_LINE_PLACEHOLDER}, ${row.name}`}
+              autoFocus
+              invalid={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
+              testID={`${testID}-line-input`}
+            />
+            <View style={styles.formActions}>
+              <Button label={CANCEL} variant="text" onPress={() => setEditingLine(false)} />
+              <Button
+                label={SAVE_LINE}
+                variant="secondary"
+                pending={pending}
+                disabled={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
+                onPress={() =>
+                  void send({ stars, notEaten, line: lineDraft }).then((saved) => {
+                    if (saved) {
+                      setEditingLine(false);
+                    }
+                  })
+                }
+                testID={`${testID}-line-save`}
+              />
+            </View>
+          </View>
+        ) : line !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Change this line"
+            onPress={openLine}
+            style={styles.lineShown}
+            testID={`${testID}-line`}
+          >
+            <AppText variant="secondary">{line}</AppText>
+          </Pressable>
+        ) : notEaten ? (
+          <AppText variant="secondary" tone="inkMuted" style={styles.lineShown}>
+            {NOT_EATEN_LINE}
+          </AppText>
+        ) : (
+          <Button
+            label={ADD_A_LINE}
+            variant="text"
+            onPress={openLine}
+            style={styles.addLine}
+            testID={`${testID}-add-line`}
+          />
+        )}
+        {problem ? (
+          <AppText variant="secondary" tone="danger" testID={`${testID}-failed`}>
+            {problem}
+          </AppText>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -287,9 +330,44 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.sm,
     },
     row: {
+      flexDirection: 'row',
+      gap: space.sm,
+    },
+    rail: {
+      width: size.dot + space.xxs,
+      alignItems: 'center',
+    },
+    railTop: {
+      width: size.ring,
+      height: space.md + space.xxs,
+      backgroundColor: colors.line,
+    },
+    railBottom: {
+      width: size.ring,
+      flex: 1,
+      backgroundColor: colors.line,
+    },
+    railHidden: {
+      backgroundColor: 'transparent',
+    },
+    dot: {
+      width: size.dot + 2,
+      height: size.dot + 2,
+      borderRadius: radius.pill,
+    },
+    dotOn: {
+      backgroundColor: colors.secondary,
+    },
+    dotOff: {
+      backgroundColor: colors.controlLine,
+    },
+    body: {
+      flex: 1,
       gap: space.xxs,
-      paddingVertical: space.xs,
-      borderBottomWidth: 1,
+      paddingBottom: space.xs,
+    },
+    divided: {
+      borderBottomWidth: size.hairline,
       borderBottomColor: colors.line,
     },
     controls: {
@@ -297,6 +375,24 @@ const useStyles = makeStyles(({ colors }) =>
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xxs,
+    },
+    name: {
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: size.targetMain + space.xl,
+    },
+    controlsRight: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xxs,
+    },
+    pencil: {
+      width: size.targetMin,
+      height: size.targetMin,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     pressed: {
       backgroundColor: colors.surfaceRaised,
@@ -322,6 +418,13 @@ const useStyles = makeStyles(({ colors }) =>
     },
     someoneElse: {
       alignSelf: 'flex-start',
+      minHeight: size.targetMin,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
+      borderRadius: radius.pill,
+      paddingVertical: space.xs,
+      paddingHorizontal: space.md,
     },
   }),
 );

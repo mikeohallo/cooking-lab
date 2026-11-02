@@ -1,39 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { useStorage } from '../state/StorageProvider';
+import { useCardPhotoUris } from '../state/useCardPhotos';
 import { useCook } from '../state/useCook';
 import { useCookRecord } from '../state/useCookRecord';
-import { usePhotoUris } from '../state/usePhotoUris';
 import { useWrite } from '../state/useWrite';
 import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
-import { CuisinePill } from '../components/CuisinePill';
-import { MealLabel } from '../components/MealLabel';
+import { Icon, type IconName } from '../components/Icon';
 import { ScreenContainer } from '../components/ScreenContainer';
-import { ScreenHeader } from '../components/ScreenHeader';
 import { Notice } from '../components/Notice';
 import { TextField } from '../components/TextField';
+import { TopBar } from '../components/TopBar';
 import {
-  AI_NOT_CONNECTED_BODY,
-  AI_NOT_CONNECTED_TITLE,
   BACK_TO_HOME,
-  TAGS_LABEL,
+  BACK_TO_THE_COOK,
   COOK_NOT_FOUND_BODY,
   COOK_NOT_FOUND_TITLE,
+  CUISINE_HEADING,
+  EDIT_REVIEW,
   FINISH_REVIEW,
   HOUSEHOLD_DONE,
   HOUSEHOLD_SKIP,
   NEXT_TIME,
-  NEXT_TIME_HINT,
-  RAW_EVIDENCE,
+  NEXT_TIME_SHOWN,
+  NOTES_EMPTY_ON_EDIT,
+  OPTIONAL,
   RETRY,
   REVIEW_TITLE,
-  SUGGESTIONS,
+  SAVE_REVIEW,
   TAKEAWAY_PLACEHOLDER,
   UNSAVED_KEPT,
   UNTITLED_COOK,
+  WHAT_WAS_IT,
   WHO_ATE_IT,
   WHO_USUALLY_EATS,
   WHO_USUALLY_EATS_BODY,
@@ -41,28 +42,27 @@ import {
   YOUR_NOTES_PLACEHOLDER,
 } from '../content/product';
 import { HOUSEHOLD_ASKED_KEY } from '../data/sqlite/cookRecord';
-import type { CookId, HouseholdMember } from '../domain/entities';
-import { cuisineLabel } from '../domain/cookRecord';
+import type { CookId, HouseholdMember, LessonId } from '../domain/entities';
+import { nextTimeWords, timesCookedLine } from '../domain/cookRecord';
 import type { MealType } from '../domain/enums';
 import {
   createUserLesson,
+  latestWords,
   type EvidenceDecision,
   type RatingAnswer,
   type RatingPerson,
 } from '../domain/evidence';
 import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
-import { formatDateTime } from '../format/dateTime';
+import { formatDayAndTime } from '../format/dateTime';
 import { REVIEW_RATINGS_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
-import { space } from '../theme/tokens';
-import { TimelineEvent } from './cook/TimelineEvent';
-import { VersionsSheet, earlierVersions, type Version } from './cook/VersionsSheet';
+import { radius, size, space, type ColorRole } from '../theme/tokens';
+import { CuisineChips } from './record/CuisineChips';
 import { HouseholdEditor } from './record/HouseholdEditor';
 import { MealTypeChips } from './record/MealTypeChips';
 import { WhoAteIt } from './record/WhoAteIt';
-import { TagEditor } from './tags/TagEditor';
 
 type ReviewScreenProps = {
   cookId: CookId;
@@ -72,13 +72,20 @@ type ReviewScreenProps = {
 };
 
 /**
- * Review: one large question, answered in the cook's own words.
+ * Finish review and Edit review (0.4.0, part 2): one screen.
  *
- * Entering the screen records `reviewOpenedAt` once, so the time between
- * opening and saving can later say whether a review really takes under a
- * minute. The verdict is stored exactly as typed. Suggestions are not
- * connected in this version and the screen says so calmly rather than
- * pretending an assistant ran; the cook is complete with a verdict alone.
+ * Back to the cook; the title and its photo; What was it? (the five meals);
+ * Cuisine, optional (the ten and + Other); Who ate it?, a row per person on a
+ * rail; Your notes; and Next time, in amber, "shown before you cook this
+ * again". Finish review is pinned at the foot.
+ *
+ * The meal, cuisine and ratings save as they are tapped. Your notes and Next
+ * time save with Finish review — or, on a cook already reviewed, Save review:
+ * changed words become a new version beside the old ones, never a second save
+ * over them (rule 11).
+ *
+ * Opening an open cook's review records `reviewOpenedAt` once. The verdict is
+ * stored exactly as typed; the cook is complete with nothing filled in.
  */
 export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) {
   const styles = useStyles();
@@ -89,22 +96,23 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const { load, reload, acceptCook } = useCook(cookId);
   const openWrite = useWrite();
   const saveWrite = useWrite();
-  // `null` until the person types: the field then shows whatever verdict the
-  // cook already carried, and keystrokes are never overwritten by a reload.
+  // `null` until the person types: the field shows the words the cook already
+  // carries, and keystrokes are never overwritten by a reload.
   const [verdictDraft, setVerdictDraft] = useState<string | null>(null);
   const [takeaway, setTakeaway] = useState('');
+  const [lessonDrafts, setLessonDrafts] = useState<Readonly<Record<LessonId, string>>>({});
+  const [problem, setProblem] = useState<string | null>(null);
   const [lessonProblem, setLessonProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const opened = useRef(false);
-  const [versions, setVersions] = useState<readonly Version[] | null>(null);
-  const photoUris = usePhotoUris(load.status === 'ready' ? load.events : EMPTY_EVENTS);
-  const { record, acceptMealType, acceptRating, acceptHousehold } = useCookRecord(cookId);
+  const titlePhoto = useCardPhotoUris([cookId]).get(cookId) ?? null;
+  const { record, acceptMealType, acceptRating, acceptHousehold, setCuisine } = useCookRecord(cookId);
   // "Who usually eats?" is asked the first time a review opens with nobody on
   // the list, and never again once answered or skipped.
   const [askHousehold, setAskHousehold] = useState(false);
   const asked = useRef(false);
   const { settings } = data;
-  const householdEmpty =
-    record.status === 'ready' && activeMembers(record.household).length === 0;
+  const householdEmpty = record.status === 'ready' && activeMembers(record.household).length === 0;
   useEffect(() => {
     if (!householdEmpty || asked.current) {
       return;
@@ -140,46 +148,53 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     });
   }, [load, data, now, runOpen, acceptCook]);
 
+  const bar = (
+    <TopBar
+      back={{ label: BACK_TO_THE_COOK, onPress: onBack, accessibilityLabel: 'Back' }}
+      actions={
+        <AppText variant="bodyStrong" tone="inkMuted">
+          {load.status === 'ready' && load.cook.status === 'reviewed' ? EDIT_REVIEW : REVIEW_TITLE}
+        </AppText>
+      }
+    />
+  );
+
   if (load.status === 'loading') {
-    return (
-      <ScreenContainer testID="review-loading">
-        <ScreenHeader title={REVIEW_TITLE} onBack={onBack} />
-      </ScreenContainer>
-    );
+    return <ScreenContainer testID="review-loading">{bar}</ScreenContainer>;
   }
 
-  if (load.status === 'missing') {
+  if (load.status === 'missing' || load.status === 'failed') {
+    const missing = load.status === 'missing';
     return (
-      <ScreenContainer testID="review-missing">
-        <ScreenHeader title={COOK_NOT_FOUND_TITLE} onBack={onBack} />
+      <ScreenContainer testID={missing ? 'review-missing' : 'review-failed'}>
+        {bar}
         <Notice
-          title={COOK_NOT_FOUND_TITLE}
-          body={COOK_NOT_FOUND_BODY}
+          title={missing ? COOK_NOT_FOUND_TITLE : 'This cook could not be loaded'}
+          body={missing ? COOK_NOT_FOUND_BODY : `Nothing was changed. ${load.message}`}
           tone="problem"
-          action={{ label: BACK_TO_HOME, onPress: onBack }}
+          action={
+            missing ? { label: BACK_TO_HOME, onPress: onBack } : { label: RETRY, onPress: () => void reload() }
+          }
         />
       </ScreenContainer>
     );
   }
 
-  if (load.status === 'failed') {
-    return (
-      <ScreenContainer testID="review-failed">
-        <ScreenHeader title={REVIEW_TITLE} onBack={onBack} />
-        <Notice
-          title="This cook could not be loaded"
-          body={`Nothing was changed. ${load.message}`}
-          tone="problem"
-          action={{ label: RETRY, onPress: () => void reload() }}
-        />
-      </ScreenContainer>
-    );
-  }
-
-  const { cook, events, revisions } = load;
-  const verdict = verdictDraft ?? cook.verdict ?? '';
+  const { cook, lessons, revisions } = load;
+  const editing = cook.status === 'reviewed';
+  const verdictNow = latestWords(
+    cook.verdict,
+    revisions.filter((revision) => revision.field === 'verdict'),
+  ).text;
+  const verdict = verdictDraft ?? verdictNow ?? '';
+  const lessonRevisions = record.status === 'ready' ? record.lessonRevisions : [];
+  const lessonNow = (id: LessonId) => {
+    const lesson = lessons.find((candidate) => candidate.id === id);
+    return lesson ? nextTimeWords(lesson, lessonRevisions).text : '';
+  };
   const verdictTooLong = verdict.length > MAX_TEXT_LENGTH;
   const takeawayTooLong = takeaway.trim().length > MAX_TEXT_LENGTH;
+  const lessonTooLong = Object.values(lessonDrafts).some((text) => text.length > MAX_TEXT_LENGTH);
 
   const attempt = async <T,>(
     write: () => Promise<EvidenceDecision<T>>,
@@ -206,7 +221,22 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       (rating) => acceptRating(rating, person),
     );
 
+  /** A new next-time line, as the cook's own lesson. Resolves with a message when it was not saved. */
+  const addLesson = async (text: string): Promise<string | null> => {
+    const decision = createUserLesson({ cookId: cook.id, text }, { id: newId() }, 'user', now());
+    if (!decision.allowed) {
+      return decision.message;
+    }
+    try {
+      await data.lessons.create(decision.record);
+      return null;
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  };
+
   const finish = async () => {
+    setLessonProblem(null);
     // The verdict goes to the store exactly as typed. An empty field is no
     // verdict, which the model permits: a thin record is still a record.
     const saved = await saveWrite.run(() =>
@@ -216,33 +246,81 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       return;
     }
     acceptCook(saved.record);
-
     const lessonText = takeaway.trim();
     if (lessonText !== '') {
-      const decision = createUserLesson(
-        { cookId: cook.id, text: lessonText },
-        { id: newId() },
-        'user',
-        now(),
-      );
-      if (!decision.allowed) {
-        setLessonProblem(decision.message);
-        return;
-      }
-      try {
-        await data.lessons.create(decision.record);
-      } catch (cause: unknown) {
-        setLessonProblem(cause instanceof Error ? cause.message : String(cause));
+      const failure = await addLesson(lessonText);
+      if (failure !== null) {
+        setLessonProblem(failure);
         return;
       }
     }
-
     onFinished(cook.id);
   };
 
-  const finishButton = (
+  /** Edit review: each changed field becomes a new version; nothing is written over. */
+  const saveEdits = async () => {
+    setProblem(null);
+    setLessonProblem(null);
+    setSaving(true);
+    const failures: string[] = [];
+    if (verdictDraft !== null && verdictDraft !== (verdictNow ?? '')) {
+      if (verdictDraft.trim() === '') {
+        failures.push(NOTES_EMPTY_ON_EDIT);
+      } else {
+        const failure = await attempt(
+          () => data.capture.reviseVerdict(cook.id, verdictDraft, { id: newId() }, 'user', now()),
+          () => {},
+        );
+        if (failure !== null) {
+          failures.push(failure);
+        }
+      }
+    }
+    for (const [id, text] of Object.entries(lessonDrafts)) {
+      if (text === lessonNow(id) || text.trim() === '') {
+        continue;
+      }
+      const failure = await attempt(
+        () => data.cookRecord.reviseNextTime(id, text, { id: newId() }, 'user', now()),
+        () => {},
+      );
+      if (failure !== null) {
+        failures.push(failure);
+      }
+    }
+    if (takeaway.trim() !== '') {
+      const failure = await attempt(
+        () => data.cookRecord.addNextTime(cook.id, takeaway.trim(), { id: newId() }, 'user', now()),
+        () => {},
+      );
+      if (failure !== null) {
+        failures.push(failure);
+      }
+    }
+    setSaving(false);
+    if (failures.length > 0) {
+      setProblem(failures.join(' '));
+      return;
+    }
+    onBack();
+  };
+
+  const footButton = editing ? (
+    <Button
+      label={SAVE_REVIEW}
+      icon="check"
+      variant="main"
+      size="main"
+      block
+      onPress={() => void saveEdits()}
+      disabled={verdictTooLong || takeawayTooLong || lessonTooLong}
+      pending={saving}
+      testID="save-review"
+    />
+  ) : (
     <Button
       label={FINISH_REVIEW}
+      icon="check"
       variant="main"
       size="main"
       block
@@ -255,36 +333,69 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
 
   const words = (
     <>
-      {/* Your notes and next time: in the main column, or the right-hand pane. */}
       <View style={styles.section}>
-        <AppText variant="heading">{YOUR_NOTES}</AppText>
-        <TextField
-          value={verdict}
-          onChangeText={setVerdictDraft}
-          placeholder={YOUR_NOTES_PLACEHOLDER}
-          accessibilityLabel={YOUR_NOTES}
-          multiline
-          rows={6}
-          invalid={verdictTooLong}
-          helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
-          testID="verdict-input"
-        />
+        <AppText variant="heading" accessibilityRole="header">
+          {YOUR_NOTES}
+        </AppText>
+        <View style={styles.iconRow}>
+          <IconCircle icon="page" tint="noteIcon" ink="ink" />
+          <View style={styles.grow}>
+            <TextField
+              value={verdict}
+              onChangeText={setVerdictDraft}
+              placeholder={YOUR_NOTES_PLACEHOLDER}
+              accessibilityLabel={YOUR_NOTES}
+              multiline
+              rows={3}
+              invalid={verdictTooLong}
+              helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+              testID="verdict-input"
+            />
+          </View>
+        </View>
       </View>
 
       <View style={styles.section}>
-        <AppText variant="heading">{NEXT_TIME}</AppText>
-        <TextField
-          value={takeaway}
-          onChangeText={setTakeaway}
-          placeholder={TAKEAWAY_PLACEHOLDER}
-          accessibilityLabel={NEXT_TIME}
-          accessibilityHint={NEXT_TIME_HINT}
-          multiline
-          rows={2}
-          invalid={takeawayTooLong}
-          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : NEXT_TIME_HINT}
-          testID="takeaway-input"
-        />
+        <View style={styles.iconRow}>
+          <IconCircle icon="lightbulb" tint="primary" ink="onPrimary" />
+          <View style={styles.grow}>
+            <AppText variant="heading" tone="nextInk" accessibilityRole="header">
+              {NEXT_TIME}
+            </AppText>
+            <AppText variant="secondary" tone="inkMuted">
+              {NEXT_TIME_SHOWN}
+            </AppText>
+          </View>
+        </View>
+        {editing
+          ? lessons.map((lesson) => (
+              <TextField
+                key={lesson.id}
+                tone="next"
+                value={lessonDrafts[lesson.id] ?? lessonNow(lesson.id)}
+                onChangeText={(text) => setLessonDrafts((now) => ({ ...now, [lesson.id]: text }))}
+                accessibilityLabel={NEXT_TIME}
+                multiline
+                rows={2}
+                testID={`next-time-input-${lesson.id}`}
+              />
+            ))
+          : null}
+        {!editing || lessons.length === 0 ? (
+          <TextField
+            tone="next"
+            value={takeaway}
+            onChangeText={setTakeaway}
+            placeholder={TAKEAWAY_PLACEHOLDER}
+            accessibilityLabel={NEXT_TIME}
+            accessibilityHint={NEXT_TIME_SHOWN}
+            multiline
+            rows={2}
+            invalid={takeawayTooLong}
+            helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+            testID="takeaway-input"
+          />
+        ) : null}
       </View>
     </>
   );
@@ -292,32 +403,34 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   return (
     <ScreenContainer
       testID="review-screen"
-      footer={split ? undefined : finishButton}
-      side={split ? { children: words, footer: finishButton, testID: 'review-side' } : undefined}
+      footer={split ? undefined : footButton}
+      side={split ? { children: words, footer: footButton, testID: 'review-side' } : undefined}
       fixed={{ pane: 'main', width: REVIEW_RATINGS_PANE_WIDTH }}
     >
-      <ScreenHeader
-        title={cook.title ?? UNTITLED_COOK}
-        subtitle={`${REVIEW_TITLE} · ${formatDateTime(cook.startedAt)}`}
-        onBack={onBack}
-        eyebrow={
-          record.status === 'ready' ? (
-            <View style={styles.eyebrow}>
-              <MealLabel mealType={record.mealType?.mealType ?? null} testID="review-meal-label" />
-              <CuisinePill label={cuisineLabel(record.cuisine)} testID="review-cuisine-label" />
-            </View>
-          ) : null
-        }
-      />
+      <View style={styles.header}>
+        {bar}
+        <View style={styles.titleRow}>
+          <View style={styles.grow}>
+            <AppText variant="title" accessibilityRole="header" tone={cook.title ? 'ink' : 'inkMuted'}>
+              {cook.title ?? UNTITLED_COOK}
+            </AppText>
+            <AppText variant="secondary" tone="inkMuted">
+              {[
+                formatDayAndTime(cook.startedAt),
+                record.status === 'ready' ? timesCookedLine(record.timesCooked) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </AppText>
+          </View>
+          {titlePhoto ? <Image source={{ uri: titlePhoto }} style={styles.photo} testID="review-photo" /> : null}
+        </View>
+      </View>
 
       {saveWrite.state.status === 'failed' ? (
-        <Notice
-          title={saveWrite.state.message}
-          body={UNSAVED_KEPT}
-          tone="problem"
-          testID="review-save-failed"
-        />
+        <Notice title={saveWrite.state.message} body={UNSAVED_KEPT} tone="problem" testID="review-save-failed" />
       ) : null}
+      {problem ? <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID="review-edit-failed" /> : null}
       {lessonProblem ? (
         <Notice
           title="Your verdict was saved, but the takeaway was not"
@@ -329,7 +442,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       ) : null}
 
       {record.status === 'ready' && askHousehold ? (
-        <Card testID="household-prompt">
+        <Card testID="household-prompt" style={styles.prompt}>
           <AppText variant="heading" accessibilityRole="header">
             {WHO_USUALLY_EATS}
           </AppText>
@@ -342,12 +455,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
             testID="household-prompt-editor"
           />
           <View style={styles.promptActions}>
-            <Button
-              label={HOUSEHOLD_SKIP}
-              variant="text"
-              onPress={finishAsking}
-              testID="household-prompt-skip"
-            />
+            <Button label={HOUSEHOLD_SKIP} variant="text" onPress={finishAsking} testID="household-prompt-skip" />
             <Button
               label={HOUSEHOLD_DONE}
               variant="outlined"
@@ -359,105 +467,105 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       ) : null}
 
       {record.status === 'ready' ? (
-        <View style={styles.section}>
-          <AppText variant="heading">{WHO_ATE_IT}</AppText>
-          <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
-        </View>
-      ) : null}
-
-      {record.status === 'ready' ? (
-        <View style={styles.section}>
-          <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
-        </View>
+        <>
+          <Section title={WHAT_WAS_IT}>
+            <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
+          </Section>
+          <Section title={CUISINE_HEADING} trailing={OPTIONAL}>
+            <CuisineChips value={record.cuisine} onChange={setCuisine} />
+          </Section>
+          <Section title={WHO_ATE_IT}>
+            <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
+          </Section>
+        </>
+      ) : record.status === 'failed' ? (
+        <Notice
+          title="Part of this cook could not be loaded"
+          body={`Nothing was changed. ${record.message}`}
+          tone="problem"
+          testID="review-record-failed"
+        />
       ) : null}
 
       {/* On two panes your notes and next time are in the right-hand pane. */}
       {split ? null : words}
-
-      {/*
-        Filing the cook is part of sitting down with it, so the same tag
-        control is here as on the cook's own page — the chips, the field, the
-        tags he reaches for most and the whole alphabet. This is the moment he
-        has the words for it: he has just eaten the thing.
-      */}
-      <View style={styles.section}>
-        <AppText variant="heading">{TAGS_LABEL}</AppText>
-        {/* The section title above is the heading; the control prints none. */}
-        <TagEditor cookId={cook.id} labelled={false} />
-      </View>
-
-      <View style={styles.section}>
-        <AppText variant="heading">{SUGGESTIONS}</AppText>
-        <Notice title={AI_NOT_CONNECTED_TITLE} body={AI_NOT_CONNECTED_BODY} testID="ai-unavailable" />
-      </View>
-
-      <View style={styles.section}>
-        <AppText variant="heading">{RAW_EVIDENCE}</AppText>
-        {events.length === 0 ? (
-          <Card>
-            <AppText variant="secondary" tone="inkMuted">
-              Nothing was noted during this cook. The verdict will be its record.
-            </AppText>
-          </Card>
-        ) : (
-          <View style={styles.evidence} testID="review-evidence">
-            {events.map((event) => (
-              <TimelineEvent
-                key={event.id}
-                event={event}
-                // A note shows its newest words, and "edited" opens the earlier
-                // ones; editing itself is on the cook's own page, not here.
-                note={
-                  event.kind === 'user_note'
-                    ? {
-                        revisions: revisions.filter((edit) => edit.cookEventId === event.id),
-                        editable: false,
-                        onSave: async () => null,
-                        onShowVersions: () =>
-                          setVersions(
-                            earlierVersions(
-                              event.body,
-                              event.ts,
-                              revisions.filter((edit) => edit.cookEventId === event.id),
-                            ),
-                          ),
-                      }
-                    : undefined
-                }
-                // Shown, but with no way to open one full screen and therefore
-                // no way to remove one: Review is for looking at the evidence
-                // and saying how it went, not for editing it.
-                photo={
-                  event.kind === 'photo' ? { uri: photoUris[event.id] ?? null } : undefined
-                }
-              />
-            ))}
-          </View>
-        )}
-      </View>
-
-      <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
     </ScreenContainer>
   );
 }
 
-/** A stable empty array while the cook is still loading. See `CookScreen`. */
-const EMPTY_EVENTS: readonly never[] = [];
+/** A section of the review: its heading, and on the right a quiet word ("Optional"). */
+function Section({ title, trailing, children }: { title: string; trailing?: string; children: ReactNode }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.section}>
+      <View style={styles.headingRow}>
+        <AppText variant="heading" accessibilityRole="header" style={styles.grow}>
+          {title}
+        </AppText>
+        {trailing ? (
+          <AppText variant="secondary" tone="inkMuted">
+            {trailing}
+          </AppText>
+        ) : null}
+      </View>
+      {children}
+    </View>
+  );
+}
 
-const useStyles = makeStyles(() =>
-  StyleSheet.create({
-    eyebrow: {
+/** An icon in its tinted circle, beside a heading or a field. */
+function IconCircle({ icon, tint, ink }: { icon: IconName; tint: ColorRole; ink: ColorRole }) {
+  const styles = useStyles();
+  return (
+    <View style={[styles.circle, { backgroundColor: styles.tints[tint] }]}>
+      <Icon name={icon} color={ink} size={size.iconSmall + 2} />
+    </View>
+  );
+}
+
+const useStyles = makeStyles(({ colors }) => ({
+  ...StyleSheet.create({
+    header: {
+      gap: space.sm,
+      marginBottom: space.md,
+    },
+    titleRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: space.xs,
+      gap: space.sm,
+    },
+    photo: {
+      width: size.photoTitle,
+      height: size.photoTitle,
+      borderRadius: radius.card,
+      backgroundColor: colors.surfaceRaised,
+    },
+    grow: {
+      flex: 1,
     },
     section: {
-      gap: space.xs,
+      gap: space.sm,
       marginBottom: space.lg,
     },
-    evidence: {
-      gap: space.xs,
+    headingRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: space.sm,
+    },
+    iconRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.sm,
+    },
+    circle: {
+      width: size.iconCircle,
+      height: size.iconCircle,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    prompt: {
+      marginBottom: space.lg,
     },
     promptActions: {
       flexDirection: 'row',
@@ -465,4 +573,5 @@ const useStyles = makeStyles(() =>
       gap: space.xs,
     },
   }),
-);
+  tints: colors as Readonly<Record<ColorRole, string>>,
+}));
