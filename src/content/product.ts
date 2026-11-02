@@ -232,7 +232,14 @@ export const ADD_GUEST = 'Add';
 export const ADD_A_LINE = '+ Add a line';
 export const RATING_LINE_PLACEHOLDER = 'A short line (optional)';
 export const SAVE_LINE = 'Save line';
-export const NOT_EATEN = 'N/A';
+/**
+ * "N/A", drawn as one unbreakable word (0.4.0, part 6). Word joiners (U+2060)
+ * hold the slash to both letters, so a line can never end at "N/" with "A"
+ * below it. Every N/A the app shows is this, or `notEatenCount`.
+ */
+export const NOT_EATEN = 'N\u2060/\u2060A';
+/** The number and N/A kept together by a no-break space (U+00A0): "1 N/A". */
+export const notEatenCount = (count: number): string => `${count}\u00a0${NOT_EATEN}`;
 export const NOT_EATEN_LONG = 'Didn’t eat it';
 export const GUEST_MARK = 'guest';
 export const RATING_FAILED_TITLE = 'That rating was not saved';
@@ -373,7 +380,7 @@ export const EDIT_LINE = 'Write a line';
 export const NOTES_EMPTY_ON_EDIT = 'Your notes can be changed but not emptied. The earlier words are kept.';
 
 /** Who's eating. */
-export const WHOS_EATING_INTRO = 'Everyone here is asked for stars when you review a cook. Anyone can be N/A on the day.';
+export const WHOS_EATING_INTRO = `Everyone here is asked for stars when you review a cook. Anyone can be\u00a0${NOT_EATEN} on the day.`;
 export const ADD_SOMEONE = 'Add someone';
 export const RENAME = 'Rename';
 export const SAVE_NAME = 'Save';

@@ -21,6 +21,7 @@ import {
   HOUSEHOLD_DONE,
   NEXT_TIME,
   NEXT_TIME_SHOWN,
+  NOT_EATEN,
   NOT_EATEN_LINE,
   ORIGINAL_VERSION,
   WHAT_WAS_IT,
@@ -382,7 +383,7 @@ describe('a reviewed cook, and cooking it again', () => {
     expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Lunch/Dinner');
     const ratings = await screen.findByTestId('ratings-card');
     expect(within(ratings).getByTestId('ratings-average')).toHaveTextContent('5.0');
-    expect(within(ratings).getByTestId('rating-r-2')).toHaveTextContent(/N\/A/);
+    expect(within(ratings).getByTestId('rating-r-2')).toHaveTextContent(NOT_EATEN, { exact: false });
     expect(within(screen.getByTestId('next-time-card')).getByText('Half the apricots.')).toBeOnTheScreen();
     // Next time sits above who ate it, first on the page.
     const order = inOrder().testIDs;
@@ -434,7 +435,7 @@ describe('a reviewed cook, and cooking it again', () => {
     const openIt = jest.fn();
     await harness.render(<CookScreen cookId={newId} onBack={() => {}} onReview={() => {}} onOpenCook={openIt} />);
     const card = await screen.findByTestId('last-time');
-    expect(within(card).getByTestId('last-time-average')).toHaveTextContent('5.0 · 1 rating, 1 N/A');
+    expect(within(card).getByTestId('last-time-average')).toHaveTextContent(`5.0 · 1 rating, 1 ${NOT_EATEN}`);
     // Last time's next-time line heads the new cook's page, first of all.
     const nextTime = await screen.findByTestId('next-time-card');
     expect(within(nextTime).getByText('Half the apricots.')).toBeOnTheScreen();

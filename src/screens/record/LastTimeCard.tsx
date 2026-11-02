@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../components/AppText';
 import { LastTimeCard as LastTimeCardPart } from '../../components/LastTimeCard';
-import { LAST_TIME, OPEN_LAST_TIME, YOUR_NOTES } from '../../content/product';
+import { LAST_TIME, OPEN_LAST_TIME, YOUR_NOTES, notEatenCount } from '../../content/product';
 import { nextTimeWords } from '../../domain/cookRecord';
 import type { CookId } from '../../domain/entities';
 import { formatDate } from '../../format/dateTime';
@@ -20,7 +20,8 @@ type LastTimeCardProps = {
 
 /**
  * The average of the stars given, to one place ("4.5"), and how many said
- * something: "· 2 ratings, 1 N/A". Null when nobody gave stars.
+ * something: "· 2 ratings, 1 N/A", the N/A unbreakable and held to its
+ * number (`notEatenCount`). Null when nobody gave stars.
  */
 export function ratingAverage(
   ratings: readonly { readonly stars: number | null; readonly notEaten: boolean }[],
@@ -34,7 +35,7 @@ export function ratingAverage(
   const counted = `${starred.length} ${starred.length === 1 ? 'rating' : 'ratings'}`;
   return {
     value: mean.toFixed(1),
-    summary: notApplicable > 0 ? `· ${counted}, ${notApplicable} N/A` : `· ${counted}`,
+    summary: notApplicable > 0 ? `· ${counted}, ${notEatenCount(notApplicable)}` : `· ${counted}`,
   };
 }
 
