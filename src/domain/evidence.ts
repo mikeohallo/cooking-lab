@@ -32,9 +32,11 @@
  *      the one timeline entry that can be added by accident — a thumb on the
  *      shutter, the wrong picture out of the roll — and it is the one whose
  *      removal costs the record nothing, because it carries no words. Every
- *      other entry stays: a note the cook wishes they had not written is still
- *      what they observed. The assistant may remove nothing at all, ever.
- *  11. Nothing the cook writes is lost (0.2.2). The cook may reword a note or
+ *      other entry stays as part of a kept cook, with the one exception of
+ *      rule 14: the cook may delete a note they wrote, as its own operation.
+ *      The assistant may remove nothing at all, ever.
+ *  11. Nothing the cook writes is lost unless they delete it (0.2.2; 0.4.0
+ *      names the exception, rule 14). The cook may reword a note or
  *      a verdict, and an edit never overwrites: the original stays exactly as
  *      it was first written and each edit is a new `Revision` beside it, so
  *      every earlier version can still be read. A note's own words can no
@@ -54,6 +56,13 @@
  *      place, and "didn't eat it" is never a number. From schema version 5
  *      the cook's cuisine is one of them too: set, changed or cleared by the
  *      cook on any cook, open or reviewed, and never by the assistant.
+ *  14. A written note is deleted only when its owner deletes it (0.4.0).
+ *      Like rule 12, its own operation (`deleteNote`), asked for explicitly
+ *      and offered back for a few seconds with Undo; not a wider rule 10.
+ *      Only a `user_note`: a reading, a photograph (which keeps rule 10's
+ *      Remove), the verdict, Your notes, Next time, the ingredients and the
+ *      assistant's own messages are not deletable by it. The note goes with
+ *      every earlier version of it. The assistant may delete nothing.
  *
  * `provenance` never appears in any of this. It records whether a row came from
  * live cooking or an import, and it is not a way of saying who wrote something.
@@ -145,6 +154,10 @@ export type EvidenceDenialCode =
   | 'revision_needs_words'
   /** Rule 12: the assistant tried to delete a cook. */
   | 'ai_cannot_delete_a_cook'
+  /** Rule 14: the assistant tried to delete a note. */
+  | 'ai_cannot_delete_a_note'
+  /** Rule 14: something other than a written note was offered for deletion. */
+  | 'only_a_written_note_may_be_deleted'
   /** Rule 13: a save that would change nothing. */
   | 'nothing_changed'
   /** Rule 13: a rating that is not one person's whole stars or N/A. */
@@ -553,6 +566,38 @@ export function deleteCook(cook: Cook, actor: Actor): EvidenceDecision<Cook> {
     return deny('ai_cannot_delete_a_cook', 'the assistant cannot delete a cook');
   }
   return allow(cook);
+}
+
+// ---------------------------------------------------------------------------
+// Rule 14 — a written note is deleted only by its owner
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete one note the cook wrote, with every earlier version of it (0.4.0).
+ *
+ * Its own operation, as `deleteCook` is, and not a wider `removeCookEvent`:
+ * rule 10 still lets a kept cook lose nothing but a photograph through
+ * Remove, and rule 11 still keeps every earlier version of a note that is
+ * kept. This is the cook deciding one note of theirs should go, offered back
+ * for a few seconds with Undo.
+ *
+ * Only a `user_note`. A reading is a number taken, a photograph has its own
+ * Remove, and the assistant's message and a plan are not the cook's words.
+ * The verdict, Your notes, Next time and the ingredients are not timeline
+ * entries at all, so they cannot reach here. The assistant is refused
+ * outright, whatever it names.
+ */
+export function deleteNote(event: CookEvent, actor: Actor): EvidenceDecision<CookEvent> {
+  if (actor !== 'user') {
+    return deny('ai_cannot_delete_a_note', 'the assistant cannot delete a note');
+  }
+  if (event.kind !== 'user_note') {
+    return deny(
+      'only_a_written_note_may_be_deleted',
+      'only a note you wrote can be deleted; readings and photos are not deleted this way',
+    );
+  }
+  return allow(event);
 }
 
 // ---------------------------------------------------------------------------
