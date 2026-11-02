@@ -1,6 +1,6 @@
 # Release 0.4.0 — the new look, and the cover and inner screens
 
-**Status:** built, tests green on the desktop; parts 6 and 7 not yet tried on a device
+**Status:** built, tests green on the desktop; parts 6, 7 and 8 not yet tried on a device
 **Date:** 2 November 2026
 **Version:** 0.4.0 (`versionCode` 7)
 **Schema:** version 5 · **Backup format:** version 5
@@ -11,11 +11,11 @@ Mike (product owner) approved the 0.4.0 plan and its design on 2 November
 added on 2 November at his request. A fifth, an adaptive layout and the faults
 from the first test build, followed the same day, and a sixth, four small
 fixes from the second test build, and a seventh, a web preview and a scale
-pass to normal app sizes. Parts 1 and 2 have records of their own, kept as
-they are; this is the whole release in one record, with parts 3 to 7 in
+pass to normal app sizes, and an eighth, one layout fix found in part 7's
+preview. Parts 1 and 2 have records of their own, kept as they are; this is the whole release in one record, with parts 3 to 8 in
 full. Code, tests and docs only.
 
-## The release in seven parts
+## The release in eight parts
 
 1. **The foundation and the data** (`RELEASE_0.4.0_PART1.md`, to `13432bf`).
    The design system's tokens in light and dark, following the phone's own
@@ -54,6 +54,9 @@ full. Code, tests and docs only.
    screens in a browser, on a synthetic notebook, at any size, font scale and
    theme; then type and drawn sizes brought down to Material 3's, every
    control keeping a 48 dp touch area.
+8. **Notes and Photos side by side only when there is room** (below, after
+   part 7). Side by side only when each gets 300 dp of the main column;
+   otherwise stacked, as upright.
 
 ## Part 3: what was built
 
@@ -813,3 +816,67 @@ were also looked at on 792 × 880.
 The line said no device work. How the new sizes feel in the hand, and
 whether a 32 chip's hit area ever lands on its neighbour, can only be seen on
 the Fold.
+
+## Part 8: Notes and Photos side by side only when there is room
+
+In part 7's web preview, at 823 and 880 wide sideways (`?screen=cook`), the
+cook page's main column put Notes and Photos side by side at about 230 dp
+each, and a note wrapped a word or two to a line. Code, tests and docs only.
+The version stays 0.4.0, `versionCode` 7.
+
+### The rule
+
+Notes and Photos sit side by side only when the inner screen is turned
+sideways **and** each would get at least 300 dp of the main column
+(`size.notesPhotosMin`); otherwise they stack, Notes above Photos, as
+upright. Each is half the column less half the 12 dp gap between them.
+
+The main column is worked out from the live window on every render, the same
+way as the panes: the window less the side column's share (42 %, 280 to 380),
+less a 20 dp gutter each side, never wider than a column of cards (560).
+`notesAndPhotosLayout` and `cookMainColumnWidth` in
+`src/layout/responsive.ts`; the cook page reads them with
+`useWindowDimensions`.
+
+| Window | Side column | Main column | Each, side by side | Chosen |
+|---|---|---|---|---|
+| 707 × 823 (upright) | 297 | 370 | 179 | stacked |
+| 792 × 880 (upright) | 333 | 419 | 203 | stacked |
+| 823 × 707 (sideways) | 346 | 437 | 212 | stacked |
+| 880 × 792 (sideways) | 370 | 470 | 229 | stacked |
+| 1000, either way | 380 | 560 | 274 | stacked |
+| 1200, either way | 380 | 560 | 274 | stacked |
+
+### Part 8: the decisions
+
+1. **No window puts them side by side today.** A column of cards stops at
+   560, so each half gets at most 274 dp, under 300. The rule is kept as the
+   line set it, and side by side comes back by itself if the column's limit
+   ever grows past 612. The column's limit was not changed: the line did not
+   ask for it.
+2. **Stacked sideways, the photos are three to a row,** as upright on the
+   inner screen; two to a row only when side by side.
+3. **Readings are unchanged:** the two reading cards still widen sideways.
+4. **300 is a limit, not a width,** so it lives in `src/theme/tokens.ts`
+   beside the panes' limits and is never set as a style.
+
+### Part 8: verification
+
+On the desktop: `check:secrets`, `typecheck`, `lint` (no warnings) and the
+suite pass: **89 suites, 1766 tests**, up from 88 and 1749 at part 7.
+
+| Test file | What it pins down |
+|---|---|
+| `notesAndPhotos.test.ts` (new, 17) | At 707, 792, 823, 880, 1000 and 1200 wide, upright and sideways: the side column, the main column, what each would get side by side, and the layout chosen; the column from the window; stacked on every window from 600 to 2400 |
+| `innerScreens.test.tsx` | Sideways on the Fold 8, Notes above Photos, each the whole column, photos three to a row; the bench stacked both ways |
+| `adaptiveLayout.test.tsx` | Sideways, upright, sideways: the same keys set each way, stacked throughout |
+
+In the web preview (`npm run preview:web`, `?screen=cook`) at 823 × 707 and
+880 × 792: Notes and Photos stacked, each 437 and 470 dp wide, matching the
+table; the side column 346 and 370. Each note fits on a line or two
+("Grated both apples, and didn't squeeze / them." at 823; one line at 880),
+and the photos sit three to a row.
+
+### Part 8: not tried on a device
+
+The line said no device work.
