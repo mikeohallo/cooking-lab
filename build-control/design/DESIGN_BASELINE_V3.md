@@ -184,8 +184,15 @@ cards side by side; Notes is one card with a row per note, divided by lines,
 and a count after the heading ("Notes · 2"); Photos is a grid. On a reviewed
 cook the three join under one card. Times stay in the data and are shown on a
 long press or in the photo viewer, not on the page. On the inner screen a side
-column keeps Next time at the top, then Last time and Ingredients; upright,
-Notes and Photos stack, sideways they sit side by side.
+column keeps Next time at the top, then Last time and Ingredients. Notes and
+Photos stack, Notes above Photos, unless the screen is turned sideways **and**
+each would get at least 300 dp of the main column (`notes-photos-min`,
+0.4.0 part 8); only then do they sit side by side, the photos two to a row.
+The main column comes from the live window, as the panes do: the window less
+the side column's share, less the gutters, never wider than a column of
+cards (560). So today they stack on every window: side by side each would
+get at most 274 dp. Why: at about 230 dp each, sideways on the Fold, a note
+wrapped a word or two to a line.
 
 The composer is pinned to the foot: the Oven °C and Internal °C chips, then one
 rounded field holding the camera, the note and Send (an orange circle with an
