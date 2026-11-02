@@ -10,7 +10,15 @@ export default function HomeRoute() {
   const refreshToken = useFocusRefresh();
 
   const openCook = useCallback((cookId: CookId) => router.push(`/cook/${cookId}`), [router]);
+  const openReview = useCallback((cookId: CookId) => router.push(`/cook/${cookId}/review`), [router]);
   const goToHousehold = useCallback(() => router.push('/household'), [router]);
 
-  return <HomeScreen onOpenCook={openCook} onHousehold={goToHousehold} refreshToken={refreshToken} />;
+  return (
+    <HomeScreen
+      onOpenCook={openCook}
+      onReview={openReview}
+      onHousehold={goToHousehold}
+      refreshToken={refreshToken}
+    />
+  );
 }

@@ -73,6 +73,8 @@ import { starredRatings } from './home/ratingsLine';
 
 type HomeScreenProps = {
   onOpenCook: (cookId: CookId) => void;
+  /** Opens a reviewed cook's Edit review (0.4.0, part 5): Edit review in the right-hand pane. */
+  onReview?: (cookId: CookId) => void;
   /** Opens "Who's eating" (0.3.0). */
   onHousehold?: () => void;
   /** Bumped by the route when the screen regains focus, to reload. */
@@ -143,14 +145,19 @@ export function entriesFor(
  * cook's page, so coming back finds the same page where it was left.
  *
  * On the inner display (0.4.0, part 3), upright or sideways, all of that is
- * the left-hand pane, `pane-list` wide, with the meal chips on two rows and
- * New Cook floating at its foot. The right-hand pane is the chosen cook's
+ * the left-hand pane (45% of the window, 320 to 400), with the meal chips
+ * wrapped and New Cook docked at its foot. The right-hand pane is the chosen cook's
  * page, as on the cover screen, with Cook this again and Edit review pinned
  * at its foot; the chosen card has the teal edge. With nothing chosen it is
  * the most recent cook, or a quiet notice when there is none. An open cook
  * still opens on its own page, full screen.
  */
-export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
+export function HomeScreen({
+  onOpenCook,
+  onReview = onOpenCook,
+  onHousehold = () => {},
+  refreshToken = 0,
+}: HomeScreenProps) {
   const styles = useStyles();
   const window = useWindowDimensions();
   const { data, exporter, newId, now } = useStorage();
@@ -304,7 +311,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
                   cookId={chosen}
                   embedded
                   onBack={() => {}}
-                  onReview={onOpenCook}
+                  onReview={onReview}
                   onOpenCook={onOpenCook}
                   refreshToken={reload}
                 />
