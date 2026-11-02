@@ -117,6 +117,10 @@ const useStyles = makeStyles(({ colors }) =>
       borderColor: 'transparent',
       paddingHorizontal: space.ml,
       alignSelf: 'flex-start',
+      // Never squeezed below its words (0.4.0, part 5): a row that has no
+      // room wraps it onto a line of its own instead.
+      flexShrink: 0,
+      maxWidth: '100%',
     },
     sizeMain: {
       minHeight: sizes.targetMain,

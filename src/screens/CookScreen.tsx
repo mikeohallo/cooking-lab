@@ -485,8 +485,10 @@ export function CookScreen({
     </View>
   );
 
+  // Side by side when they fit; otherwise each on its own line at full width,
+  // Cook this again first. Never squeezed: a label keeps its words whole.
   const footer = readOnly ? (
-    <View style={styles.footRow}>
+    <View style={styles.footRow} testID="cook-foot-row">
       <Button
         label={COOK_THIS_AGAIN}
         icon="refresh"
@@ -495,7 +497,7 @@ export function CookScreen({
         accessibilityHint={COOK_THIS_AGAIN_HINT}
         pending={againWrite.state.status === 'pending'}
         onPress={() => void cookAgain()}
-        style={styles.grow}
+        style={styles.footButton}
         testID="cook-this-again"
       />
       <Button
@@ -503,6 +505,7 @@ export function CookScreen({
         variant="secondary"
         size="main"
         onPress={() => onReview(cook.id)}
+        style={styles.footButton}
         testID="edit-review"
       />
     </View>
@@ -701,14 +704,14 @@ export function CookScreen({
                   draws a note being edited afresh. */}
               <View style={sideways ? styles.beside : styles.stacked} testID="notes-and-photos">
                 {notes.length > 0 ? (
-                  <View style={sideways ? styles.half : null} testID="notes-column">
+                  <View style={sideways ? styles.half : styles.whole} testID="notes-column">
                     <SectionGroup title={NOTES} count={notes.length}>
                       <Card style={styles.tight}>{notesList}</Card>
                     </SectionGroup>
                   </View>
                 ) : null}
                 {photos.length > 0 ? (
-                  <View style={sideways ? styles.half : null} testID="photos-column">
+                  <View style={sideways ? styles.half : styles.whole} testID="photos-column">
                     <SectionGroup title={PHOTOS} count={photos.length}>
                       <PhotoGrid
                         photos={photos}
@@ -1015,7 +1018,13 @@ const useStyles = makeStyles(({ colors }) =>
     underline: {
       textDecorationLine: 'underline',
     },
+    // Notes and Photos, stacked or side by side. Each state sets every key
+    // the other does, so turning the inner display never leaves a value from
+    // the way it was before (0.4.0, part 5: the Notes card overflowed after
+    // sideways, upright, sideways).
     stacked: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
       gap: space.md,
     },
     beside: {
@@ -1023,14 +1032,30 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'flex-start',
       gap: space.sm,
     },
-    half: {
-      flex: 1,
+    whole: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
       minWidth: 0,
+      alignSelf: 'stretch',
+    },
+    half: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      minWidth: 0,
+      alignSelf: 'flex-start',
     },
     footRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      flexWrap: 'wrap',
+      alignItems: 'stretch',
       gap: space.sm,
+    },
+    footButton: {
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: 'auto',
     },
     export: {
       gap: space.xxs,
@@ -1044,6 +1069,7 @@ const useStyles = makeStyles(({ colors }) =>
     },
     titleActions: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       justifyContent: 'flex-end',
       gap: space.xs,
     },

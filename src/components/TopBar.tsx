@@ -25,12 +25,18 @@ type TopBarProps = {
  * The top of every screen: the app's name or a back control on the left, at
  * most two actions on the right. No fill; it sits on the page. The screen's
  * own title goes below the bar, never squeezed into it.
+ *
+ * Nothing in it is squeezed (0.4.0, part 5). The back control keeps its words
+ * on one line at their natural width; when it and the actions do not fit side
+ * by side, the actions go onto the next line, and if they do not fit beside
+ * each other there either, onto a line each. The app's name is the exception:
+ * it wraps inside its own space, so Home's ⋯ stays on the first line.
  */
 export function TopBar({ appTitle, compact = false, back, context, actions }: TopBarProps) {
   const styles = useStyles();
   return (
-    <View style={styles.bar}>
-      <View style={styles.leading}>
+    <View style={styles.bar} testID="top-bar">
+      <View style={appTitle ? styles.titleLeading : styles.leading} testID="top-bar-leading">
         {appTitle ? (
           <>
             <AppText variant={compact ? 'appTitleInner' : 'appTitle'} accessibilityRole="header">
@@ -48,7 +54,9 @@ export function TopBar({ appTitle, compact = false, back, context, actions }: To
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
           >
             <Icon name="chevronLeft" color="ink" size={size.icon - 2} />
-            <AppText variant="bodyStrong">{back.label}</AppText>
+            <AppText variant="bodyStrong" numberOfLines={1} style={styles.word}>
+              {back.label}
+            </AppText>
           </Pressable>
         ) : null}
         {context ? (
@@ -57,7 +65,11 @@ export function TopBar({ appTitle, compact = false, back, context, actions }: To
           </AppText>
         ) : null}
       </View>
-      {actions ? <View style={styles.actions}>{actions}</View> : null}
+      {actions ? (
+        <View style={appTitle ? styles.titleActions : styles.actions} testID="top-bar-actions">
+          {actions}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -91,17 +103,34 @@ const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     bar: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: space.xs,
       minHeight: size.targetMin,
     },
+    // A back control and its context word: their natural width, never less.
     leading: {
-      flex: 1,
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: 'auto',
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xs,
+    },
+    // The app's name: takes what the ⋯ leaves, and wraps inside it.
+    titleLeading: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: space.xs,
+    },
+    word: {
+      flexShrink: 0,
     },
     back: {
       minHeight: size.targetMin,
@@ -114,13 +143,26 @@ const useStyles = makeStyles(({ colors }) =>
     pressed: {
       opacity: 0.7,
     },
+    // On the first line when they fit beside the back control; otherwise on
+    // the next, where they may wrap again, one per line.
     actions: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'flex-end',
       alignItems: 'center',
       gap: space.xs,
-      flexShrink: 1,
+    },
+    titleActions: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.xs,
     },
     iconButton: {
       width: size.targetMin,

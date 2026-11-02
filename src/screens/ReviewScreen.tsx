@@ -406,7 +406,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const who =
     record.status === 'ready' ? (
       <Section title={WHO_ATE_IT}>
-        <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} oneLine={split} />
+        <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
       </Section>
     ) : null;
 
@@ -606,6 +606,7 @@ const useStyles = makeStyles(({ colors }) => ({
     },
     promptActions: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       justifyContent: 'flex-end',
       gap: space.xs,
     },

@@ -39,12 +39,6 @@ type WhoAteItProps = {
   ratings: readonly Rating[];
   /** Saves one person's answer; resolves with a message when it was not saved. */
   onRate: (person: RatingPerson, answer: RatingAnswer) => Promise<string | null>;
-  /**
-   * Keep each person's stars, N/A and pencil on one line, never wrapping
-   * (0.4.0, on the inner display, whose pane is made wide enough for them).
-   * The name takes a line of its own above them if it must.
-   */
-  oneLine?: boolean;
   testID?: string;
 };
 
@@ -109,7 +103,7 @@ function rowsFor(
  * review*, and nothing is required. A tap on the chosen star clears it. N/A
  * means "didn't eat it": it takes the stars away and counts nowhere.
  */
-export function WhoAteIt({ household, ratings, onRate, oneLine = false, testID = 'who-ate-it' }: WhoAteItProps) {
+export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: WhoAteItProps) {
   const styles = useStyles();
   // Kept across folding: on the inner display this part moves to the other pane.
   const [pendingGuests, setPendingGuests] = useKeptState<readonly string[]>(`${testID}-pending-guests`, []);
@@ -142,7 +136,6 @@ export function WhoAteIt({ household, ratings, onRate, oneLine = false, testID =
             first={index === 0}
             last={index === rows.length - 1}
             onRate={onRate}
-            oneLine={oneLine}
             testID={`${testID}-${row.key}`}
           />
         ))}
@@ -191,14 +184,12 @@ function RatingRow({
   first,
   last,
   onRate,
-  oneLine,
   testID,
 }: {
   row: Row;
   first: boolean;
   last: boolean;
   onRate: WhoAteItProps['onRate'];
-  oneLine: boolean;
   testID: string;
 }) {
   const styles = useStyles();
@@ -244,7 +235,7 @@ function RatingRow({
             {row.name}
             {row.guest ? <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText> : null}
           </AppText>
-          <View style={[styles.controlsRight, oneLine && styles.oneLine]} testID={`${testID}-controls`}>
+          <View style={styles.controlsRight} testID={`${testID}-controls`}>
             <StarButtons
               stars={stars}
               onTap={tapStar}
@@ -387,21 +378,24 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
       gap: space.xxs,
     },
+    // The name, then the stars, N/A and pencil as one group (0.4.0, part 5).
+    // The group sits beside the name when it fits, and wraps under it as one
+    // block when it does not; only where even that line is too narrow (the
+    // cover screen) does the group wrap inside itself.
     name: {
       flexGrow: 1,
       flexShrink: 1,
-      minWidth: size.targetMain + space.xl,
+      flexBasis: 'auto',
     },
     controlsRight: {
+      flexGrow: 0,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xxs,
-    },
-    oneLine: {
-      flexWrap: 'nowrap',
-      flexShrink: 0,
-      marginLeft: 'auto',
     },
     pencil: {
       width: size.targetMin,

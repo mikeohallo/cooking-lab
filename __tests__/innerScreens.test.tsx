@@ -398,16 +398,19 @@ describe('the review on the inner screen (12, 15)', () => {
     expect(within(screen.getByTestId('screen-side-footer')).getByTestId('finish-review')).toBeOnTheScreen();
     expect(within(main).queryByTestId('finish-review')).toBeNull();
 
-    // Stars, N/A and the pencil on one line: they never wrap.
+    // The name, then the stars, N/A and pencil as one group, which sits
+    // beside the name when it fits and wraps under it as one block when not.
     const controls = StyleSheet.flatten(within(side).getByTestId('who-ate-it-member-m-you-controls').props.style);
-    expect(controls.flexWrap).toBe('nowrap');
+    expect(controls.flexBasis).toBe('auto');
+    expect(controls.flexGrow).toBe(0);
   });
 
-  it('lets the controls wrap on the cover screen, where the narrowest phone needs it', async () => {
+  it('lets the group wrap inside itself only as a last resort, on the cover screen', async () => {
     mockWindow.figures = COVER;
     await harness.render(<ReviewScreen cookId="cook-r" onBack={() => {}} onFinished={() => {}} />);
     const controls = StyleSheet.flatten((await screen.findByTestId('who-ate-it-member-m-you-controls')).props.style);
     expect(controls.flexWrap).toBe('wrap');
+    expect(controls.flexShrink).toBe(1);
   });
 });
 
