@@ -81,13 +81,22 @@ describe('Home', () => {
     await waitFor(() => expect(within(card).getByTestId('cook-cook-new-photo')).toBeOnTheScreen());
   });
 
-  it('floats New Cook over the foot of the list, and puts the Undo bar just above it', async () => {
+  it('docks New Cook under the list, never over it, and puts the Undo bar just above it (0.4.0, part 5)', async () => {
     await seed();
     await harness.render(<HomeScreen onOpenCook={() => {}} />);
-    const floating = await screen.findByTestId('screen-floating');
+    const floating = await screen.findByTestId('screen-dock');
     expect(within(floating).getByRole('button', { name: NEW_COOK_TITLE })).toBeOnTheScreen();
     expect(within(screen.getByTestId('screen-scroll')).queryByRole('button', { name: NEW_COOK_TITLE })).toBeNull();
-    expect(StyleSheet.flatten(floating.props.style).position).toBe('absolute');
+    // In the flow after the scrolling area, so the list ends above it.
+    const dock = StyleSheet.flatten(floating.props.style);
+    expect(dock.position).toBeUndefined();
+    expect(dock.backgroundColor).toBe(palettes.light.page);
+    expect(within(floating).getByTestId('screen-dock-fade')).toBeOnTheScreen();
+    const body = screen.getByTestId('screen-main-pane');
+    const order = within(body)
+      .getAllByTestId(/^(screen-scroll|screen-dock)$/)
+      .map((node) => node.props.testID);
+    expect(order).toEqual(['screen-scroll', 'screen-dock']);
 
     await fireEvent(await screen.findByTestId('cook-card-cook-old'), 'longPress');
     await fireEvent.press(await screen.findByTestId('delete-cook'));

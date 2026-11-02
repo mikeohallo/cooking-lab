@@ -213,6 +213,19 @@ export const shadows: Readonly<Record<ThemeName, Shadows>> = {
   dark: { card: undefined, fab: undefined, bar: undefined, sheet: undefined },
 };
 
+/**
+ * Soft fades, as React Native background-image strings (0.4.0, part 5): the
+ * page colour, clear at the top, above Home's docked New Cook.
+ */
+export type Fades = {
+  readonly page: string;
+};
+
+export const fades: Readonly<Record<ThemeName, Fades>> = {
+  light: { page: 'linear-gradient(to bottom, rgba(251, 250, 246, 0), #fbfaf6)' },
+  dark: { page: 'linear-gradient(to bottom, rgba(15, 23, 25, 0), #0f1719)' },
+};
+
 /** Each meal's colour role: the word and the icon, never a fill. */
 export const mealColorRole: Readonly<Record<StoredMealType, ColorRole>> = {
   breakfast: 'mealBreakfast',
@@ -304,14 +317,32 @@ export const size = {
   photoTitle: 92,
   /** The widest a column of running text may grow. */
   measure: 680,
-  /** The list pane on the inner screen. */
-  paneList: 400,
+  /** The widest a pane's column of cards grows, however wide the pane. */
+  column: 560,
   /**
-   * The cook page's side column on the inner screen (Next time, Last time,
-   * Ingredients), as drawn in the design pack's screens 11 and 14, upright
-   * and sideways alike.
+   * Panes on two panes (0.4.0, part 5). Panes adapt to the window: a pane is
+   * a share of the window's width, held between a minimum and a maximum. These
+   * are limits, not widths; `src/layout/responsive.ts` does the sum from the
+   * live window on every render. Home's list pane and the review's left pane:
    */
-  paneSide: 344,
+  paneListMin: 320,
+  paneListMax: 400,
+  paneListShare: 0.45,
+  /** The cook page's side column on the inner screen (Next time, Last time, Ingredients). */
+  paneSideMin: 280,
+  paneSideMax: 380,
+  paneSideShare: 0.42,
+  /** The round filter button beside the search bar. */
+  filterButton: 50,
+  /** The × in the search bar, and the composer's send button. */
+  inlineButton: 44,
+  /** The count on the filter button. */
+  badge: 20,
+  /** A person's photo circle in Who's eating. */
+  avatar: 52,
+  /** The rail beside Who ate it?, and its dot. */
+  rail: 16,
+  railDot: 14,
   /** Filter chips sit 40 tall inside a 48 touch area. */
   chip: 40,
   /** Tag chips. */
@@ -323,11 +354,47 @@ export const size = {
   dot: 12,
   /** A star button's drawn width, in its 48 tall target. */
   starButton: 30,
+  /** A star button's own width: the star and its 4 dp either side. */
+  starTarget: 38,
   /** Hairlines and rings. */
   hairline: 1,
   nextEdge: 1.5,
   ring: 2,
 } as const;
+
+/**
+ * The only sizes a style in `src/screens` or `src/components` may give as a
+ * width, minimum width or maximum width (0.4.0, part 5). Layouts adapt to the
+ * space they are given: panes, columns, rows and buttons take their width from
+ * the window (`src/layout/responsive.ts`) or from flex wrapping and their own
+ * words, never from a number. What is left are limits, and the drawn size of
+ * marks that are never stretched: a circle behind an icon, a photo thumbnail,
+ * a dot. `__tests__/noFixedWidths.test.ts` holds every style to this list.
+ */
+export const widthTokens = {
+  /** Touch targets: the smallest a control may be. */
+  target: ['targetMin', 'targetMain', 'starTarget', 'filterButton', 'inlineButton'],
+  /** Line length: the widest text and cards may grow. */
+  line: ['measure', 'column'],
+  /** A pane's minimum and maximum. */
+  pane: ['paneListMin', 'paneListMax', 'paneSideMin', 'paneSideMax'],
+  /** Marks drawn at their own size, square, never a column or a row. */
+  mark: [
+    'iconCircle',
+    'iconCircleInner',
+    'nextCircle',
+    'photoCardW',
+    'photoCardWInner',
+    'photoTitle',
+    'handleW',
+    'dot',
+    'ring',
+    'rail',
+    'railDot',
+    'badge',
+    'avatar',
+  ],
+} as const satisfies Record<string, readonly (keyof typeof size)[]>;
 
 export const breakpoint = {
   /** From here the screen shows two panes. */

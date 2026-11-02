@@ -76,7 +76,6 @@ import { latestWords } from '../domain/evidence';
 import { photoPlacedWhenAdded } from '../domain/photoTime';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
-import { COOK_SIDE_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDayAndTime, formatTime } from '../format/dateTime';
 import { makeStyles } from '../theme/theme';
@@ -550,7 +549,7 @@ export function CookScreen({
               }
             : undefined
         }
-        fixed={{ pane: 'side', width: COOK_SIDE_PANE_WIDTH }}
+        panes="cook"
         footer={footer}
       >
         {header}

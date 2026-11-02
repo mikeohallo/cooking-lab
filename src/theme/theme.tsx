@@ -12,17 +12,18 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { palettes, shadows, type Palette, type Shadows, type ThemeName } from './tokens';
+import { fades, palettes, shadows, type Fades, type Palette, type Shadows, type ThemeName } from './tokens';
 
 export type Theme = {
   readonly name: ThemeName;
   readonly colors: Palette;
   readonly shadows: Shadows;
+  readonly fades: Fades;
 };
 
 const THEMES: Readonly<Record<ThemeName, Theme>> = {
-  light: { name: 'light', colors: palettes.light, shadows: shadows.light },
-  dark: { name: 'dark', colors: palettes.dark, shadows: shadows.dark },
+  light: { name: 'light', colors: palettes.light, shadows: shadows.light, fades: fades.light },
+  dark: { name: 'dark', colors: palettes.dark, shadows: shadows.dark, fades: fades.dark },
 };
 
 const OverrideContext = createContext<ThemeName | null>(null);

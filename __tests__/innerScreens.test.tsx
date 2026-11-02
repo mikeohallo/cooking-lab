@@ -12,13 +12,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { StyleSheet } from 'react-native';
 
 import type { EvidenceDecision } from '../src/domain/evidence';
-import {
-  COOK_SIDE_PANE_WIDTH,
-  HOME_LIST_PANE_WIDTH,
-  REVIEW_RIGHT_PANE_MIN,
-  computeLayoutMetrics,
-  reviewPaneWidth,
-} from '../src/layout/responsive';
+import { computeLayoutMetrics, cookSidePaneWidth, listPaneWidth } from '../src/layout/responsive';
 import { CookScreen } from '../src/screens/CookScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
@@ -185,20 +179,17 @@ describe('the inner screen’s sizes', () => {
     expect(computeLayoutMetrics(UPRIGHT.width, UPRIGHT.height).gutter).toBe(space.ml);
   });
 
-  it('lays the panes out from the tokens', () => {
-    expect(HOME_LIST_PANE_WIDTH).toBe(size.paneList);
-    expect(HOME_LIST_PANE_WIDTH).toBe(400);
-    expect(COOK_SIDE_PANE_WIDTH).toBe(size.paneSide);
-    expect(reviewPaneWidth(UPRIGHT.width)).toBe(size.paneList);
-    expect(reviewPaneWidth(SIDEWAYS.width)).toBe(size.paneList);
-    expect(reviewPaneWidth(BENCH_SIDEWAYS.width)).toBe(size.paneList);
-    // The Fold 6 bench upright: the review's left pane gives way so a person's
-    // stars, N/A and pencil still fit on one line in the right.
-    expect(reviewPaneWidth(BENCH_UPRIGHT.width)).toBeLessThan(size.paneList);
+  it('lays the panes out as shares of the window, between the tokens’ limits (0.4.0, part 5)', () => {
+    // The Fold 8: 45% of 792 is 356; of 880, 396. The bench: 318 → 320, 370.
+    expect(listPaneWidth(UPRIGHT.width)).toBe(356);
+    expect(listPaneWidth(SIDEWAYS.width)).toBe(396);
+    expect(listPaneWidth(BENCH_UPRIGHT.width)).toBe(size.paneListMin);
+    expect(listPaneWidth(BENCH_SIDEWAYS.width)).toBe(370);
+    expect(cookSidePaneWidth(BENCH_UPRIGHT.width)).toBe(297);
+    expect(cookSidePaneWidth(BENCH_SIDEWAYS.width)).toBe(346);
     for (const figures of [UPRIGHT, SIDEWAYS, BENCH_UPRIGHT, BENCH_SIDEWAYS]) {
-      expect(figures.width - reviewPaneWidth(figures.width)).toBeGreaterThanOrEqual(REVIEW_RIGHT_PANE_MIN);
-      expect(figures.width - COOK_SIDE_PANE_WIDTH).toBeGreaterThanOrEqual(300);
-      expect(figures.width - HOME_LIST_PANE_WIDTH).toBeGreaterThanOrEqual(300);
+      expect(figures.width - listPaneWidth(figures.width)).toBeGreaterThanOrEqual(size.paneListMin);
+      expect(figures.width - cookSidePaneWidth(figures.width)).toBeGreaterThanOrEqual(size.paneSideMin);
     }
   });
 });
@@ -215,19 +206,19 @@ describe('Home on the inner screen (10, 13)', () => {
     ['sideways', SIDEWAYS],
     ['upright on the bench', BENCH_UPRIGHT],
     ['sideways on the bench', BENCH_SIDEWAYS],
-  ])('puts a 400 dp list beside the chosen cook, %s', async (_label, figures) => {
+  ])('puts a list of 45%% of the window beside the chosen cook, %s', async (_label, figures) => {
     mockWindow.figures = figures;
     await harness.render(<HomeScreen onOpenCook={() => {}} />);
     const right = await screen.findByTestId('home-cook-pane');
     const main = screen.getByTestId('screen-main-pane');
 
-    expect(styleOf('screen-main-pane').width).toBe(size.paneList);
+    expect(styleOf('screen-main-pane').width).toBe(listPaneWidth(figures.width));
     expect(within(main).getByTestId('history-search')).toBeOnTheScreen();
-    // The meal chips on two rows, not one scrolling row.
+    // The meal chips wrapped, not one scrolling row.
     expect(styleOf('history-meal-filter').flexWrap).toBe('wrap');
     expect(screen.getByTestId('history-meal-filter').props.horizontal).toBeUndefined();
-    // New Cook floats at the foot of the list pane.
-    expect(within(main).getByTestId('screen-floating')).toBeOnTheScreen();
+    // New Cook is docked at the foot of the list pane.
+    expect(within(main).getByTestId('screen-dock')).toBeOnTheScreen();
     expect(within(main).getByTestId('new-cook')).toBeOnTheScreen();
 
     // The right-hand pane: the most recent cook, as on the cover screen's
@@ -289,7 +280,7 @@ describe('the cook page on the inner screen (11, 14)', () => {
     const side = await screen.findByTestId('cook-side');
     const main = screen.getByTestId('screen-main-pane');
 
-    expect(styleOf('screen-side-pane').width).toBe(size.paneSide);
+    expect(styleOf('screen-side-pane').width).toBe(cookSidePaneWidth(UPRIGHT.width));
     expect(styleOf('screen-side-pane').backgroundColor).toBe(surface);
 
     // Main: the top bar, the header, Readings, Notes and Photos, and the composer.
@@ -340,7 +331,7 @@ describe('the cook page on the inner screen (11, 14)', () => {
       mockWindow.figures = figures;
       await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
       expect(await screen.findByTestId('cook-side')).toBeOnTheScreen();
-      expect(styleOf('screen-side-pane').width).toBe(size.paneSide);
+      expect(styleOf('screen-side-pane').width).toBe(cookSidePaneWidth(figures.width));
       expect(styleOf('notes-and-photos').flexDirection === 'row').toBe(figures === BENCH_SIDEWAYS);
     }
   });
@@ -384,9 +375,10 @@ describe('the review on the inner screen (12, 15)', () => {
   });
 
   it.each([
-    ['upright', UPRIGHT, 400],
-    ['sideways', SIDEWAYS, 400],
-    ['upright on the bench', BENCH_UPRIGHT, reviewPaneWidth(BENCH_UPRIGHT.width)],
+    ['upright', UPRIGHT, 356],
+    ['sideways', SIDEWAYS, 396],
+    ['upright on the bench', BENCH_UPRIGHT, 320],
+    ['sideways on the bench', BENCH_SIDEWAYS, 370],
   ])('has two panes, %s, with Finish review at the right-hand pane’s foot', async (_label, figures, left) => {
     mockWindow.figures = figures;
     await harness.render(<ReviewScreen cookId="cook-r" onBack={() => {}} onFinished={() => {}} />);

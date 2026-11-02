@@ -56,7 +56,6 @@ import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDayAndTime } from '../format/dateTime';
 import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
-import { reviewPaneWidth } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
 import { radius, size, space, type ColorRole } from '../theme/tokens';
@@ -93,7 +92,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   // On the inner display (0.4.0): the title, what it was, cuisine and your
   // notes on the left; who ate it and next time on the right, with Finish
   // review pinned at its foot.
-  const { twoPane: split, width } = useLayoutMetrics();
+  const { twoPane: split } = useLayoutMetrics();
   // Words being typed for a person, kept while Who ate it? moves between panes.
   const kept = useKeptStore();
   const { data, newId, now } = useStorage();
@@ -435,7 +434,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
               }
             : undefined
         }
-        fixed={{ pane: 'main', width: reviewPaneWidth(width) }}
+        panes="review"
       >
         <View style={styles.header}>
           {bar}

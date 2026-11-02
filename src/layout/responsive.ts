@@ -18,7 +18,7 @@ export const NARROW_BREAKPOINT = 400;
 export const WIDE_BREAKPOINT = 720;
 
 /** Text and cards never stretch wider than this, however large the screen. */
-export const CONTENT_MAX_WIDTH = 560;
+export const CONTENT_MAX_WIDTH = size.column;
 
 /**
  * Two panes side by side (0.3.0) from `breakpoint.medium` (600) up — and only
@@ -36,33 +36,66 @@ export const CONTENT_MAX_WIDTH = 560;
 export const TWO_PANE_MIN_WIDTH = breakpoint.medium;
 export const TWO_PANE_MIN_SHORT_SIDE = breakpoint.medium;
 
-/** Home's list pane on the inner display (0.4.0): `pane-list`, both ways round. */
-export const HOME_LIST_PANE_WIDTH = size.paneList;
+/**
+ * Pane widths (0.4.0, part 5): panes adapt to the space they are given.
+ *
+ * The first inner layouts were built at fixed widths taken from one phone (a
+ * 400 list pane, a 344 side column). On the Fold 6 bench, at font size 1.15,
+ * that crushed the detail side to about 300 and broke words letter by letter.
+ * So a pane is now a share of the window's width, held between a minimum and
+ * a maximum from `src/theme/tokens.ts`, and the other pane takes the rest.
+ *
+ * Every width here is worked out from the window as it is now, on every
+ * render (`useLayoutMetrics` reads `useWindowDimensions`). Nothing keeps a
+ * width in state or from an earlier layout pass, so folding, unfolding and
+ * turning can never leave a pane at the width it had before.
+ */
 
-/** An open cook's side column on the inner display: Next time, Last time, Ingredients. */
-export const COOK_SIDE_PANE_WIDTH = size.paneSide;
+/** A share of `width`, rounded to a whole dp, held between `min` and `max`. */
+export function shareOf(width: number, share: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(width * share)));
+}
+
+/** Home's list pane and the review's left pane: 45% of the window, 320 to 400. */
+export function listPaneWidth(windowWidth: number): number {
+  return shareOf(windowWidth, size.paneListShare, size.paneListMin, size.paneListMax);
+}
+
+/** An open cook's side column on the inner screen: 42% of the window, 280 to 380. */
+export function cookSidePaneWidth(windowWidth: number): number {
+  return shareOf(windowWidth, size.paneSideShare, size.paneSideMin, size.paneSideMax);
+}
+
+/** Which screen's panes: Home and the review share the list rule; a cook its side rule. */
+export type PaneScreen = 'home' | 'cook' | 'review';
 
 /**
- * The narrowest the review's right pane may be: the rail and its gap, five
- * star buttons, N/A and the pencil, with their gaps, and the pane's gutters.
+ * The panes for a window, as styles take them. On one column the main pane is
+ * the whole width (`'100%'`) and there is no side pane. On two panes one of
+ * them is the share and the other takes the rest; `rest` is what that is, for
+ * tests and the version line, never set as a style.
  */
-export const REVIEW_RIGHT_PANE_MIN =
-  size.dot +
-  space.xxs +
-  space.sm +
-  5 * (size.starButton + space.xxs * 2) +
-  2 * size.targetMin +
-  2 * space.xxs +
-  2 * space.ml;
+export type PaneWidths =
+  | { readonly mode: 'one'; readonly main: '100%'; readonly side: null }
+  | {
+      readonly mode: 'two';
+      /** The pane whose width is set: Home's list and the review's left; the cook's side. */
+      readonly fixed: 'main' | 'side';
+      readonly main: number;
+      readonly side: number;
+    };
 
-/**
- * The review's left pane on the inner display (0.4.0): `pane-list`, unless the
- * window is too narrow to leave the right pane room for a person's stars, N/A
- * and pencil on one line, in which case it gives way. On the Fold 8 it is
- * always 400; on the Fold 6 bench upright (707 wide) it is 345.
- */
-export function reviewPaneWidth(windowWidth: number): number {
-  return Math.max(0, Math.min(size.paneList, Math.round(windowWidth - REVIEW_RIGHT_PANE_MIN)));
+export function paneWidths(screen: PaneScreen, width: number, height?: number): PaneWidths {
+  const metrics = computeLayoutMetrics(width, height);
+  if (!metrics.twoPane) {
+    return { mode: 'one', main: '100%', side: null };
+  }
+  if (screen === 'cook') {
+    const side = cookSidePaneWidth(metrics.width);
+    return { mode: 'two', fixed: 'side', main: metrics.width - side, side };
+  }
+  const main = listPaneWidth(metrics.width);
+  return { mode: 'two', fixed: 'main', main, side: metrics.width - main };
 }
 
 /** Horizontal gutters from Design Baseline v1: 20 dp on a cover screen, 24 dp wider. */

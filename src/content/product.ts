@@ -8,7 +8,7 @@
  * As of 0.4.0: Home is also History — Cooking now, Your cooks with the
  * search bar, the Filters sheet (who and stars, cuisine, tags) and the meal
  * chips, every reviewed cook ten to a page with its photo or meal tile, and
- * New Cook floating at the foot, with Export everything, Who's eating and the
+ * New Cook docked at the foot, with Export everything, Who's eating and the
  * version and screen size in its ⋯ menu. A cook records its meal type (Side
  * among them), an optional cuisine, ingredients and who ate it; its page is
  * grouped by section with Next time first; Cook this again shows what was

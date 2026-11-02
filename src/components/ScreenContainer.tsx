@@ -1,9 +1,10 @@
 import { useMemo, useRef, type ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { footerMaxHeight } from '../layout/footerLimit';
 import { PaneOverlayHost } from '../layout/panes';
+import { paneWidths, type PaneScreen, type PaneWidths } from '../layout/responsive';
 import { ScreenScrollContext, type ScreenScroll } from '../layout/ScreenScroll';
 import { bottomClearance, useKeyboardHeight } from '../layout/useKeyboardClearance';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
@@ -49,17 +50,20 @@ type ScreenContainerProps = {
   /** A second pane, beside the main one, on two panes only. */
   side?: SidePane;
   /**
-   * Which pane has a fixed width on two panes, and how wide (dp); the other
-   * takes the rest. Home's list is the fixed one; a cook's side pane is.
+   * Whose pane rule the two panes follow (0.4.0, part 5): Home's and the
+   * review's list pane, or the cook page's side column. Each is a share of
+   * the window between a minimum and a maximum (`paneWidths`); the other pane
+   * takes the rest.
    */
-  fixed?: { pane: 'main' | 'side'; width: number };
+  panes?: PaneScreen;
   /**
-   * Floats over the foot of the main pane, centred, with the list scrolling
-   * under it: Home's New Cook (0.4.0). The scrolling area gets room at its
-   * end so the last card can always be scrolled clear of it. A screen that
-   * floats something draws the Undo bar itself, above it (`UndoSlot inline`).
+   * Docked at the foot of the main pane, centred, on the page colour with a
+   * soft fade above it: Home's New Cook (0.4.0, part 5). The scrolling area
+   * ends above it, so it never covers the chips, the search box or a card. A
+   * screen that docks something draws the Undo bar itself, above it
+   * (`UndoSlot inline`).
    */
-  floating?: ReactNode;
+  dock?: ReactNode;
 };
 
 /**
@@ -97,17 +101,18 @@ type ScreenContainerProps = {
  * It never scrolls horizontally, which is what keeps the primary workflow free
  * of horizontal overflow at ~320 dp.
  */
-export function ScreenContainer({ children, footer, testID, side, fixed, floating }: ScreenContainerProps) {
+export function ScreenContainer({ children, footer, testID, side, panes: rule = 'home', dock }: ScreenContainerProps) {
   const styles = useStyles();
   const { gutter, contentMaxWidth, twoPane } = useLayoutMetrics();
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight();
-  const { height: windowHeight } = useWindowDimensions();
+  const window = useWindowDimensions();
   const clearance = bottomClearance(Platform.OS, insets.bottom, keyboardHeight);
-  const footerLimit = footerMaxHeight(windowHeight, insets.top, clearance);
+  const footerLimit = footerMaxHeight(window.height, insets.top, clearance);
   const showSide = twoPane && side !== undefined;
-  const sizeOf = (pane: 'main' | 'side') =>
-    showSide && fixed !== undefined && fixed.pane === pane ? { width: fixed.width } : styles.flex;
+  // From the window as it is now, every render: never a width from before.
+  const panes = paneWidths(rule, window.width, window.height);
+  const sizeOf = (pane: 'main' | 'side') => paneStyle(showSide ? panes : ONE_COLUMN, pane);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -125,11 +130,14 @@ export function ScreenContainer({ children, footer, testID, side, fixed, floatin
               columnTestID={testID}
               scrollTestID="screen-scroll"
               footerTestID="screen-footer"
-              floating={floating}
+              dock={dock}
             >
               {children}
             </Pane>
-            {showSide && floating === undefined ? <UndoSlot /> : null}
+            {/* The Undo bar is drawn in the pane in front, on one column too:
+                Home stays mounted under a cook's page, and a bar drawn there
+                could not be seen (0.4.0, part 5). */}
+            {dock === undefined ? <UndoSlot /> : null}
           </PaneOverlayHost>
         </View>
         {showSide ? (
@@ -215,8 +223,27 @@ type PaneProps = {
   columnTestID?: string;
   scrollTestID: string;
   footerTestID: string;
-  floating?: ReactNode;
+  dock?: ReactNode;
 };
+
+const ONE_COLUMN: PaneWidths = { mode: 'one', main: '100%', side: null };
+
+/**
+ * A pane's size, with every key set in every state: the set pane's width, or
+ * `auto` for the one that takes the rest. Leaving a key out on one layout and
+ * setting it on another relied on the native side dropping the old value; on
+ * the bench a fold left Home's list pane 400 wide on a 369 cover (0.4.0,
+ * part 5).
+ */
+export function paneStyle(panes: PaneWidths, pane: 'main' | 'side'): ViewStyle {
+  if (panes.mode === 'one') {
+    return { width: panes.main, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' };
+  }
+  if (panes.fixed === pane) {
+    return { width: pane === 'main' ? panes.main : panes.side, flexGrow: 0, flexShrink: 0, flexBasis: 'auto' };
+  }
+  return { width: 'auto', flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+}
 
 /** One pane: its own scrolling area, its own pinned footer, its own reveal. */
 function Pane({
@@ -228,7 +255,7 @@ function Pane({
   columnTestID,
   scrollTestID,
   footerTestID,
-  floating,
+  dock,
   surface = false,
 }: PaneProps) {
   const styles = useStyles();
@@ -267,11 +294,7 @@ function Pane({
         ref={scrollRef}
         testID={scrollTestID}
         style={styles.flex}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingHorizontal: gutter },
-          floating !== undefined && styles.underFloating,
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         alwaysBounceHorizontal={false}
@@ -281,9 +304,10 @@ function Pane({
           <ScreenScrollContext.Provider value={screenScroll}>{children}</ScreenScrollContext.Provider>
         </View>
       </ScrollView>
-      {floating !== undefined ? (
-        <View style={[styles.floating, { paddingHorizontal: gutter }]} pointerEvents="box-none" testID="screen-floating">
-          {floating}
+      {dock !== undefined ? (
+        <View style={[styles.dock, { paddingHorizontal: gutter }]} testID="screen-dock">
+          <View style={styles.fade} pointerEvents="none" testID="screen-dock-fade" />
+          {dock}
         </View>
       ) : null}
       {footer ? (
@@ -305,7 +329,7 @@ function Pane({
   );
 }
 
-const useStyles = makeStyles(({ colors }) =>
+const useStyles = makeStyles(({ colors, fades }) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -331,17 +355,22 @@ const useStyles = makeStyles(({ colors }) =>
       flexGrow: 1,
       paddingVertical: space.ml,
     },
-    // Room for the floating pill (56) and its gap, and a little to spare, so
-    // the last card scrolls clear of it.
-    underFloating: {
-      paddingBottom: size.targetMain + space.xl * 2 + space.xl,
+    // Docked under the list, never over it: the list's scrolling area ends
+    // at its top edge.
+    dock: {
+      gap: space.sm,
+      paddingTop: space.xs,
+      paddingBottom: space.md,
+      backgroundColor: colors.page,
     },
-    floating: {
+    // The soft fade above the dock: the page colour, clear at the top.
+    fade: {
       position: 'absolute',
       left: 0,
       right: 0,
-      bottom: space.lg,
-      gap: space.sm,
+      top: -space.lg,
+      height: space.lg,
+      experimental_backgroundImage: fades.page,
     },
     column: {
       width: '100%',

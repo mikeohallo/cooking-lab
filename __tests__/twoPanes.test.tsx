@@ -8,11 +8,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { StyleSheet } from 'react-native';
 
 import type { EvidenceDecision } from '../src/domain/evidence';
-import {
-  COOK_SIDE_PANE_WIDTH,
-  HOME_LIST_PANE_WIDTH,
-  computeLayoutMetrics,
-} from '../src/layout/responsive';
+import { computeLayoutMetrics, cookSidePaneWidth, listPaneWidth } from '../src/layout/responsive';
 import { CookScreen } from '../src/screens/CookScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
@@ -92,9 +88,9 @@ describe('the breakpoint', () => {
     expect(computeLayoutMetrics(320, 640).twoPane).toBe(false);
   });
 
-  it('leaves room on the inner display for each screen’s fixed pane and the other', () => {
-    expect(INNER.width - HOME_LIST_PANE_WIDTH).toBeGreaterThanOrEqual(300);
-    expect(INNER.width - COOK_SIDE_PANE_WIDTH).toBeGreaterThanOrEqual(300);
+  it('leaves room on the inner display for each screen’s set pane and the other', () => {
+    expect(INNER.width - listPaneWidth(INNER.width)).toBeGreaterThanOrEqual(300);
+    expect(INNER.width - cookSidePaneWidth(INNER.width)).toBeGreaterThanOrEqual(300);
   });
 });
 
@@ -108,7 +104,7 @@ describe('Home on the inner display', () => {
     const onOpenCook = jest.fn();
     await harness.render(<HomeScreen onOpenCook={onOpenCook} />);
     const right = await screen.findByTestId('home-cook-pane');
-    expect(widthOf('screen-main-pane')).toBe(HOME_LIST_PANE_WIDTH);
+    expect(widthOf('screen-main-pane')).toBe(listPaneWidth(INNER.width));
     expect(within(screen.getByTestId('screen-main-pane')).getByTestId('history-search')).toBeOnTheScreen();
     expect(within(screen.getByTestId('screen-main-pane')).getByTestId('history-list')).toBeOnTheScreen();
     expect(await within(right).findByTestId('cook-detail-screen')).toBeOnTheScreen();
@@ -203,7 +199,7 @@ describe('an open cook on the inner display', () => {
     const side = await screen.findByTestId('cook-side');
     const main = screen.getByTestId('screen-main-pane');
 
-    expect(widthOf('screen-side-pane')).toBe(COOK_SIDE_PANE_WIDTH);
+    expect(widthOf('screen-side-pane')).toBe(cookSidePaneWidth(INNER.width));
     expect(within(main).getByTestId('timeline')).toBeOnTheScreen();
     expect(within(main).getByTestId('screen-footer')).toBeOnTheScreen();
     expect(within(main).getByTestId('note-input')).toBeOnTheScreen();

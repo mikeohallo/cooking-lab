@@ -56,7 +56,6 @@ import { MEAL_TYPE_LABELS, cuisineLabel, timesCooked } from '../domain/cookRecor
 import type { Cook, CookCuisine, CookId } from '../domain/entities';
 import { STORED_MEAL_TYPES, type StoredMealType } from '../domain/enums';
 import { RevealOnChange } from '../layout/RevealOnChange';
-import { HOME_LIST_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
 import { mealColorRole, space } from '../theme/tokens';
@@ -135,9 +134,10 @@ export function entriesFor(
  * eating, the version line); a Cooking now card for each open cook; Your
  * cooks with how many are reviewed, the search bar and its round filter
  * button, and the meal chips in one scrolling row; then the reviewed cooks,
- * newest first, ten to a page. New Cook floats above the foot of the screen,
- * always in reach, with the list scrolling under it, and the Undo bar after a
- * delete sits just above it.
+ * newest first, ten to a page. New Cook is docked at the foot of the screen,
+ * always in reach, on the page colour with a soft fade above it; the list ends
+ * above it, so it never covers a control. The Undo bar after a delete sits
+ * just above it.
  *
  * The filter button opens the Filters sheet (who and stars, cuisine, tags).
  * Search and filters start again at page 1 each time they change. The page
@@ -282,7 +282,7 @@ export function HomeScreen({
     />
   );
 
-  const floating = (
+  const dock = (
     <>
       <UndoSlot inline />
       <NewCookButton
@@ -298,7 +298,7 @@ export function HomeScreen({
   return (
     <ScreenContainer
       testID="home-screen"
-      floating={floating}
+      dock={dock}
       side={
         chosen !== null
           ? {
@@ -329,7 +329,7 @@ export function HomeScreen({
               }
             : undefined
       }
-      fixed={{ pane: 'main', width: HOME_LIST_PANE_WIDTH }}
+      panes="home"
     >
       <ShellHeader trailing={more} compact={twoPane} />
 
