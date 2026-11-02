@@ -9,7 +9,7 @@ import { bottomClearance, useKeyboardHeight } from '../layout/useKeyboardClearan
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { UndoSlot } from '../state/PendingDeletion';
 import { makeStyles } from '../theme/theme';
-import { space } from '../theme/tokens';
+import { size, space } from '../theme/tokens';
 
 /**
  * The second pane, on the unfolded inner display (0.3.0). A screen passes
@@ -41,6 +41,13 @@ type ScreenContainerProps = {
    * takes the rest. Home's list is the fixed one; a cook's side pane is.
    */
   fixed?: { pane: 'main' | 'side'; width: number };
+  /**
+   * Floats over the foot of the main pane, centred, with the list scrolling
+   * under it: Home's New Cook (0.4.0). The scrolling area gets room at its
+   * end so the last card can always be scrolled clear of it. A screen that
+   * floats something draws the Undo bar itself, above it (`UndoSlot inline`).
+   */
+  floating?: ReactNode;
 };
 
 /**
@@ -78,7 +85,7 @@ type ScreenContainerProps = {
  * It never scrolls horizontally, which is what keeps the primary workflow free
  * of horizontal overflow at ~320 dp.
  */
-export function ScreenContainer({ children, footer, testID, side, fixed }: ScreenContainerProps) {
+export function ScreenContainer({ children, footer, testID, side, fixed, floating }: ScreenContainerProps) {
   const styles = useStyles();
   const { gutter, contentMaxWidth, twoPane } = useLayoutMetrics();
   const insets = useSafeAreaInsets();
@@ -106,10 +113,11 @@ export function ScreenContainer({ children, footer, testID, side, fixed }: Scree
               columnTestID={testID}
               scrollTestID="screen-scroll"
               footerTestID="screen-footer"
+              floating={floating}
             >
               {children}
             </Pane>
-            {showSide ? <UndoSlot /> : null}
+            {showSide && floating === undefined ? <UndoSlot /> : null}
           </PaneOverlayHost>
         </View>
         {showSide ? (
@@ -146,6 +154,7 @@ type PaneProps = {
   columnTestID?: string;
   scrollTestID: string;
   footerTestID: string;
+  floating?: ReactNode;
 };
 
 /** One pane: its own scrolling area, its own pinned footer, its own reveal. */
@@ -158,6 +167,7 @@ function Pane({
   columnTestID,
   scrollTestID,
   footerTestID,
+  floating,
 }: PaneProps) {
   const styles = useStyles();
   const scrollRef = useRef<ScrollView>(null);
@@ -195,7 +205,11 @@ function Pane({
         ref={scrollRef}
         testID={scrollTestID}
         style={styles.flex}
-        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: gutter },
+          floating !== undefined && styles.underFloating,
+        ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         alwaysBounceHorizontal={false}
@@ -205,6 +219,11 @@ function Pane({
           <ScreenScrollContext.Provider value={screenScroll}>{children}</ScreenScrollContext.Provider>
         </View>
       </ScrollView>
+      {floating !== undefined ? (
+        <View style={[styles.floating, { paddingHorizontal: gutter }]} pointerEvents="box-none" testID="screen-floating">
+          {floating}
+        </View>
+      ) : null}
       {footer ? (
         <View style={[styles.footer, { maxHeight: footerLimit }]} testID={footerTestID}>
           <ScrollView
@@ -246,6 +265,18 @@ const useStyles = makeStyles(({ colors }) =>
     scrollContent: {
       flexGrow: 1,
       paddingVertical: space.ml,
+    },
+    // Room for the floating pill (56) and its gap, and a little to spare, so
+    // the last card scrolls clear of it.
+    underFloating: {
+      paddingBottom: size.targetMain + space.xl * 2 + space.xl,
+    },
+    floating: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: space.lg,
+      gap: space.sm,
     },
     column: {
       width: '100%',

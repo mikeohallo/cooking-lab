@@ -38,7 +38,6 @@ export function SectionGroup({
   testID,
 }: SectionGroupProps) {
   const styles = useStyles();
-  const heading = count === undefined ? title : `${title} · ${count}`;
   return (
     <View style={styles.group} testID={testID}>
       <View style={styles.head}>
@@ -47,8 +46,16 @@ export function SectionGroup({
             <Icon name={icon} color={iconColor} size={size.icon - 2} />
           </View>
         ) : null}
-        <AppText variant="heading" accessibilityRole="header" style={styles.title}>
-          {heading}
+        <AppText
+          variant="heading"
+          accessibilityRole="header"
+          accessibilityLabel={count === undefined ? title : `${title}, ${count}`}
+          style={styles.title}
+        >
+          {title}
+          {count === undefined ? null : (
+            <AppText variant="secondary" tone="inkMuted">{` · ${count}`}</AppText>
+          )}
         </AppText>
         {trailing ?? null}
       </View>
@@ -63,7 +70,7 @@ export function RatingBadge({ average, testID }: { average: string; testID?: str
   return (
     <View style={styles.badge} testID={testID} accessibilityLabel={`Average ${average} stars`}>
       <Icon name="star" color="star" size={size.iconSmall} />
-      <AppText variant="label">{average}</AppText>
+      <AppText variant="cardTitle">{average}</AppText>
     </View>
   );
 }

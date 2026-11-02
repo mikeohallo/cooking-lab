@@ -16,10 +16,12 @@ import { size as sizes, type ColorRole } from '../theme/tokens';
 export type IconName =
   | 'apple'
   | 'arrowUp'
+  | 'book'
   | 'bowl'
   | 'cake'
   | 'camera'
   | 'check'
+  | 'chevronDown'
   | 'chevronLeft'
   | 'chevronRight'
   | 'clock'
@@ -29,27 +31,34 @@ export type IconName =
   | 'flame'
   | 'forkKnife'
   | 'globe'
+  | 'history'
   | 'lightbulb'
+  | 'lock'
   | 'more'
   | 'oven'
   | 'page'
   | 'pencil'
+  | 'people'
   | 'plus'
   | 'probe'
+  | 'refresh'
   | 'search'
   | 'star'
-  | 'sun';
+  | 'sun'
+  | 'trash';
 
 /** The nearest Material Symbols Rounded icon to each of the app's own. */
 export const MATERIAL_SYMBOL: Readonly<Record<IconName, string>> = {
   apple: 'nutrition',
   arrowUp: 'arrow_upward',
+  book: 'menu_book',
   // There is no bowl with leaves in Material Symbols; rice_bowl is the
   // nearest, and the app's own drawing adds the leaves.
   bowl: 'rice_bowl',
   cake: 'cake',
   camera: 'photo_camera',
   check: 'check',
+  chevronDown: 'expand_more',
   chevronLeft: 'chevron_left',
   chevronRight: 'chevron_right',
   clock: 'schedule',
@@ -59,16 +68,21 @@ export const MATERIAL_SYMBOL: Readonly<Record<IconName, string>> = {
   flame: 'local_fire_department',
   forkKnife: 'restaurant',
   globe: 'globe',
+  history: 'history',
   lightbulb: 'lightbulb',
+  lock: 'lock',
   more: 'more_horiz',
   oven: 'oven_gen',
   page: 'description',
   pencil: 'edit',
+  people: 'group',
   plus: 'add',
   probe: 'thermometer',
+  refresh: 'refresh',
   search: 'search',
   star: 'star',
   sun: 'light_mode',
+  trash: 'delete',
 };
 
 type Shape =
@@ -84,6 +98,11 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
     { d: 'M12 7.5c0-2 .9-3.4 2.4-4.2' },
   ],
   arrowUp: [{ d: 'M12 19V5.5M6.5 11 12 5.5l5.5 5.5' }],
+  book: [
+    { d: 'M6.5 4h11a1.5 1.5 0 0 1 1.5 1.5V20H7.5A2.5 2.5 0 0 1 5 17.5v-12A1.5 1.5 0 0 1 6.5 4z' },
+    { d: 'M5 17.5A2.5 2.5 0 0 1 7.5 15H19' },
+    { d: 'M9 8h6' },
+  ],
   bowl: [
     { d: 'M3.5 12.5h17c0 4.2-3.8 7.5-8.5 7.5s-8.5-3.3-8.5-7.5z' },
     { d: 'M10.5 12.5c-.7-2.9.6-5.4 3.6-6.6.6 2.9-.7 5.4-3.6 6.6z' },
@@ -104,6 +123,7 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
     { circle: [12, 13, 3.5] },
   ],
   check: [{ d: 'M5 12.5 9.5 17 19 7.5' }],
+  chevronDown: [{ d: 'M6 9.5l6 6 6-6' }],
   chevronLeft: [{ d: 'M14.5 6 8.5 12l6 6' }],
   chevronRight: [{ d: 'M9.5 6l6 6-6 6' }],
   clock: [{ circle: [12, 12, 8.5] }, { d: 'M12 7.5V12l3 2' }],
@@ -133,12 +153,18 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
     { d: 'M3.5 12h17' },
     { d: 'M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z' },
   ],
+  history: [
+    { d: 'M4 12a8 8 0 1 0 2.3-5.7' },
+    { d: 'M4 4v4h4' },
+    { d: 'M12 8v4l2.5 2' },
+  ],
   lightbulb: [
     { d: 'M9.5 17.5h5M10.5 20.5h3' },
     {
       d: 'M12 3.5a5.8 5.8 0 0 0-3.4 10.5c.5.4.9 1 .9 1.7v.3h5v-.3c0-.7.4-1.3.9-1.7A5.8 5.8 0 0 0 12 3.5z',
     },
   ],
+  lock: [{ rect: [5, 10.5, 14, 10, 2] }, { d: 'M8 10.5V8a4 4 0 0 1 8 0v2.5' }],
   more: [
     { circle: [5.5, 12, 1.8], fill: true },
     { circle: [12, 12, 1.8], fill: true },
@@ -159,11 +185,17 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
     { d: 'M4.5 19.5l.9-3.8L15.6 5.5a2 2 0 0 1 2.9 2.9L8.3 18.6z' },
     { d: 'M13.8 7.3l2.9 2.9' },
   ],
+  people: [
+    { circle: [9, 8, 3.2] },
+    { d: 'M3.5 19.5c.4-3.2 2.6-5.2 5.5-5.2s5.1 2 5.5 5.2' },
+    { d: 'M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17 14.6c2 .6 3.2 2.4 3.5 4.9' },
+  ],
   plus: [{ d: 'M12 5.5v13M5.5 12h13' }],
   probe: [
     { d: 'M10 13.6V5.5a2 2 0 0 1 4 0v8.1a4 4 0 1 1-4 0z' },
     { d: 'M12 9.5v6' },
   ],
+  refresh: [{ d: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3' }, { d: 'M19.5 4.5v4h-4' }],
   search: [{ circle: [10.8, 10.8, 6.3] }, { d: 'M15.5 15.5l4.5 4.5' }],
   star: [
     {
@@ -174,6 +206,11 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
   sun: [
     { circle: [12, 12, 3.8] },
     { d: 'M12 3v1.8M12 19.2V21M3 12h1.8M19.2 12H21M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M5.6 18.4l1.3-1.3M17.1 6.9l1.3-1.3' },
+  ],
+  trash: [
+    { d: 'M4.5 7h15M9.5 7V4.5h5V7' },
+    { d: 'M6.5 7l.9 12a1.8 1.8 0 0 0 1.8 1.5h5.6a1.8 1.8 0 0 0 1.8-1.5l.9-12' },
+    { d: 'M10 11v6M14 11v6' },
   ],
 };
 

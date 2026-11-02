@@ -116,6 +116,8 @@ const useStyles = makeStyles(({ colors }) =>
     },
     actions: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
       alignItems: 'center',
       gap: space.xs,
       flexShrink: 1,

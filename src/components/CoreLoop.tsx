@@ -1,44 +1,28 @@
-import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { CORE_LOOP_STEPS } from '../content/product';
-import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
 import { radius, space } from '../theme/tokens';
 import { AppText } from './AppText';
 
 /**
- * The Cook -> Observe -> Review -> Learn -> Cook Again loop.
- *
- * Shown on first use, when there is nothing else to show. Steps wrap rather
- * than scroll, and on cover-screen-class widths they stack vertically so
+ * The Cook, Observe, Review, Learn, Cook again loop, as quiet pills under
+ * Home's empty state (0.4.0). They wrap and stay centred at any width, so
  * nothing is ever pushed off the right edge.
  */
 export function CoreLoop() {
   const styles = useStyles();
-  const { allowsInlineLoop } = useLayoutMetrics();
-
   return (
     <View
-      style={[styles.loop, allowsInlineLoop ? styles.loopInline : styles.loopStacked]}
+      style={styles.loop}
+      accessible
+      accessibilityLabel={CORE_LOOP_STEPS.join(', then ')}
       testID="core-loop"
     >
-      {CORE_LOOP_STEPS.map((step, index) => (
-        <Fragment key={step}>
-          {index > 0 ? (
-            <AppText
-              variant="secondary"
-              tone="inkMuted"
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            >
-              {allowsInlineLoop ? '→' : '↓'}
-            </AppText>
-          ) : null}
-          <View style={styles.step}>
-            <AppText variant="label">{step}</AppText>
-          </View>
-        </Fragment>
+      {CORE_LOOP_STEPS.map((step) => (
+        <View key={step} style={styles.step}>
+          <AppText variant="label">{step}</AppText>
+        </View>
       ))}
     </View>
   );
@@ -47,24 +31,16 @@ export function CoreLoop() {
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     loop: {
-      gap: space.xs,
-    },
-    loopInline: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      alignItems: 'center',
-    },
-    loopStacked: {
-      flexDirection: 'column',
-      alignItems: 'flex-start',
+      justifyContent: 'center',
+      gap: space.xs,
     },
     step: {
-      backgroundColor: colors.surface,
-      borderColor: colors.line,
-      borderWidth: 1,
+      backgroundColor: colors.surfaceRaised,
       borderRadius: radius.pill,
-      paddingHorizontal: space.sm,
-      paddingVertical: space.xxs,
+      paddingHorizontal: space.sm + 2,
+      paddingVertical: space.xxs + 2,
     },
   }),
 );

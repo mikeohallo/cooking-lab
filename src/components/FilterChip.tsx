@@ -18,6 +18,8 @@ type FilterChipProps = {
    * when chosen.
    */
   kind?: 'filter' | 'choice';
+  /** A filter chip that also shows a tick when chosen: the Filters sheet's chips. */
+  tick?: boolean;
   disabled?: boolean;
   /** A chip in a set where one is chosen is a radio; otherwise a checkbox. */
   role?: 'checkbox' | 'radio';
@@ -36,6 +38,7 @@ export function FilterChip({
   icon,
   iconColor = 'ink',
   kind = 'filter',
+  tick = false,
   disabled = false,
   role = 'checkbox',
   accessibilityHint,
@@ -62,7 +65,7 @@ export function FilterChip({
           selected && (choice ? styles.choiceOn : styles.filterOn),
         ]}
       >
-        {selected && choice ? <Icon name="check" color={ink} size={size.iconSmall} /> : null}
+        {selected && (choice || tick) ? <Icon name="check" color={ink} size={size.iconSmall} /> : null}
         {icon ? <Icon name={icon} color={selected ? ink : iconColor} size={size.iconSmall} /> : null}
         <AppText variant="chip" tone={ink}>
           {label}

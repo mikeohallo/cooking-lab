@@ -40,6 +40,19 @@ export function formatDate(iso: string, today: Date = new Date()): string {
   return date.getFullYear() === today.getFullYear() ? day : `${day} ${date.getFullYear()}`;
 }
 
+/** `Today · 9:02 am`, or `Fri 30 Oct · 9:16 am` on any other day (0.4.0). */
+export function formatDayAndTime(iso: string, today: Date = new Date()): string {
+  const date = parse(iso);
+  if (date === null) {
+    return '';
+  }
+  const sameDay =
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+  return `${sameDay ? 'Today' : formatDate(iso, today)} · ${formatTime(iso)}`;
+}
+
 /** `Thu 15 Oct, 7:42 pm` */
 export function formatDateTime(iso: string, today: Date = new Date()): string {
   const date = formatDate(iso, today);

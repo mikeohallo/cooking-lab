@@ -171,10 +171,25 @@ export function PendingDeletionProvider({ children }: { children: ReactNode }) {
  * pane on two panes; while it is there, the bar across the whole display is
  * not drawn.
  */
-export function UndoSlot() {
+export function UndoSlot({ inline = false }: { inline?: boolean }) {
   const { pending, undo, claimBar } = usePendingDeletion();
   useEffect(() => claimBar(), [claimBar]);
-  return pending !== null ? <UndoBar onUndo={() => void undo()} inPane /> : null;
+  if (pending === null) {
+    return null;
+  }
+  // Inline: in the caller's own column, above Home's New Cook (0.4.0).
+  return inline ? (
+    <SharedUndoBar
+      message={COOK_DELETED}
+      undoLabel={UNDO}
+      onUndo={() => void undo()}
+      undoHint="Brings the cook back exactly as it was"
+      testID="undo-bar"
+      undoTestID="undo-delete"
+    />
+  ) : (
+    <UndoBar onUndo={() => void undo()} inPane />
+  );
 }
 
 /** "Cook deleted · Undo", over the bottom of whatever screen or pane is showing. */

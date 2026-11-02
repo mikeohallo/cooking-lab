@@ -6,7 +6,8 @@ import { breakpoint, radius, size, space } from '../theme/tokens';
 import { AppText } from './AppText';
 
 type BottomSheetProps = {
-  title: string;
+  /** The sheet's heading. Note options has none: the note itself heads it. */
+  title?: string;
   /** A tap on the scrim closes the sheet without changes. */
   onClose: () => void;
   children: ReactNode;
@@ -46,9 +47,11 @@ export function BottomSheet({ title, onClose, children, foot, bottomInset = 0, t
         ]}
       >
         <View style={styles.handle} />
-        <AppText variant="heading" accessibilityRole="header">
-          {title}
-        </AppText>
+        {title ? (
+          <AppText variant="heading" accessibilityRole="header">
+            {title}
+          </AppText>
+        ) : null}
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {children}
         </ScrollView>
@@ -101,6 +104,9 @@ const useStyles = makeStyles(({ colors, shadows }) =>
       gap: space.md,
     },
     foot: {
+      borderTopWidth: size.hairline,
+      borderTopColor: colors.line,
+      paddingTop: space.sm,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',

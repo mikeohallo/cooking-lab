@@ -12,8 +12,12 @@ type ZoneProps = {
   tone?: 'zone' | 'quiet';
   /** A zone is a tap target only where it says so. */
   onPress?: () => void;
+  /** A long-press, also offered to a screen reader as a named action. */
+  onLongPress?: () => void;
+  longPressLabel?: string;
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  accessibilityState?: { expanded?: boolean };
   testID?: string;
   style?: StyleProp<ViewStyle>;
 };
@@ -27,8 +31,11 @@ export function Zone({
   children,
   tone = 'zone',
   onPress,
+  onLongPress,
+  longPressLabel,
   accessibilityLabel,
   accessibilityHint,
+  accessibilityState,
   testID,
   style,
 }: ZoneProps) {
@@ -40,7 +47,17 @@ export function Zone({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityHint={accessibilityHint}
+        accessibilityState={accessibilityState}
         onPress={onPress}
+        onLongPress={onLongPress}
+        accessibilityActions={
+          onLongPress ? [{ name: 'longpress', label: longPressLabel ?? 'More actions' }] : undefined
+        }
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'longpress') {
+            onLongPress?.();
+          }
+        }}
         testID={testID}
         style={({ pressed }) => [base, pressed && styles.pressed]}
       >
@@ -71,13 +88,26 @@ type ZoneBarProps = {
   label: string;
   /** "12 · Show". */
   detail?: string;
+  /** After the detail: the chevron that says it opens or closes. */
+  trailingIcon?: IconName;
+  /** Open or closed, for a bar that shows more in place. */
+  expanded?: boolean;
   onPress?: () => void;
   accessibilityHint?: string;
   testID?: string;
 };
 
 /** The Ingredients bar: quiet sage, field corners, target-main tall. */
-export function ZoneBar({ icon, label, detail, onPress, accessibilityHint, testID }: ZoneBarProps) {
+export function ZoneBar({
+  icon,
+  label,
+  detail,
+  trailingIcon,
+  expanded,
+  onPress,
+  accessibilityHint,
+  testID,
+}: ZoneBarProps) {
   const styles = useStyles();
   return (
     <Zone
@@ -85,6 +115,7 @@ export function ZoneBar({ icon, label, detail, onPress, accessibilityHint, testI
       onPress={onPress}
       accessibilityLabel={detail ? `${label}, ${detail}` : label}
       accessibilityHint={accessibilityHint}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
       testID={testID}
       style={styles.bar}
     >
@@ -97,6 +128,7 @@ export function ZoneBar({ icon, label, detail, onPress, accessibilityHint, testI
           {detail}
         </AppText>
       ) : null}
+      {trailingIcon ? <Icon name={trailingIcon} color="inkMuted" size={size.iconSmall + 2} /> : null}
     </Zone>
   );
 }

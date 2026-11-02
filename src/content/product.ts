@@ -15,7 +15,7 @@
 export const PRODUCT_TAGLINE =
   'A private cooking notebook for one kitchen. Stored on this device. Nothing you write is lost, and you choose what to export or share.';
 
-export const CORE_LOOP_STEPS = ['Cook', 'Observe', 'Review', 'Learn', 'Cook Again'] as const;
+export const CORE_LOOP_STEPS = ['Cook', 'Observe', 'Review', 'Learn', 'Cook again'] as const;
 
 export const TEST_BUILD_NOTICE =
   'This is the Cooking Lab TEST build. It is installed alongside the real app and holds no real cooking data.';
@@ -95,7 +95,7 @@ export const TAG_FAILED_TITLE = 'That tag was not saved';
 
 // --- Search ---------------------------------------------------------------
 
-export const SEARCH_PLACEHOLDER = 'Search titles, tags, ingredients';
+export const SEARCH_PLACEHOLDER = 'Search titles, tags, ingredients…';
 /**
  * The two result groups: everything that matched every word he typed, then
  * everything that matched part of it.
@@ -280,3 +280,85 @@ export const CARD_PHOTO_FROM_EARLIER = 'Photo from an earlier time';
 
 /** The Next time card's label, in capitals in the copy (0.4.0). */
 export const NEXT_TIME_OVERLINE = 'NEXT TIME';
+
+// --- The cover screen (0.4.0, part 2) --------------------------------------
+
+/** Home. */
+export const COOKING_NOW_OVERLINE = 'COOKING NOW';
+export const YOUR_COOKS = 'Your cooks';
+/** "14 reviewed", beside Your cooks. */
+export const reviewedCount = (count: number): string => `${count} reviewed`;
+/** "0 of 14", beside Your cooks while searching or filtering. */
+export const matchCount = (shown: number, total: number): string => `${shown} of ${total}`;
+export const FILTER_ALL = 'All';
+export const FILTERS = 'Filters';
+export const FILTER_WHO_OVERLINE = 'WHO & STARS';
+export const FILTER_CUISINE_OVERLINE = 'CUISINE';
+export const FILTER_TAGS_OVERLINE = 'TAGS';
+/** "★ 4 and up". */
+export const starsAndUp = (stars: number): string => `★ ${stars} and up`;
+export const FILTER_CLEAR = 'Clear';
+/** "Show 2 cooks". */
+export const showCooks = (count: number): string => (count === 1 ? 'Show 1 cook' : `Show ${count} cooks`);
+export const NO_MATCHES_TITLE = 'No cooks match';
+export const NO_MATCHES_BODY = 'Try fewer filters, or search for an ingredient.';
+export const NEEDS_A_REVIEW = 'Needs a review';
+/** "Started 9:02 am · 3 notes · 2nd time". */
+export const startedLine = (time: string, notes: number, times: number, ordinalTimes: string): string =>
+  [`Started ${time}`, notes === 1 ? '1 note' : `${notes} notes`, times > 1 ? `${ordinalTimes} time` : null]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+/** "· 2 ratings". */
+export const ratingsCount = (count: number): string => (count === 1 ? '· 1 rating' : `· ${count} ratings`);
+
+/** The cook page. */
+export const BACK_HOME = 'Home';
+export const SCREEN_ON = 'Screen on';
+export const SCREEN_OFF = 'Screen off';
+export const ADD_TAG_CHIP = 'Tag';
+export const DONE_TAGGING = 'Done';
+export const READINGS = 'Readings';
+export const NOTES = 'Notes';
+export const PHOTOS = 'Photos';
+export const NOTE_FIELD_PLACEHOLDER = 'Add a note';
+export const INGREDIENTS_SHOW = 'Show';
+export const INGREDIENTS_HIDE = 'Hide';
+export const INGREDIENTS_ADD_SHORT = 'Add';
+/** "12 · Show". */
+export const ingredientsDetail = (count: number, open: boolean): string =>
+  count === 0 ? (open ? INGREDIENTS_HIDE : INGREDIENTS_ADD_SHORT) : `${count} · ${open ? INGREDIENTS_HIDE : INGREDIENTS_SHOW}`;
+export const FROM_THE_COOK = 'From the cook';
+export const NOTHING_NOTED = 'Nothing was noted during this cook.';
+export const EDIT_REVIEW = 'Edit review';
+export const SAVE_REVIEW = 'Save review';
+export const TODAY = 'Today';
+
+/** Adding a reading. */
+export const ADD_A_READING = 'Add a reading';
+export const READING_SOMEWHERE_ELSE_CHOICE = 'Somewhere else';
+export const READING_WORD_ELSEWHERE = 'Reading';
+/** "Taken now, 9:40 am". */
+export const takenNow = (time: string): string => `Taken now, ${time}`;
+
+/** Note options. */
+export const EARLIER_VERSIONS_SHORT = 'Earlier versions';
+
+/** Review. */
+export const BACK_TO_THE_COOK = 'Back to the cook';
+export const WHAT_WAS_IT = 'What was it?';
+export const CUISINE_HEADING = 'Cuisine';
+export const OPTIONAL = 'Optional';
+export const CUISINE_ADD_OTHER = 'Other';
+export const CUISINE_SAVE_OTHER = 'Save';
+export const NOT_EATEN_LINE = 'Didn’t eat it this time. Counts nowhere.';
+export const NEXT_TIME_SHOWN = 'Shown before you cook this again.';
+export const EDIT_LINE = 'Write a line';
+export const NOTES_EMPTY_ON_EDIT = 'Your notes can be changed but not emptied. The earlier words are kept.';
+
+/** Who's eating. */
+export const WHOS_EATING_INTRO = 'Everyone here is asked for stars when you review a cook. Anyone can be N/A on the day.';
+export const ADD_SOMEONE = 'Add someone';
+export const RENAME = 'Rename';
+export const SAVE_NAME = 'Save';
+export const REMOVE_PERSON = 'Remove';
+export const NAMES_STAY = 'Names stay on this phone. They are never sent anywhere.';
