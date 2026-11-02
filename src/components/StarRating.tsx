@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { STAR_VALUES } from '../domain/enums';
 import { makeStyles } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -42,6 +43,7 @@ export function StarButtons({ stars, onTap, labelFor, hintFor, disabled = false,
             accessibilityHint={hintFor?.(value)}
             accessibilityState={{ checked: value === stars, disabled }}
             onPress={() => onTap(value)}
+            hitSlop={STAR_SLOP}
             style={({ pressed }) => [styles.star, pressed && styles.pressed]}
             testID={`${testID}-star-${value}`}
           >
@@ -76,6 +78,7 @@ export function NotApplicableToggle({ label, accessibilityLabel, on, onPress, di
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: on, disabled }}
       onPress={onPress}
+      hitSlop={NA_SLOP}
       style={({ pressed }) => [styles.na, on && styles.naOn, pressed && styles.pressed, disabled && styles.off]}
       testID={testID}
     >
@@ -137,6 +140,14 @@ export function RatingRow({ name, mark, line, stars, notEaten, notEatenLabel, sp
   );
 }
 
+/**
+ * A star is 48 tall and 38 wide; its hit area reaches 5 either side, to 48.
+ * Neighbours share that 5: a tap there goes to the star drawn later, the
+ * one on the right. N/A is drawn 32 tall as a chip; its hit area makes 48.
+ */
+const STAR_SLOP = touchSlop(size.targetMin, size.starTarget);
+const NA_SLOP = touchSlop(size.chip);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     stars: {
@@ -162,7 +173,7 @@ const useStyles = makeStyles(({ colors }) =>
     },
     na: {
       flexShrink: 0,
-      minHeight: size.targetMin,
+      minHeight: size.chip,
       minWidth: size.targetMin,
       paddingHorizontal: space.sm,
       alignItems: 'center',

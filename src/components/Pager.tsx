@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { makeStyles } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -44,6 +45,7 @@ export function Pager({
         disabled={atStart}
         onPress={onPrevious}
         testID="home-page-previous"
+        hitSlop={PILL_SLOP}
         style={({ pressed }) => [styles.pill, styles.previous, pressed && styles.pressed, atStart && styles.off]}
       >
         <Icon name="chevronLeft" color="ink" size={size.iconSmall + 2} />
@@ -64,6 +66,7 @@ export function Pager({
         disabled={atEnd}
         onPress={onNext}
         testID="home-page-next"
+        hitSlop={PILL_SLOP}
         style={({ pressed }) => [styles.pill, styles.next, pressed && styles.pressed, atEnd && styles.off]}
       >
         <AppText variant="button" tone="onSelected">
@@ -75,6 +78,9 @@ export function Pager({
   );
 }
 
+/** The page buttons are drawn 40 tall; their hit areas make 48. */
+const PILL_SLOP = touchSlop(size.button);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     pager: {
@@ -82,10 +88,10 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: space.sm,
-      marginTop: space.lg,
+      marginTop: space.md,
     },
     pill: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xxs,

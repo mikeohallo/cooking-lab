@@ -28,6 +28,7 @@ import { useStorage } from '../../state/StorageProvider';
 import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
+import { touchSlop } from '../../theme/touch';
 
 type HouseholdEditorProps = {
   members: readonly HouseholdMember[];
@@ -224,6 +225,7 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
                     return decision.allowed ? null : decision.message;
                   })
                 }
+                hitSlop={BIN_SLOP}
                 style={({ pressed }) => [styles.bin, pressed && styles.pressed]}
                 testID={`${testID}-retire-${member.id}`}
               >
@@ -304,6 +306,9 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
   );
 }
 
+/** The bin is drawn 40 round; its hit area makes 48. */
+const BIN_SLOP = touchSlop(size.iconButton, size.iconButton);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     block: {
@@ -329,8 +334,8 @@ const useStyles = makeStyles(({ colors }) =>
       flex: 1,
     },
     bin: {
-      width: size.targetMin,
-      height: size.targetMin,
+      width: size.iconButton,
+      height: size.iconButton,
       borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',

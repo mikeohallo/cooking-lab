@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 
 import { makeStyles, useColors } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { Icon } from './Icon';
 
 type CameraButtonProps = {
@@ -33,6 +34,7 @@ export function CameraButton({ label, onPress, pending = false, testID }: Camera
       disabled={pending}
       onPress={onPress}
       testID={testID}
+      hitSlop={CAMERA_SLOP}
       style={({ pressed }) => [styles.button, pressed && styles.pressed, pending && styles.pending]}
     >
       {pending ? (
@@ -44,11 +46,14 @@ export function CameraButton({ label, onPress, pending = false, testID }: Camera
   );
 }
 
+/** Drawn 40 round; the hit area makes the touch area 48 each way. */
+const CAMERA_SLOP = touchSlop(size.iconButton, size.iconButton);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     button: {
-      width: size.targetMin,
-      height: size.targetMin,
+      width: size.iconButton,
+      height: size.iconButton,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.pill,

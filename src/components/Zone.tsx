@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type Insets, type StyleProp, type ViewStyle } from 'react-native';
 
 import { makeStyles } from '../theme/theme';
 import { radius, size, space } from '../theme/tokens';
@@ -20,6 +20,8 @@ type ZoneProps = {
   accessibilityState?: { expanded?: boolean };
   testID?: string;
   style?: StyleProp<ViewStyle>;
+  /** Reaches the touch area out to 48 where the zone is drawn smaller (0.4.0 part 7). */
+  hitSlop?: Insets;
 };
 
 /**
@@ -38,6 +40,7 @@ export function Zone({
   accessibilityState,
   testID,
   style,
+  hitSlop,
 }: ZoneProps) {
   const styles = useStyles();
   const base = [styles.zone, tone === 'quiet' ? styles.quiet : styles.sage, style];
@@ -59,6 +62,7 @@ export function Zone({
           }
         }}
         testID={testID}
+        hitSlop={hitSlop}
         style={({ pressed }) => [base, pressed && styles.pressed]}
       >
         {children}

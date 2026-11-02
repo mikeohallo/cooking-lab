@@ -282,7 +282,7 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.xs,
     },
     readingChip: {
-      minHeight: size.targetMin - 4,
+      minHeight: size.chip,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xs,

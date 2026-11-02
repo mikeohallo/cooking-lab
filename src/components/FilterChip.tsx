@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { makeStyles } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size, space, type ColorRole } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon, type IconName } from './Icon';
 
@@ -56,6 +57,7 @@ export function FilterChip({
       disabled={disabled}
       onPress={onPress}
       testID={testID}
+      hitSlop={CHIP_SLOP}
       style={({ pressed }) => [styles.target, pressed && !disabled && styles.pressed, disabled && styles.off]}
     >
       <View
@@ -75,10 +77,13 @@ export function FilterChip({
   );
 }
 
+/** Drawn 32 tall (Material 3); the hit area makes the touch area 48. */
+const CHIP_SLOP = touchSlop(size.chip);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     target: {
-      minHeight: size.targetMin,
+      minHeight: size.chip,
       justifyContent: 'center',
     },
     chip: {

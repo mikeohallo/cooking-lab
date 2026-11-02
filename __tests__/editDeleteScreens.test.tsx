@@ -175,14 +175,17 @@ describe('the cook’s own page', () => {
     expect(within(sheet).getByText(new RegExp(`^${ORIGINAL_VERSION} · `))).toBeOnTheScreen();
   });
 
-  it('gives the note’s ⋯ a 48 dp target', async () => {
+  it('gives the note’s ⋯ a 48 dp touch area: drawn 40, and its hit area (0.4.0 part 7)', async () => {
     await cook('cook-a', 'Bread');
     await harness.render(<CookScreen cookId="cook-a" onBack={() => {}} onReview={() => {}} />);
     const more = await screen.findByTestId('note-cook-a-note-more');
     const style = more.props.style as { minWidth?: number; minHeight?: number }[] | object;
     const flat = Object.assign({}, ...(Array.isArray(style) ? style : [style]));
-    expect(flat.minWidth).toBeGreaterThanOrEqual(48);
-    expect(flat.minHeight).toBeGreaterThanOrEqual(48);
+    const slop = more.props.hitSlop as { top: number; bottom: number; left: number; right: number };
+    expect(flat.minWidth).toBe(40);
+    expect(flat.minHeight).toBe(40);
+    expect(flat.minWidth + slop.left + slop.right).toBeGreaterThanOrEqual(48);
+    expect(flat.minHeight + slop.top + slop.bottom).toBeGreaterThanOrEqual(48);
   });
 
   it('edits a note and the verdict on a reviewed cook, and lists every earlier verdict', async () => {

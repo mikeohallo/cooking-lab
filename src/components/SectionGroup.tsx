@@ -43,7 +43,7 @@ export function SectionGroup({
       <View style={styles.head}>
         {icon ? (
           <View style={[styles.circle, { backgroundColor: styles.tints[iconTint] }]}>
-            <Icon name={icon} color={iconColor} size={size.icon - 2} />
+            <Icon name={icon} color={iconColor} size={size.iconSmall + 2} />
           </View>
         ) : null}
         <AppText

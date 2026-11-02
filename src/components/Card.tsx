@@ -84,7 +84,7 @@ const useStyles = makeStyles(({ colors, shadows }) =>
       borderColor: colors.line,
       borderWidth: size.hairline,
       borderRadius: radius.card,
-      padding: space.md,
+      padding: space.sm + space.xxs / 2,
       gap: space.xs,
       boxShadow: shadows.card,
     },

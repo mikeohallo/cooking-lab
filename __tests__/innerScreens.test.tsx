@@ -434,7 +434,10 @@ describe('the review on the inner screen (12, 15)', () => {
     expect(star.width).toBeUndefined();
     expect(flat(`${id}-na`).flexShrink).toBe(0);
     expect(flat(`${id}-pencil`).flexShrink).toBe(0);
-    expect(flat(`${id}-pencil`).width).toBe(size.targetMin);
+    // Drawn 40 round since part 7, with its hit area making the 48.
+    expect(flat(`${id}-pencil`).width).toBe(size.iconButton);
+    const slop = screen.getByTestId(`${id}-pencil`).props.hitSlop as { left: number; right: number };
+    expect(size.iconButton + slop.left + slop.right).toBeGreaterThanOrEqual(size.targetMin);
   });
 });
 

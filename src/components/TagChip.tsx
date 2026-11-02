@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { REMOVE_TAG } from '../content/product';
 import { makeStyles } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -77,6 +78,7 @@ export function TagChip({ name, variant, onPress, disabled = false, testID }: Ta
       disabled={disabled}
       onPress={onPress}
       testID={testID}
+      hitSlop={CHIP_SLOP}
       style={({ pressed }) => [styles.target, pressed && !disabled && styles.pressed]}
     >
       {body}
@@ -84,10 +86,13 @@ export function TagChip({ name, variant, onPress, disabled = false, testID }: Ta
   );
 }
 
+/** Drawn 32 tall (Material 3); the hit area makes the touch area 48. */
+const CHIP_SLOP = touchSlop(size.tagChip);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     target: {
-      minHeight: size.targetMin,
+      minHeight: size.tagChip,
       justifyContent: 'center',
       borderRadius: radius.pill,
     },

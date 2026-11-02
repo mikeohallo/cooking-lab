@@ -79,8 +79,8 @@ const useStyles = makeStyles(({ colors }) =>
     },
     circle: {
       alignSelf: 'center',
-      width: size.targetMin,
-      height: size.targetMin,
+      width: size.iconCircle,
+      height: size.iconCircle,
       borderRadius: radius.pill,
       backgroundColor: colors.zone,
       alignItems: 'center',

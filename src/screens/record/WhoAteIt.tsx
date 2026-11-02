@@ -31,6 +31,7 @@ import { useKeptState } from '../../layout/KeptState';
 import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
+import { touchSlop } from '../../theme/touch';
 
 /** "Someone else", after the + the zone draws as an icon. */
 const SOMEONE_ELSE_LABEL = SOMEONE_ELSE.replace(/^\+\s*/, '');
@@ -175,6 +176,7 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
           accessibilityLabel={SOMEONE_ELSE_LABEL}
           accessibilityHint="A guest, for this cook only"
           style={styles.someoneElse}
+          hitSlop={BUTTON_SLOP}
           testID={`${testID}-someone-else`}
         >
           <Icon name="plus" color="zoneIcon" size={size.iconSmall + 2} />
@@ -272,6 +274,7 @@ function RatingRow({
               accessibilityRole="button"
               accessibilityLabel={`${EDIT_LINE}, ${row.name}`}
               onPress={openLine}
+              hitSlop={PENCIL_SLOP}
               style={({ pressed }) => [styles.pencil, pressed && styles.pressed]}
               testID={`${testID}-pencil`}
             >
@@ -316,6 +319,7 @@ function RatingRow({
             accessibilityHint="Change this line"
             onPress={openLine}
             style={styles.lineShown}
+            hitSlop={BUTTON_SLOP}
             testID={`${testID}-line`}
           >
             <AppText variant="secondary">{line}</AppText>
@@ -342,6 +346,10 @@ function RatingRow({
     </View>
   );
 }
+
+/** The pencil is drawn 40 round; a line and "Someone else" 40 tall. Their hit areas make 48. */
+const PENCIL_SLOP = touchSlop(size.iconButton, size.iconButton);
+const BUTTON_SLOP = touchSlop(size.button);
 
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
@@ -417,8 +425,8 @@ const useStyles = makeStyles(({ colors }) =>
     },
     pencil: {
       flexShrink: 0,
-      width: size.targetMin,
-      height: size.targetMin,
+      width: size.iconButton,
+      height: size.iconButton,
       borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
@@ -430,7 +438,7 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.xs,
     },
     lineShown: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       justifyContent: 'center',
     },
     addLine: {
@@ -447,7 +455,7 @@ const useStyles = makeStyles(({ colors }) =>
     },
     someoneElse: {
       alignSelf: 'flex-start',
-      minHeight: size.targetMin,
+      minHeight: size.button,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xs,

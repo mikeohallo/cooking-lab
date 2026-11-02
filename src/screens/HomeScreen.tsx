@@ -594,12 +594,12 @@ const useStyles = makeStyles(() =>
     },
     empty: {
       gap: space.xs,
-      marginTop: space.xxl,
+      marginTop: space.xl,
       alignItems: 'center',
     },
     cookingNow: {
-      gap: space.sm,
-      marginBottom: space.lg,
+      gap: space.xs,
+      marginBottom: space.md,
     },
     section: {
       gap: space.sm,
@@ -624,10 +624,10 @@ const useStyles = makeStyles(() =>
       flexWrap: 'wrap',
     },
     paneEmpty: {
-      marginTop: space.xxl,
+      marginTop: space.xl,
     },
     list: {
-      gap: space.sm,
+      gap: space.xs,
       marginTop: space.xs,
     },
     menuItem: {

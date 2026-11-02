@@ -81,6 +81,7 @@ import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDayAndTime, formatTime } from '../format/dateTime';
 import { makeStyles } from '../theme/theme';
 import { radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { CookActions } from './CookActions';
 import { Composer } from './cook/Composer';
 import { NoteOptionsSheet } from './cook/NoteOptionsSheet';
@@ -401,6 +402,7 @@ export function CookScreen({
             setVersions(editedLessons.flatMap((lesson) => earlierNextTimeVersions(lesson, ready?.lessonRevisions ?? [])))
           }
           style={styles.link}
+          hitSlop={LINK_SLOP}
           testID="next-time-edited"
         >
           <AppText variant="secondary" tone="link" style={styles.underline}>
@@ -443,6 +445,7 @@ export function CookScreen({
                 accessibilityLabel={staysOn ? SCREEN_STAYS_ON : SCREEN_CAN_SLEEP}
                 accessibilityHint="Changes whether the screen stays on while this cook is open"
                 onPress={() => setStaysOn(!staysOn)}
+                hitSlop={LINK_SLOP}
                 style={({ pressed }) => [styles.awake, staysOn && styles.awakeOn, pressed && styles.pressed]}
                 testID="screen-awake-toggle"
               >
@@ -643,6 +646,7 @@ export function CookScreen({
                             )
                           }
                           style={styles.link}
+                          hitSlop={LINK_SLOP}
                           testID="verdict-edited"
                         >
                           <AppText variant="secondary" tone="link" style={styles.underline}>
@@ -958,6 +962,9 @@ function EditableTitle({ cook, onSave, writeState, compact = false }: EditableTi
   );
 }
 
+/** Links and Screen on are drawn 40 tall; their hit areas make 48. */
+const LINK_SLOP = touchSlop(size.button);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     header: {
@@ -986,14 +993,14 @@ const useStyles = makeStyles(({ colors }) =>
       backgroundColor: colors.surfaceRaised,
     },
     page: {
-      gap: space.md,
-      paddingBottom: space.lg,
+      gap: space.sm,
+      paddingBottom: space.md,
     },
     awake: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xs,
-      minHeight: size.targetMin,
+      minHeight: size.button,
       paddingHorizontal: space.sm + 2,
       borderRadius: radius.pill,
       borderWidth: size.hairline,
@@ -1033,7 +1040,7 @@ const useStyles = makeStyles(({ colors }) =>
       flex: 1,
     },
     link: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       minWidth: size.targetMin,
       justifyContent: 'center',
       alignSelf: 'flex-start',
@@ -1048,7 +1055,7 @@ const useStyles = makeStyles(({ colors }) =>
     stacked: {
       flexDirection: 'column',
       alignItems: 'stretch',
-      gap: space.md,
+      gap: space.sm,
     },
     beside: {
       flexDirection: 'row',

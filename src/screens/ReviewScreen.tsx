@@ -582,7 +582,7 @@ const useStyles = makeStyles(({ colors }) => ({
     },
     section: {
       gap: space.sm,
-      marginBottom: space.lg,
+      marginBottom: space.md,
     },
     headingRow: {
       flexDirection: 'row',
@@ -602,7 +602,7 @@ const useStyles = makeStyles(({ colors }) => ({
       justifyContent: 'center',
     },
     prompt: {
-      marginBottom: space.lg,
+      marginBottom: space.md,
     },
     promptActions: {
       flexDirection: 'row',

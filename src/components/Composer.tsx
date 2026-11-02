@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 
 import { makeStyles } from '../theme/theme';
 import { DISABLED_OPACITY, radius, readingRoles, size, space, type ReadingTreatment } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -52,6 +53,7 @@ export function ReadingChip({ kind, label, onPress, accessibilityHint, disabled 
       disabled={disabled}
       onPress={onPress}
       testID={testID}
+      hitSlop={CHIP_SLOP}
       style={({ pressed }) => [styles.chip, styles[kind], pressed && styles.pressed, disabled && styles.off]}
     >
       <Icon name={kind === 'oven' ? 'oven' : 'probe'} color={roles.ink} size={size.iconSmall + 2} />
@@ -81,12 +83,17 @@ export function SendButton({ label, onPress, disabled, testID }: SendButtonProps
       disabled={disabled}
       onPress={onPress}
       testID={testID}
+      hitSlop={SEND_SLOP}
       style={({ pressed }) => [styles.send, pressed && styles.sendPressed, disabled && styles.off]}
     >
       <Icon name="arrowUp" color="onPrimary" size={size.icon - 2} />
     </Pressable>
   );
 }
+
+/** The reading chips are drawn 32 tall and Send 36 round; their hit areas make 48. */
+const CHIP_SLOP = touchSlop(size.chip);
+const SEND_SLOP = touchSlop(size.inlineButton, size.inlineButton);
 
 const useStyles = makeStyles(({ name, colors, shadows }) =>
   StyleSheet.create({
@@ -118,7 +125,7 @@ const useStyles = makeStyles(({ name, colors, shadows }) =>
       borderRadius: radius.pill,
     },
     chip: {
-      minHeight: size.targetMin,
+      minHeight: size.chip,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xxs + 2,

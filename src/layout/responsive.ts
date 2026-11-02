@@ -1,4 +1,4 @@
-import { breakpoint, size, space } from '../theme/tokens';
+import { COVER_MARGIN, breakpoint, size, space } from '../theme/tokens';
 
 /**
  * Responsive primitives for Cooking Lab.
@@ -98,9 +98,12 @@ export function paneWidths(screen: PaneScreen, width: number, height?: number): 
   return { mode: 'two', fixed: 'main', main, side: metrics.width - main };
 }
 
-/** Horizontal gutters from Design Baseline v1: 20 dp on a cover screen, 24 dp wider. */
-const NARROW_GUTTER = 20;
-const WIDE_GUTTER = 24;
+/**
+ * Horizontal gutters (0.4.0 part 7): 16 dp on the cover screen (`COVER_MARGIN`),
+ * 20 dp on a wider single column (the cover screen turned sideways).
+ */
+const NARROW_GUTTER = COVER_MARGIN;
+const WIDE_GUTTER = space.ml;
 /** Inner panes use `space-ml` (Design Baseline v3). */
 const PANE_GUTTER = space.ml;
 

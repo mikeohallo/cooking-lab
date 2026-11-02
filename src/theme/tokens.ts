@@ -276,45 +276,60 @@ export const space = {
   xxl: 40,
 } as const;
 
-/** The cover screen's side margin: `space-md` plus 2. */
-export const COVER_MARGIN = space.md + 2;
+/** The cover screen's side margin (0.4.0 part 7: 18 → 16). */
+export const COVER_MARGIN = space.md;
 
+/** Corner radii (0.4.0 part 7: one size down each, to Material 3's proportions). */
 export const radius = {
   /** Photos on cook cards and in the Photos grid. */
-  photo: 14,
+  photo: 12,
   /** Text fields, the Ingredients bar, the Undo bar. */
-  field: 16,
+  field: 12,
   /** Cards, the Cooking now card, reading cards and the title photo. */
-  card: 20,
+  card: 16,
   /** The Next time card and the top corners of sheets. */
-  zone: 22,
+  zone: 18,
   /** Buttons, the search bar, chips, pills and icon circles. */
   pill: 999,
 } as const;
 
+/**
+ * Sizes, in dp (0.4.0 part 7: drawn sizes follow Material 3).
+ *
+ * Two kinds, kept apart. The **touch area** of every control is at least
+ * `targetMin`, 48. What is **drawn** is smaller where Material 3 draws it
+ * smaller — a button 40 tall, a chip 32, a round icon button 40 — and the
+ * control's hit area makes up the rest (`src/theme/touch.ts`).
+ */
 export const size = {
-  /** The smallest touch target for any control (Android). */
+  /** The smallest touch area of any control (Android): drawn size plus hit area. */
   targetMin: 48,
-  /** The main action on a screen: New Cook, the composer, Finish review. */
-  targetMain: 56,
+  /** The main action, drawn: New Cook, Finish review's bar, the composer's bar. */
+  targetMain: 48,
+  /** A button, drawn. Its hit area makes the touch area 48. */
+  button: 40,
+  /** A round icon button, drawn: ⋯, filter, a card's chevron, Back. */
+  iconButton: 40,
   /** The tinted circle behind a section or reading icon. */
-  iconCircle: 40,
+  iconCircle: 32,
   /** The same on the inner screen. */
-  iconCircleInner: 36,
+  iconCircleInner: 32,
   /** The lightbulb circle on Next time. */
-  nextCircle: 44,
+  nextCircle: 32,
   /** The icons themselves, on their 24 grid. */
   icon: 24,
   iconSmall: 16,
   iconTiny: 12,
   /** A cook card's photo on the cover screen. */
-  photoCardW: 104,
-  photoCardH: 88,
+  photoCardW: 80,
+  photoCardH: 68,
   /** The same in the inner list. */
-  photoCardWInner: 72,
-  photoCardHInner: 64,
+  photoCardWInner: 64,
+  photoCardHInner: 56,
+  /** The square photo on the compact Cooking now card. */
+  photoNow: 56,
   /** The square photo beside a cook's title. */
-  photoTitle: 92,
+  photoTitle: 72,
   /** The widest a column of running text may grow. */
   measure: 680,
   /** The widest a pane's column of cards grows, however wide the pane. */
@@ -332,21 +347,21 @@ export const size = {
   paneSideMin: 280,
   paneSideMax: 380,
   paneSideShare: 0.42,
-  /** The round filter button beside the search bar. */
-  filterButton: 50,
-  /** The × in the search bar, and the composer's send button. */
-  inlineButton: 44,
+  /** The round filter button beside the search bar, drawn. */
+  filterButton: 40,
+  /** The × in the search bar, and the composer's send button, drawn. */
+  inlineButton: 36,
   /** The count on the filter button. */
   badge: 20,
   /** A person's photo circle in Who's eating. */
-  avatar: 52,
+  avatar: 40,
   /** The rail beside Who ate it?, and its dot. */
   rail: 16,
   railDot: 14,
-  /** Filter chips sit 40 tall inside a 48 touch area. */
-  chip: 40,
-  /** Tag chips. */
-  tagChip: 34,
+  /** Filter and choice chips, drawn: 32 tall in a 48 touch area. */
+  chip: 32,
+  /** Tag chips, drawn. */
+  tagChip: 32,
   /** The sheet's handle. */
   handleW: 32,
   handleH: 4,
@@ -373,7 +388,7 @@ export const size = {
  */
 export const widthTokens = {
   /** Touch targets: the smallest a control may be. */
-  target: ['targetMin', 'targetMain', 'starTarget', 'starButton', 'filterButton', 'inlineButton'],
+  target: ['targetMin', 'targetMain', 'starTarget', 'starButton', 'filterButton', 'inlineButton', 'iconButton'],
   /** Line length: the widest text and cards may grow. */
   line: ['measure', 'column'],
   /** A pane's minimum and maximum. */
@@ -385,6 +400,7 @@ export const widthTokens = {
     'nextCircle',
     'photoCardW',
     'photoCardWInner',
+    'photoNow',
     'photoTitle',
     'handleW',
     'dot',

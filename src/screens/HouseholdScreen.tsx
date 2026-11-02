@@ -93,7 +93,7 @@ const useStyles = makeStyles(({ colors }) =>
     titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: space.md,
+      gap: space.sm,
     },
     circle: {
       width: size.avatar,

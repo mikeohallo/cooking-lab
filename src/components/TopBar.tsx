@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { isTestBuild } from '../config/appIdentity';
 import { makeStyles } from '../theme/theme';
 import { radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon, type IconName } from './Icon';
 import { TestBadge } from './TestBadge';
@@ -51,6 +52,7 @@ export function TopBar({ appTitle, compact = false, back, context, actions }: To
             accessibilityLabel={back.accessibilityLabel ?? back.label}
             onPress={back.onPress}
             testID={back.testID ?? 'screen-back'}
+            hitSlop={BACK_SLOP}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
           >
             <Icon name="chevronLeft" color="ink" size={size.icon - 2} />
@@ -92,12 +94,18 @@ export function IconButton({ icon, accessibilityLabel, onPress, accessibilitySta
       accessibilityState={accessibilityState}
       onPress={onPress}
       testID={testID}
+      hitSlop={ICON_BUTTON_SLOP}
       style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
     >
       <Icon name={icon} color="ink" size={size.icon - 4} />
     </Pressable>
   );
 }
+
+/** Back is drawn 40 tall; its width comes from its word. The hit area makes 48. */
+const BACK_SLOP = touchSlop(size.iconButton);
+/** ⋯ and the like are drawn 40 round; the hit area makes 48 each way. */
+const ICON_BUTTON_SLOP = touchSlop(size.iconButton, size.iconButton);
 
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
@@ -107,7 +115,7 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: space.xs,
-      minHeight: size.targetMin,
+      minHeight: size.iconButton,
     },
     // A back control and its context word: their natural width, never less.
     leading: {
@@ -133,7 +141,7 @@ const useStyles = makeStyles(({ colors }) =>
       flexShrink: 0,
     },
     back: {
-      minHeight: size.targetMin,
+      minHeight: size.iconButton,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xxs / 2,
@@ -165,8 +173,8 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.xs,
     },
     iconButton: {
-      width: size.targetMin,
-      height: size.targetMin,
+      width: size.iconButton,
+      height: size.iconButton,
       borderRadius: radius.pill,
       backgroundColor: colors.surfaceRaised,
       alignItems: 'center',

@@ -23,7 +23,7 @@ type CookingNowCardProps = {
   timesCooked: number;
   onPress: () => void;
   onLongPress: () => void;
-  /** In the inner display's list pane: the smaller photo (0.4.0). */
+  /** In the inner display's list pane (0.4.0). Since part 7 both sizes draw the same compact card. */
   compact?: boolean;
 };
 
@@ -42,7 +42,6 @@ export function CookingNowCard({
   timesCooked,
   onPress,
   onLongPress,
-  compact = false,
 }: CookingNowCardProps) {
   const styles = useStyles();
   const title = cook.title ?? UNTITLED_COOK;
@@ -63,29 +62,32 @@ export function CookingNowCard({
       <ZoneOverline icon="flame" label={COOKING_NOW_OVERLINE} />
       <View style={styles.row}>
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={[styles.photo, compact && styles.photoCompact, styles.image]} testID={`cook-${cook.id}-photo`} />
+          <Image source={{ uri: photoUri }} style={[styles.photo, styles.image]} testID={`cook-${cook.id}-photo`} />
         ) : (
-          <View style={[styles.photo, compact && styles.photoCompact, styles.tile]} testID={`cook-${cook.id}-tile`}>
+          <View style={[styles.photo, styles.tile]} testID={`cook-${cook.id}-tile`}>
             <Icon
               name={mealType ? MEAL_ICON[mealType] : 'forkKnife'}
               color={mealType ? mealColorRole[mealType] : 'zoneIcon'}
-              size={compact ? size.icon : size.icon + 8}
+              size={size.icon}
             />
           </View>
         )}
         <View style={styles.text}>
-          {mealType !== null || cuisine ? (
-            <View style={styles.labels}>
-              <MealLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
-              <CuisinePill label={cuisine} />
-            </View>
-          ) : null}
           <AppText variant="cardTitle" tone={cook.title ? 'ink' : 'inkMuted'} testID={`cook-title-${cook.id}`}>
             {title}
           </AppText>
-          <AppText variant="secondary" tone="inkMuted">
-            {line}
-          </AppText>
+          {/* One line of meta where it fits: meal, cuisine and the started line wrap only when they must. */}
+          <View style={styles.meta}>
+            {mealType !== null || cuisine ? (
+              <View style={styles.labels}>
+                <MealLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
+                <CuisinePill label={cuisine} />
+              </View>
+            ) : null}
+            <AppText variant="secondary" tone="inkMuted" style={styles.line}>
+              {line}
+            </AppText>
+          </View>
         </View>
         <View style={styles.chevron}>
           <Icon name="chevronRight" color="ink" size={size.iconSmall + 2} />
@@ -98,20 +100,18 @@ export function CookingNowCard({
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     zone: {
-      padding: space.md,
+      padding: space.sm,
+      gap: space.xs,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.sm,
     },
-    photoCompact: {
-      width: size.photoCardWInner,
-      height: size.photoCardHInner,
-    },
+    // Compact (0.4.0 part 7): one square photo, about 56, on the cover and inner screens alike.
     photo: {
-      width: size.photoCardW,
-      height: size.photoCardH,
+      width: size.photoNow,
+      height: size.photoNow,
       borderRadius: radius.photo,
     },
     image: {
@@ -126,11 +126,21 @@ const useStyles = makeStyles(({ colors }) =>
       flex: 1,
       gap: space.xxs / 2,
     },
+    meta: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      columnGap: space.xs,
+      rowGap: space.xxs / 2,
+    },
     labels: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xs,
+    },
+    line: {
+      flexShrink: 1,
     },
     chevron: {
       width: size.iconCircle,

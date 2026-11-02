@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'rea
 import { fontStyleFor, useFontsReady } from '../theme/fonts';
 import { makeStyles, useColors } from '../theme/theme';
 import { radius, size, space, type } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -76,6 +77,7 @@ export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBa
             accessibilityRole="button"
             accessibilityLabel={clearLabel}
             onPress={() => onChangeText('')}
+            hitSlop={CLEAR_SLOP}
             style={styles.clear}
             testID="search-clear"
           >
@@ -88,6 +90,7 @@ export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBa
           accessibilityRole="button"
           accessibilityLabel={filterCount > 0 ? `${filtersLabel}, ${filterCount} on` : filtersLabel}
           onPress={onFilters}
+          hitSlop={FILTER_SLOP}
           style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
           testID="search-filters"
         >
@@ -105,6 +108,10 @@ export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBa
   );
 });
 
+/** The × and the filter button are drawn smaller than 48; their hit areas make 48. */
+const CLEAR_SLOP = touchSlop(size.inlineButton, size.inlineButton);
+const FILTER_SLOP = touchSlop(size.filterButton, size.filterButton);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     row: {
@@ -114,7 +121,7 @@ const useStyles = makeStyles(({ colors }) =>
     },
     bar: {
       flex: 1,
-      minHeight: size.targetMin + 2,
+      minHeight: size.targetMin,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xs,

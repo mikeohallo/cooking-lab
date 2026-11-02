@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 
 import { makeStyles } from '../theme/theme';
 import { radius, size, space } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 
 type UndoBarProps = {
@@ -32,6 +33,7 @@ export function UndoBar({ message, undoLabel, onUndo, undoHint, testID, undoTest
         accessibilityHint={undoHint}
         onPress={onUndo}
         testID={undoTestID}
+        hitSlop={UNDO_SLOP}
         style={({ pressed }) => [styles.undo, pressed && styles.pressed]}
       >
         <AppText variant="button" tone="inverseAction">
@@ -41,6 +43,9 @@ export function UndoBar({ message, undoLabel, onUndo, undoHint, testID, undoTest
     </View>
   );
 }
+
+/** Undo is drawn 40 tall in its bar; the hit area makes 48. */
+const UNDO_SLOP = touchSlop(size.button);
 
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
@@ -59,7 +64,7 @@ const useStyles = makeStyles(({ colors }) =>
       flexShrink: 1,
     },
     undo: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       minWidth: size.targetMin,
       paddingHorizontal: space.sm,
       justifyContent: 'center',

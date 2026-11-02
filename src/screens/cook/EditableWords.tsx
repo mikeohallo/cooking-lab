@@ -11,6 +11,7 @@ import { MAX_TEXT_LENGTH } from '../../domain/invariants';
 import { useScreenScroll } from '../../layout/ScreenScroll';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
+import { touchSlop } from '../../theme/touch';
 
 type EditableWordsProps = {
   /** The words as they now read: the newest edit, or the original. */
@@ -246,7 +247,7 @@ export function EditableWords({
             accessibilityState={onMore ? undefined : { expanded: menuOpen }}
             onPress={() => (onMore ? onMore() : setMenuOpen((open) => !open))}
             style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
-            hitSlop={4}
+            hitSlop={MORE_SLOP}
             testID={`${testID}-more`}
           >
             <Icon name="more" color="inkMuted" size={size.icon - 4} />
@@ -267,6 +268,7 @@ export function EditableWords({
               accessibilityLabel="Edited. Show earlier versions"
               onPress={onShowVersions}
               style={styles.editedLink}
+              hitSlop={LINK_SLOP}
               testID={`${testID}-edited`}
             >
               <AppText variant="secondary" tone="link" style={styles.editedText}>
@@ -280,6 +282,10 @@ export function EditableWords({
     </View>
   );
 }
+
+/** ⋯ is drawn 40 round and "edited" 40 tall; their hit areas make 48. */
+const MORE_SLOP = touchSlop(size.iconButton, size.iconButton);
+const LINK_SLOP = touchSlop(size.button);
 
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
@@ -299,8 +305,8 @@ const useStyles = makeStyles(({ colors }) =>
     // Pinned to the top right of the words, however long they are.
     more: {
       alignSelf: 'flex-start',
-      minWidth: size.targetMin,
-      minHeight: size.targetMin,
+      minWidth: size.iconButton,
+      minHeight: size.iconButton,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.field,
@@ -323,7 +329,7 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.xs,
     },
     editedLink: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       minWidth: size.targetMin,
       justifyContent: 'center',
     },

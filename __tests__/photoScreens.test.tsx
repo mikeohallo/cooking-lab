@@ -62,9 +62,10 @@ describe('the camera button', () => {
     const button = screen.getByTestId('add-photo');
     expect(button).toBeOnTheScreen();
     expect(button.props.accessibilityLabel).toBe(ADD_PHOTO);
-    // Android's minimum, which the baseline requires of every control.
-    // Pressable hands its style down as an array, the base style first.
-    expect(button.props.style[0]).toMatchObject({ width: 48, height: 48 });
+    // Drawn 40 round (Material 3, 0.4.0 part 7); its hit area keeps Android's
+    // 48 dp touch area. Pressable hands its style down as an array, the base first.
+    expect(button.props.style[0]).toMatchObject({ width: 40, height: 40 });
+    expect(button.props.hitSlop).toEqual({ top: 4, bottom: 4, left: 4, right: 4 });
   });
 
   it('offers the camera and the photo picker, and nothing else', async () => {

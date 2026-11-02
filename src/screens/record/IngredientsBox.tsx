@@ -30,6 +30,7 @@ import { useKeptState } from '../../layout/KeptState';
 import { useScreenScroll } from '../../layout/ScreenScroll';
 import { makeStyles } from '../../theme/theme';
 import { size, space } from '../../theme/tokens';
+import { touchSlop } from '../../theme/touch';
 import type { Version } from '../cook/VersionsSheet';
 
 /** How many lines a folded list shows. */
@@ -256,6 +257,7 @@ export function IngredientsBox({
               accessibilityState={{ expanded }}
               onPress={() => setExpanded((now) => !now)}
               style={styles.link}
+              hitSlop={LINK_SLOP}
               testID="ingredients-show-all"
             >
               <AppText variant="label" tone="link">
@@ -269,6 +271,7 @@ export function IngredientsBox({
               accessibilityLabel="Edited. Show earlier versions"
               onPress={() => onShowVersions(earlierIngredientVersions(versions))}
               style={styles.link}
+              hitSlop={LINK_SLOP}
               testID="ingredients-edited"
             >
               <AppText variant="secondary" tone="link" style={styles.underline}>
@@ -318,6 +321,9 @@ function ListHeading({ count }: { count: number }) {
   );
 }
 
+/** The links are drawn 40 tall; their hit areas make 48. */
+const LINK_SLOP = touchSlop(size.button);
+
 const useStyles = makeStyles(() =>
   StyleSheet.create({
     listHeading: {
@@ -359,7 +365,7 @@ const useStyles = makeStyles(() =>
       gap: space.md,
     },
     link: {
-      minHeight: size.targetMin,
+      minHeight: size.button,
       minWidth: size.targetMin,
       justifyContent: 'center',
     },

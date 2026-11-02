@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type Vi
 
 import { makeStyles, useTheme } from '../theme/theme';
 import { DISABLED_OPACITY, radius, size as sizes, space, type ColorRole } from '../theme/tokens';
+import { touchSlop } from '../theme/touch';
 import { AppText } from './AppText';
 import { Icon, type IconName } from './Icon';
 
@@ -80,6 +81,7 @@ export function Button({
       disabled={inactive}
       onPress={onPress}
       testID={testID}
+      hitSlop={size === 'main' ? undefined : BUTTON_SLOP}
       style={({ pressed }) => [
         styles.base,
         size === 'main' ? styles.sizeMain : styles.sizeStandard,
@@ -108,6 +110,9 @@ export function Button({
   );
 }
 
+/** A button is drawn 40 tall (Material 3); its hit area makes the touch area 48. */
+const BUTTON_SLOP = touchSlop(sizes.button);
+
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     base: {
@@ -127,7 +132,7 @@ const useStyles = makeStyles(({ colors }) =>
       paddingVertical: space.xs,
     },
     sizeStandard: {
-      minHeight: sizes.targetMin,
+      minHeight: sizes.button,
       paddingVertical: space.xs,
     },
     block: {

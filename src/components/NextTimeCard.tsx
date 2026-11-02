@@ -30,7 +30,7 @@ export function NextTimeCard({ label, lines, large = false, children, testID = '
     <View style={styles.card} testID={testID}>
       <View style={styles.head}>
         <View style={styles.bulb}>
-          <Icon name="lightbulb" color="onPrimary" size={size.icon - 2} />
+          <Icon name="lightbulb" color="onPrimary" size={size.iconSmall + 2} />
         </View>
         <AppText variant="overline" tone="nextInk" accessibilityRole="header">
           {label}
@@ -53,7 +53,7 @@ const useStyles = makeStyles(({ colors }) =>
       borderColor: colors.nextLine,
       borderWidth: size.nextEdge,
       borderRadius: radius.zone,
-      padding: space.md,
+      padding: space.sm + space.xxs / 2,
       gap: space.xs,
     },
     head: {

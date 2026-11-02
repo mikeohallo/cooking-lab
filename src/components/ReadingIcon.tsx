@@ -25,7 +25,7 @@ export function ReadingIcon({ kind, testID }: ReadingIconProps) {
       importantForAccessibility="no-hide-descendants"
       testID={testID}
     >
-      <Icon name={kind === 'oven' ? 'oven' : 'probe'} color={readingRoles[kind].ink} size={size.icon - 2} />
+      <Icon name={kind === 'oven' ? 'oven' : 'probe'} color={readingRoles[kind].ink} size={size.iconSmall + 2} />
     </View>
   );
 }
