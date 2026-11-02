@@ -139,6 +139,13 @@ export type CookEventRepository = {
   listForCook(query: CookEventQuery): Promise<readonly CookEvent[]>;
   save(event: CookEvent): Promise<CookEvent>;
   delete(id: CookEventId): Promise<void>;
+  /**
+   * Delete a written note for good (0.4.0, rule 14): its row and every
+   * earlier version of it, in one transaction. Only a `user_note` row is
+   * touched; anything citing it goes with it through the foreign keys.
+   * Returns whether a note was deleted.
+   */
+  deleteNote(id: CookEventId): Promise<boolean>;
 };
 
 /**
@@ -146,7 +153,7 @@ export type CookEventRepository = {
  *
  * Append-only. There is no `save` and no `delete`: an edit is never changed and
  * never taken back, only followed by a newer one, and the rows go only when the
- * whole cook does.
+ * whole cook does, or the note they belong to is deleted (0.4.0, rule 14).
  */
 export type RevisionRepository = {
   create(revision: Revision): Promise<Revision>;
@@ -432,6 +439,17 @@ export type CookCaptureService = {
    * path of the file it now has to delete.
    */
   removeEvent(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>>;
+  /**
+   * Ask whether a note may be deleted (rule 14, `deleteNote`). Nothing is
+   * written: the screens hold the note back for its undo window in memory, so
+   * a note whose window is cut short by the app closing is simply kept.
+   */
+  requestNoteDeletion(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>>;
+  /**
+   * Delete a written note for good, with every earlier version of it. Rule 14
+   * decides again, then one transaction (`CookEventRepository.deleteNote`).
+   */
+  deleteNote(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>>;
 };
 
 /** Preparing a briefing for a new cook, and hearing whether it helped. */

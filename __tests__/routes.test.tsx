@@ -32,6 +32,7 @@ function mockReadyResult(): StorageStartupResult {
       // mounted, and nothing on screen asks for one until a button is pressed.
       photoWorkflow: {} as never,
       deletions: {} as never,
+      noteDeletions: {} as never,
       assistant: jest.requireActual('../src/data/ai/unavailable').createUnavailableAiService(),
       exporter: {} as never,
       schemaVersion: LATEST_SCHEMA_VERSION,

@@ -62,6 +62,7 @@ import {
   createCook,
   decideFinding as decideFindingRule,
   deleteCook,
+  deleteNote as deleteNoteRule,
   decideLesson as decideLessonRule,
   openCookReview,
   recordBriefingUsefulness,
@@ -404,6 +405,26 @@ export function createCookCaptureService(
         return decision;
       }
       await events.delete(decision.record.id);
+      return decision;
+    },
+
+    /** Rule 14 decides; nothing is written. See `src/data/deletion/notes.ts`. */
+    async requestNoteDeletion(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>> {
+      const current = await loadOrThrow(() => events.findById(id), 'cook event', id);
+      return deleteNoteRule(current, actor);
+    },
+
+    /**
+     * Delete a written note for good. The rule decides again here, so the
+     * transaction can only ever be reached for the cook's own written note.
+     */
+    async deleteNote(id: CookEventId, actor: Actor): Promise<EvidenceDecision<CookEvent>> {
+      const current = await loadOrThrow(() => events.findById(id), 'cook event', id);
+      const decision = deleteNoteRule(current, actor);
+      if (!decision.allowed) {
+        return decision;
+      }
+      await events.deleteNote(decision.record.id);
       return decision;
     },
   };

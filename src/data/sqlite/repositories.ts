@@ -363,6 +363,33 @@ export function createCookEventRepository(adapter: DatabaseAdapter): CookEventRe
     async delete(id: CookEventId): Promise<void> {
       await adapter.execute({ sql: 'DELETE FROM cook_events WHERE id = ?', params: [id] });
     },
+
+    /**
+     * A written note, for good, in one transaction (0.4.0). Its revisions are
+     * deleted by name first, though the schema would cascade them, so the
+     * transaction says what it takes; `finding_sources` rows citing the note
+     * cascade. `kind = 'user_note'` keeps every other entry out of reach.
+     */
+    async deleteNote(id: CookEventId): Promise<boolean> {
+      return adapter.withTransaction(async (tx) => {
+        const [note] = await tx.select({
+          sql: "SELECT id FROM cook_events WHERE id = ? AND kind = 'user_note'",
+          params: [id],
+        });
+        if (note === undefined) {
+          return false;
+        }
+        await tx.execute({
+          sql: "DELETE FROM revisions WHERE cook_event_id = ? AND field = 'note'",
+          params: [id],
+        });
+        await tx.execute({
+          sql: "DELETE FROM cook_events WHERE id = ? AND kind = 'user_note'",
+          params: [id],
+        });
+        return true;
+      });
+    },
   };
 }
 

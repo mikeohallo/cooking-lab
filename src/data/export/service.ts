@@ -27,10 +27,11 @@
  */
 
 import type { AppVariant } from '../../config/variants';
-import type { CookId } from '../../domain/entities';
+import type { CookEventId, CookId } from '../../domain/entities';
 import type { PrivateFileStore } from '../adapters';
 import type { DataLayer } from '../repositories';
 import { assembleBackup } from '../backup/assemble';
+import { snapshotWithoutHeldNotes, withoutHeldNotes } from '../deletion/notes';
 import { serialiseBackup } from '../backup/validation';
 import { cookExportFileName, renderCookAsText } from './cookText';
 import type { ExportFile, ExportSink } from './sink';
@@ -57,7 +58,14 @@ export type ExportServiceDependencies = {
   readonly sink: ExportSink;
   readonly variant: AppVariant;
   readonly now: () => string;
+  /**
+   * The notes waiting on Undo (0.4.0): left out of both exports, as they
+   * will be once deleted for good. None when not given.
+   */
+  readonly heldNotes?: () => ReadonlySet<CookEventId>;
 };
+
+const NO_NOTES_HELD: ReadonlySet<CookEventId> = new Set();
 
 export const BACKUP_MIME_TYPE = 'application/json';
 export const COOK_TEXT_MIME_TYPE = 'text/plain';
@@ -86,6 +94,7 @@ export function backupFileName(fileDate: string, variant: AppVariant): string {
 
 export function createExportService(deps: ExportServiceDependencies): ExportService {
   const { data, photos, schemaVersion, sink, variant, now } = deps;
+  const heldNotes = deps.heldNotes ?? (() => NO_NOTES_HELD);
 
   async function handOver(file: ExportFile): Promise<void> {
     if (!(await sink.canShare())) {
@@ -98,7 +107,11 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
     async exportEverything(): Promise<ExportOutcome> {
       try {
         const at = now();
-        const assembly = await assembleBackup(data.snapshots, photos, schemaVersion, at);
+        const held = heldNotes();
+        const snapshots = {
+          readSnapshot: async () => snapshotWithoutHeldNotes(await data.snapshots.readSnapshot(), held),
+        };
+        const assembly = await assembleBackup(snapshots, photos, schemaVersion, at);
         if (!assembly.valid) {
           const first = assembly.issues[0];
           return {
@@ -134,10 +147,10 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           return { ok: false, message: COOK_NOT_FOUND };
         }
         const [
-          events,
+          allEvents,
           lessons,
           tags,
-          revisions,
+          allRevisions,
           mealType,
           cuisine,
           ingredients,
@@ -156,6 +169,7 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           data.household.list(),
           data.lessonRevisions.listForCook(cookId),
         ]);
+        const { events, revisions } = withoutHeldNotes(allEvents, allRevisions, heldNotes());
         const at = now();
         const fileName = cookExportFileName(cook, formatFileDate(at), variant);
         const text = renderCookAsText({

@@ -20,6 +20,7 @@ import type { ExportFile, ExportSink } from '../../src/data/export/sink';
 import { createPrivateFileStore } from '../../src/data/files/privateFileStore';
 import { createPhotoService } from '../../src/data/photos/capture';
 import { createCookDeletionWorkflow } from '../../src/data/deletion/workflow';
+import { createNoteDeletionWorkflow } from '../../src/data/deletion/notes';
 import { LATEST_SCHEMA_VERSION } from '../../src/data/schema/migrations';
 import { countingIds, openTestDatabase, type TestDatabase } from './database';
 import { memoryFileSystem, nodeDigest, type MemoryFileSystem } from './memoryPorts';
@@ -150,6 +151,7 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
   const files = memoryFileSystem();
   const photos = createPrivateFileStore(files, nodeDigest);
   const camera = scriptedPhotoSource(PLAIN_JPEG);
+  const noteDeletions = createNoteDeletionWorkflow({ data: db.data });
 
   const storage: AppStorage = {
     data: db.data,
@@ -161,6 +163,7 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
       sink,
       variant: 'test',
       now,
+      heldNotes: () => noteDeletions.pending(),
     }),
     photos,
     photoWorkflow: createPhotoService({
@@ -172,6 +175,7 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
       now,
     }),
     deletions: createCookDeletionWorkflow({ data: db.data, photos, now }),
+    noteDeletions,
     newId,
     now,
   };

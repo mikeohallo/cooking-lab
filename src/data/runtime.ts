@@ -26,6 +26,7 @@ import type { DataLayer } from './repositories';
 import type { AppVariant } from '../config/variants';
 import { selectAiService } from './ai/selection';
 import { createCookDeletionWorkflow, type CookDeletionWorkflow } from './deletion/workflow';
+import { createNoteDeletionWorkflow, type NoteDeletionWorkflow } from './deletion/notes';
 import { createExportService, type ExportService } from './export/service';
 import { createPrivateFileStore } from './files/privateFileStore';
 import { createPhotoService, type PhotoService } from './photos/capture';
@@ -54,6 +55,8 @@ export type CookingLabStorage = {
   readonly exporter: ExportService;
   /** Deletes a cook, with an undo window. */
   readonly deletions: CookDeletionWorkflow;
+  /** Deletes a written note, with an undo window held in memory (0.4.0). */
+  readonly noteDeletions: NoteDeletionWorkflow;
   /** The schema version the open database reports. */
   readonly schemaVersion: number;
   /** True when this launch created the database and its key for the first time. */
@@ -99,6 +102,7 @@ export async function startCookingLabStorage(
   const photos = createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort);
   const now = options.now ?? (() => new Date().toISOString());
   const deletions = createCookDeletionWorkflow({ data, photos, now });
+  const noteDeletions = createNoteDeletionWorkflow({ data });
 
   // A cook whose undo window was cut short by the app closing is deleted now,
   // as the cook asked. A failure here is not a reason to keep the notebook
@@ -124,6 +128,7 @@ export async function startCookingLabStorage(
       }),
       assistant: selectAiService({ variant: options.variant }),
       deletions,
+      noteDeletions,
       exporter: createExportService({
         data,
         photos,
@@ -131,6 +136,7 @@ export async function startCookingLabStorage(
         sink: expoSharingSink,
         variant: options.variant,
         now,
+        heldNotes: () => noteDeletions.pending(),
       }),
       schemaVersion: started.schema.schemaVersion,
       freshInstall: started.keyCreated,
