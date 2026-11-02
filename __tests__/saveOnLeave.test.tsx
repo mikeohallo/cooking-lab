@@ -304,6 +304,14 @@ describe('on the cook page', () => {
     expect(await tagNames()).toEqual([]);
   });
 
+  it('Done adds a tag typed but not added, then closes', async () => {
+    await fireEvent.press(await screen.findByTestId('tag-open'));
+    await typeInto('tag-input', 'test tart');
+    await fireEvent.press(screen.getByTestId('tag-open'));
+    await waitFor(async () => expect(await tagNames()).toEqual(['test tart']));
+    await waitFor(() => expect(screen.queryByTestId('tag-input')).toBeNull());
+  });
+
   it('a note being edited keeps its words and Save when the keyboard closes', async () => {
     await fireEvent.press(await screen.findByTestId('note-note-a-more'));
     await fireEvent.press(await screen.findByTestId('note-note-a-edit'));
@@ -313,6 +321,22 @@ describe('on the cook page', () => {
     expect(screen.getByTestId('note-note-a-edit-input')).toHaveDisplayValue('Test note A, changed.');
     expect(screen.getByTestId('note-note-a-edit-save')).toBeEnabled();
     expect(await harness.db.data.revisions.listForCook('cook-1')).toEqual([]);
+  });
+
+  it('Edit on another note keeps the first note’s changed words as a new version', async () => {
+    await fireEvent.press(await screen.findByTestId('note-note-a-more'));
+    await fireEvent.press(await screen.findByTestId('note-note-a-edit'));
+    await typeInto('note-note-a-edit-input', 'Test note A, changed.');
+    await fireEvent.press(screen.getByTestId('note-note-b-more'));
+    await fireEvent.press(await screen.findByTestId('note-note-b-edit'));
+
+    expect(await screen.findByTestId('note-note-b-edit-input')).toBeOnTheScreen();
+    await waitFor(async () =>
+      expect((await harness.db.data.revisions.listForCook('cook-1')).map((edit) => edit.text)).toEqual([
+        'Test note A, changed.',
+      ]),
+    );
+    expect(await screen.findByTestId('note-note-a-words')).toHaveTextContent('Test note A, changed.');
   });
 
   it('a cancelled note edit saves nothing', async () => {

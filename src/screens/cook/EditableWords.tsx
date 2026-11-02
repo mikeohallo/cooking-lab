@@ -62,6 +62,13 @@ type EditableWordsProps = {
  *     scrolls the editor to the top of the screen. With the keyboard up on
  *     the cover display the buttons were below the field, under the keyboard
  *     (N3); above it, they stay in sight however long the field grows.
+ *
+ * Leaving the field — it loses focus, or the keyboard is closed — keeps the
+ * editor open with its words and Save in sight (0.4.0, part 6): a note's words
+ * span lines and are often looked over before saving, and each save keeps a
+ * version, so they are not saved by leaving the field. If the editor is
+ * closed from outside instead (Edit on another note), changed words are saved
+ * as a new version rather than dropped.
  */
 export function EditableWords({
   words,
@@ -93,6 +100,24 @@ export function EditableWords({
   const [problem, setProblem] = useState<string | null>(null);
   const editorRef = useRef<View>(null);
   const { reveal } = useScreenScroll();
+  // Whether this editor closed itself (Cancel, or a save), and the latest
+  // words and save, for an editor that is closed from outside.
+  const closedHere = useRef(false);
+  const wasEditing = useRef(editing);
+  const latest = useRef({ draft, words, onSave });
+  useEffect(() => {
+    latest.current = { draft, words, onSave };
+  });
+  useEffect(() => {
+    if (wasEditing.current && !editing && !closedHere.current) {
+      const { draft: kept, words: now, onSave: store } = latest.current;
+      if (kept !== now && kept.trim() !== '' && kept.length <= MAX_TEXT_LENGTH) {
+        void store(kept);
+      }
+    }
+    wasEditing.current = editing;
+    closedHere.current = false;
+  }, [editing]);
 
   // Opened from outside (the sheet's Edit note): start from the words now.
   if (editing !== opened) {
@@ -113,6 +138,11 @@ export function EditableWords({
   const blank = draft.trim() === '';
   const tooLong = draft.length > MAX_TEXT_LENGTH;
 
+  const closeHere = () => {
+    closedHere.current = true;
+    setEditing(false);
+  };
+
   const startEditing = () => {
     setDraft(words);
     setProblem(null);
@@ -125,7 +155,7 @@ export function EditableWords({
     const failure = await onSave(draft);
     setSaving(false);
     if (failure === null) {
-      setEditing(false);
+      closeHere();
       return;
     }
     setProblem(failure);
@@ -140,7 +170,7 @@ export function EditableWords({
             <Button
               label={CANCEL}
               variant="text"
-              onPress={() => setEditing(false)}
+              onPress={closeHere}
               testID={`${testID}-edit-cancel`}
             />
             <Button

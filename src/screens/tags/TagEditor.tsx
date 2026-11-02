@@ -114,11 +114,22 @@ export function TagEditor({
     }
   }, [focused, suggestions, reveal]);
 
-  const submit = async () => {
+  const submit = async (): Promise<boolean> => {
     const added = await tagging.add(draft);
     if (added) {
       setDraft('');
     }
+    return added;
+  };
+
+  // Done with words still in the field adds them first (0.4.0, part 6), so
+  // closing the field never hides a tag that was typed but not added. If
+  // adding fails, the field stays open with the words and the problem.
+  const toggleOpen = async () => {
+    if (opened && draft.trim() !== '' && !(await submit())) {
+      return;
+    }
+    setOpened((now) => !now);
   };
 
   const onCook = new Set(tagging.tags.map((tag) => tag.id));
@@ -147,7 +158,7 @@ export function TagEditor({
           <TagChip
             name={opened ? DONE_TAGGING : `+ ${ADD_TAG_CHIP}`}
             variant="add"
-            onPress={() => setOpened((now) => !now)}
+            onPress={() => void toggleOpen()}
             testID="tag-open"
           />
           {opened && tagging.tags.length === 0 && !tagging.loading ? (
