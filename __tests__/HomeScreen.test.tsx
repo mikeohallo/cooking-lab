@@ -1,7 +1,7 @@
 /**
- * Home, which is also History (0.3.0): New Cook, Cooking now, the search and
- * filters, and every reviewed cook ten to a page — on real SQLite, with
- * made-up people.
+ * Home, which is also History (0.3.0, redrawn in 0.4.0): New Cook, Cooking
+ * now, the search and filters, and every reviewed cook ten to a page — on real
+ * SQLite, with made-up people.
  */
 import { act, render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import { useState } from 'react';
@@ -9,11 +9,12 @@ import { StyleSheet, View } from 'react-native';
 
 import { TEST_BADGE_TEST_ID } from '../src/components/TestBadge';
 import {
-  COOKING_NOW,
+  COOKING_NOW_OVERLINE,
   CORE_LOOP_STEPS,
   EMPTY_HOME_TITLE,
   EXPORT_EVERYTHING,
   HOME_MORE,
+  NEEDS_A_REVIEW,
   NEW_COOK_TITLE,
   PRODUCT_TAGLINE,
   UNTITLED_COOK,
@@ -86,7 +87,9 @@ describe('HomeScreen', () => {
     await renderHome();
     expect(await screen.findByTestId('home-empty')).toBeOnTheScreen();
     expect(screen.getByText(EMPTY_HOME_TITLE)).toBeOnTheScreen();
-    expect(screen.getByText(PRODUCT_TAGLINE)).toBeOnTheScreen();
+    // The empty state as drawn (0.4.0): no tagline, the loop as pills.
+    expect(screen.queryByText(PRODUCT_TAGLINE)).toBeNull();
+    expect(screen.getByTestId('core-loop')).toBeOnTheScreen();
     for (const step of CORE_LOOP_STEPS) {
       expect(screen.getByText(step)).toBeOnTheScreen();
     }
@@ -126,13 +129,13 @@ describe('HomeScreen', () => {
     const { onOpenCook } = await renderHome();
 
     const cookingNow = await screen.findByTestId('cooking-now');
-    expect(within(cookingNow).getByText(COOKING_NOW)).toBeOnTheScreen();
+    expect(within(cookingNow).getByText(COOKING_NOW_OVERLINE)).toBeOnTheScreen();
     expect(within(cookingNow).getByText(UNTITLED_COOK)).toBeOnTheScreen();
     expect(within(cookingNow).queryByText('Pork chops')).toBeNull();
     expect(within(screen.getByTestId('history-list')).getByText('Pork chops')).toBeOnTheScreen();
-    expect(screen.getByText('Great crust. Apple needed acid.')).toBeOnTheScreen();
+    // A card shows how it went in stars, not the notes (0.4.0).
+    expect(screen.queryByText('Great crust. Apple needed acid.')).toBeNull();
     expect(screen.queryByTestId('home-empty')).toBeNull();
-    // The marketing line is for first use only.
     expect(screen.queryByText(PRODUCT_TAGLINE)).toBeNull();
 
     await user.press(screen.getByTestId('cook-card-open-cook'));
@@ -146,7 +149,7 @@ describe('HomeScreen', () => {
     await renderHome();
     await screen.findByTestId('history-list');
     expect(screen.queryByTestId('cooking-now')).toBeNull();
-    expect(screen.queryByText(COOKING_NOW)).toBeNull();
+    expect(screen.queryByText(COOKING_NOW_OVERLINE)).toBeNull();
   });
 
   it('keeps Export everything and Who’s eating in the ⋯ menu', async () => {
@@ -203,7 +206,7 @@ describe('the reviewed cooks, ten to a page', () => {
     await screen.findByTestId('history-list');
 
     expect(listedIds()).toEqual([14, 13, 12, 11, 10, 9, 8, 7, 6, 5].map((n) => `soup-${n}`));
-    expect(screen.getByTestId('home-page-summary')).toHaveTextContent('14 cooks · page 1 of 2');
+    expect(screen.getByTestId('home-count')).toHaveTextContent('14 reviewed');
     expect(screen.getByTestId('home-page-position')).toHaveTextContent('1 of 2');
     expect(screen.getByTestId('home-page-previous')).toBeDisabled();
     expect(screen.getByTestId('home-page-next')).toBeEnabled();
@@ -216,7 +219,8 @@ describe('the reviewed cooks, ten to a page', () => {
 
     await user.press(screen.getByTestId('home-page-next'));
     expect(listedIds()).toEqual(['soup-4', 'soup-3', 'soup-2', 'soup-1']);
-    expect(screen.getByTestId('home-page-summary')).toHaveTextContent('14 cooks · page 2 of 2');
+    expect(screen.getByTestId('home-page-position')).toHaveTextContent('2 of 2');
+    expect(screen.getByTestId('home-count')).toHaveTextContent('14 reviewed');
     expect(screen.getByTestId('home-page-next')).toBeDisabled();
 
     await user.press(screen.getByTestId('home-page-previous'));
@@ -228,7 +232,7 @@ describe('the reviewed cooks, ten to a page', () => {
     await renderHome();
     await screen.findByTestId('history-list');
     expect(screen.queryByTestId('home-pager')).toBeNull();
-    expect(screen.getByTestId('home-page-summary')).toHaveTextContent('3 cooks');
+    expect(screen.getByTestId('home-count')).toHaveTextContent('3 reviewed');
   });
 
   it('keeps the page after a cook is opened and the screen comes back', async () => {
@@ -265,7 +269,8 @@ describe('the reviewed cooks, ten to a page', () => {
     await user.type(screen.getByTestId('history-search'), 'soup');
     const results = await screen.findByTestId('history-results');
     expect(within(results).getAllByTestId(/^cook-card-/)).toHaveLength(10);
-    expect(screen.getByTestId('home-page-summary')).toHaveTextContent('14 cooks · page 1 of 2');
+    expect(screen.getByTestId('home-count')).toHaveTextContent('14 of 14');
+    expect(screen.getByTestId('home-page-position')).toHaveTextContent('1 of 2');
 
     await user.press(screen.getByTestId('home-page-next'));
     expect(within(screen.getByTestId('history-results')).getAllByTestId(/^cook-card-/)).toHaveLength(4);
@@ -285,7 +290,8 @@ describe('the reviewed cooks, ten to a page', () => {
     await user.press(screen.getByTestId('home-page-next'));
 
     await user.press(screen.getByTestId('history-meal-snack'));
-    expect(screen.getByTestId('home-page-summary')).toHaveTextContent('12 cooks · page 1 of 2');
+    expect(screen.getByTestId('home-count')).toHaveTextContent('12 of 14');
+    expect(screen.getByTestId('home-page-position')).toHaveTextContent('1 of 2');
     expect(listedIds()[0]).toBe('soup-12');
   });
 
@@ -323,7 +329,7 @@ describe('the reviewed cooks, ten to a page', () => {
 });
 
 describe('a cook’s card', () => {
-  it('shows the meal type above the title, the date, the stars and the notes', async () => {
+  it('shows the meal type above the title, the date, and the average of the stars', async () => {
     const { data } = harness.storage;
     for (const [id, name] of [
       ['m-you', 'You'],
@@ -354,25 +360,26 @@ describe('a cook’s card', () => {
 
     await renderHome();
     const card = await screen.findByTestId('cook-card-soup-1');
-    await waitFor(() => expect(screen.getByTestId('cook-ratings-soup-1')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByTestId('cook-soup-1-average')).toBeOnTheScreen());
     const ids = within(card)
-      .getAllByTestId(/^cook-(meal|title|ratings|notes)-soup-1$/)
+      .getAllByTestId(/^cook-(meal|title)-soup-1$|^cook-soup-1-average$/)
       .map((node) => node.props.testID);
-    expect(ids).toEqual(['cook-meal-soup-1', 'cook-title-soup-1', 'cook-ratings-soup-1', 'cook-notes-soup-1']);
+    expect(ids).toEqual(['cook-meal-soup-1', 'cook-title-soup-1', 'cook-soup-1-average']);
     expect(within(card).getByText('Lunch/Dinner')).toBeOnTheScreen();
-    // Household order, then the guest; Guest's N/A is left out.
-    const ratings = screen.getByTestId('cook-ratings-soup-1');
-    expect(ratings).toHaveTextContent('★ 5 You · ★ 4 Guest 2');
-    expect(ratings.props.accessibilityLabel).toBe('You 5 stars, Guest 2 4 stars');
-    expect(screen.getByTestId('cook-notes-soup-1').props.numberOfLines).toBe(2);
+    // The average of the stars given, and how many gave them; Guest's N/A is left out.
+    expect(screen.getByTestId('cook-soup-1-average')).toHaveTextContent('4.5· 2 ratings');
+    // TalkBack hears who gave what: household order, then the guest.
+    expect(card.props.accessibilityLabel).toContain('You 5 stars, Guest 2 4 stars');
+    expect(within(card).queryByText('Notes for soup 1.')).toBeNull();
+    expect(within(card).queryByText(NEEDS_A_REVIEW)).toBeNull();
   });
 
-  it('shows an old review’s notes with no stars', async () => {
+  it('shows Needs a review on a cook with no stars', async () => {
     await reviewedSoups(1);
     await renderHome();
-    await screen.findByTestId('cook-card-soup-1');
-    expect(screen.queryByTestId('cook-ratings-soup-1')).toBeNull();
-    expect(screen.getByText('Notes for soup 1.')).toBeOnTheScreen();
+    const card = await screen.findByTestId('cook-card-soup-1');
+    expect(screen.queryByTestId('cook-soup-1-average')).toBeNull();
+    expect(within(card).getByText(NEEDS_A_REVIEW)).toBeOnTheScreen();
   });
 });
 
@@ -409,11 +416,11 @@ describe('N2: a card never drops its title’s last word', () => {
     expect(StyleSheet.flatten(title.parent?.props.style)?.flexDirection).not.toBe('row');
   });
 
-  it('keeps the Open chip off the title’s line', async () => {
+  it('keeps the Needs a review chip off the title’s line', async () => {
     const cook = await plainCook('n2-open', long);
     await render(<CookCard cook={cook} onPress={() => {}} />);
     const title = screen.getByTestId('cook-title-n2-open');
     expect(StyleSheet.flatten(title.parent?.props.style)?.flexDirection).not.toBe('row');
-    expect(screen.getByText('Open')).toBeOnTheScreen();
+    expect(screen.getByText(NEEDS_A_REVIEW)).toBeOnTheScreen();
   });
 });

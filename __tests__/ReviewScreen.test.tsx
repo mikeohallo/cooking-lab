@@ -2,8 +2,13 @@ import { screen, userEvent, waitFor } from '@testing-library/react-native';
 
 import {
   AI_NOT_CONNECTED_TITLE,
+  CUISINE_HEADING,
   FINISH_REVIEW,
+  NEXT_TIME,
+  OPTIONAL,
   RAW_EVIDENCE,
+  WHAT_WAS_IT,
+  WHO_ATE_IT,
   YOUR_NOTES,
 } from '../src/content/product';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
@@ -50,7 +55,7 @@ describe('ReviewScreen', () => {
     });
   });
 
-  it('asks for the notes, says suggestions are not connected, and shows the raw evidence', async () => {
+  it('asks, in order, what it was, the cuisine, who ate it, your notes and next time — and nothing more', async () => {
     await startCook();
     const { data, now } = harness.storage;
     await data.capture.addEvent(
@@ -59,12 +64,18 @@ describe('ReviewScreen', () => {
     );
     await renderReview('cook-1');
     await screen.findByTestId('review-screen');
+    await screen.findByText(WHAT_WAS_IT);
 
-    // 0.3.0: the verdict field is "Your notes", stored where the verdict always was.
-    expect(screen.getByText(YOUR_NOTES)).toBeOnTheScreen();
-    expect(screen.getByText(AI_NOT_CONNECTED_TITLE)).toBeOnTheScreen();
-    expect(screen.getByText(RAW_EVIDENCE)).toBeOnTheScreen();
-    expect(screen.getByText('Pulled at 54')).toBeOnTheScreen();
+    const headings = screen
+      .getAllByRole('header')
+      .map((node) => String(node.props.children))
+      .filter((text) => [WHAT_WAS_IT, CUISINE_HEADING, WHO_ATE_IT, YOUR_NOTES, NEXT_TIME].includes(text));
+    expect(headings).toEqual([WHAT_WAS_IT, CUISINE_HEADING, WHO_ATE_IT, YOUR_NOTES, NEXT_TIME]);
+    expect(screen.getByText(OPTIONAL)).toBeOnTheScreen();
+    // As drawn (0.4.0): no Suggestions and no raw evidence on the review.
+    expect(screen.queryByText(AI_NOT_CONNECTED_TITLE)).toBeNull();
+    expect(screen.queryByText(RAW_EVIDENCE)).toBeNull();
+    expect(screen.queryByText('Pulled at 54')).toBeNull();
   });
 
   it('saves the verdict verbatim, marks the cook reviewed, and hands off', async () => {

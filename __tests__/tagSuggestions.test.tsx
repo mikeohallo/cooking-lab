@@ -91,6 +91,7 @@ describe('typing a tag on the cook’s page', () => {
 
   it('offers the tag once, above the field, and not again in Used before', async () => {
     await harness.render(<CookScreen cookId="cook-01" onBack={() => {}} onReview={() => {}} />);
+    await fireEvent.press(await screen.findByTestId('tag-open'));
     await screen.findByTestId('tags-used-before');
 
     await fireEvent.changeText(await screen.findByTestId('tag-input'), 'br');

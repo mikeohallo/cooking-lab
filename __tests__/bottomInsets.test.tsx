@@ -166,8 +166,8 @@ describe.each(CASES)('pinned screen footers, $name', ({ metrics }) => {
     // Everything Review shows is in the scrolling area, above the bar.
     const scroll = screen.getByTestId('screen-scroll');
     expect(within(scroll).getByTestId('review-screen')).toBeOnTheScreen();
-    expect(within(scroll).getByTestId('tag-editor')).toBeOnTheScreen();
-    expect(within(scroll).getByTestId('ai-unavailable')).toBeOnTheScreen();
+    expect(within(scroll).getByTestId('meal-type')).toBeOnTheScreen();
+    expect(within(scroll).getByTestId('cuisine')).toBeOnTheScreen();
   });
 
   it('keeps the cook composer above the navigation area', async () => {

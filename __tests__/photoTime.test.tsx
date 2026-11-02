@@ -13,7 +13,7 @@
  * marked "added"; one taken outside the window likewise.
  */
 
-import { cleanup, screen } from '@testing-library/react-native';
+import { cleanup, fireEvent, screen } from '@testing-library/react-native';
 
 import type { PhotoSource, PhotoSourceOutcome } from '../src/data/adapters';
 import { createPrivateFileStore } from '../src/data/files/privateFileStore';
@@ -239,7 +239,7 @@ describe('on screen', () => {
     await harness.close();
   });
 
-  it('labels a photo placed when added "Photo · added <time>", and leaves older photos as they were', async () => {
+  it('labels a photo placed when added "Photo · added <time>" in the viewer, and leaves older photos as they were', async () => {
     const { data, now } = harness.storage;
     await data.capture.startCook({ id: 'cook-01', startedAt: now() }, 'user', now());
     const at = harness.tick();
@@ -258,10 +258,15 @@ describe('on screen', () => {
 
     await harness.render(<CookScreen cookId="cook-01" onBack={() => {}} onReview={() => {}} />);
 
-    expect((await screen.findByTestId('photo-caption-photo-added')).props.children).toMatch(
-      /^Photo · added \d{1,2}:\d{2}/,
-    );
-    expect(screen.getByTestId('photo-caption-photo-old').props.children).toMatch(/^Photo · \d{1,2}:\d{2}/);
-    expect(screen.getByTestId('photo-caption-photo-taken').props.children).toMatch(/^Photo · \d{1,2}:\d{2}/);
+    // The page shows no times (0.4.0); the viewer does.
+    const captionOf = async (id: string): Promise<string> => {
+      await fireEvent.press(await screen.findByTestId(`event-${id}`));
+      const caption = String((await screen.findByTestId(`photo-caption-${id}`)).props.children);
+      await fireEvent.press(screen.getByTestId('photo-close'));
+      return caption;
+    };
+    expect(await captionOf('photo-added')).toMatch(/^Photo · added \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2}/);
+    expect(await captionOf('photo-old')).toMatch(/^Photo · \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2}/);
+    expect(await captionOf('photo-taken')).toMatch(/^Photo · \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2}/);
   });
 });

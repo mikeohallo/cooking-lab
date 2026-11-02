@@ -1,7 +1,6 @@
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 
 import {
-  READING_SOMEWHERE_ELSE,
   COOK_NOT_FOUND_TITLE,
   EMPTY_TIMELINE_TITLE,
   FINISH_AND_REVIEW,
@@ -33,6 +32,12 @@ async function startCook(id = 'cook-1', title: string | null = null) {
     throw new Error(started.message);
   }
   return started.record;
+}
+
+/** Add a reading → Somewhere else (0.4.0): the reading sheet, on its third choice. */
+async function openSomewhereElse() {
+  await user.press(screen.getByTestId('oven-reading-toggle'));
+  await user.press(await screen.findByTestId('temperature-elsewhere'));
 }
 
 async function renderCook(cookId: string) {
@@ -92,7 +97,7 @@ describe('CookScreen — an open cook', () => {
     await renderCook('cook-1');
     await screen.findByTestId('cook-screen');
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
     await user.type(screen.getByTestId('temperature-celsius'), '62,5');
     await user.type(screen.getByTestId('temperature-where'), 'centre');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
@@ -114,7 +119,7 @@ describe('CookScreen — an open cook', () => {
     await renderCook('cook-1');
     await screen.findByTestId('cook-screen');
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
     await user.type(screen.getByTestId('temperature-celsius'), 'hot');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
 
@@ -176,7 +181,7 @@ describe('CookScreen — an open cook', () => {
     expect(onReview).toHaveBeenCalledWith('cook-1');
   });
 
-  it('shows the timeline oldest first', async () => {
+  it('groups the page by section: readings, then the notes in the order they were written', async () => {
     await startCook();
     const { data, now } = harness.storage;
     await data.capture.addEvent(
@@ -194,8 +199,10 @@ describe('CookScreen — an open cook', () => {
     await renderCook('cook-1');
     await screen.findByTestId('cook-screen');
 
-    const order = within(screen.getByTestId('timeline')).getAllByTestId(/^event-/);
-    expect(order.map((node) => node.props.testID)).toEqual(['event-e1', 'event-e2', 'event-e3']);
+    const order = within(screen.getByTestId('timeline')).getAllByTestId(/^event-e\d$/);
+    expect(order.map((node) => node.props.testID)).toEqual(['event-e2', 'event-e1', 'event-e3']);
+    expect(screen.getByLabelText('Readings, 1')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Notes, 2')).toBeOnTheScreen();
     expect(screen.getByText('96°C')).toBeOnTheScreen();
   });
 });

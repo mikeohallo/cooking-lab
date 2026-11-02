@@ -6,8 +6,9 @@
 import { screen, userEvent } from '@testing-library/react-native';
 
 import {
-  READING_SOMEWHERE_ELSE,
+  ADD_INTERNAL_READING,
   CANCEL,
+  MORE_COOK_ACTIONS,
   EXPORT_COOK,
   EXPORT_COOK_HINT,
   EXPORT_DONE_TITLE,
@@ -92,7 +93,9 @@ describe('Export this cook, on a reviewed cook', () => {
     await seedReviewedCook();
     await harness.render(<CookScreen cookId="done-cook" onBack={jest.fn()} onReview={jest.fn()} />);
     await screen.findByTestId('cook-detail-screen');
-    expect(screen.getByText(EXPORT_COOK_HINT)).toBeOnTheScreen();
+    // In the cook's ⋯ (0.4.0), above Delete cook.
+    await user.press(screen.getByRole('button', { name: MORE_COOK_ACTIONS }));
+    expect(await screen.findByText(EXPORT_COOK_HINT)).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: EXPORT_COOK }));
 
@@ -111,25 +114,25 @@ describe('Export this cook, on a reviewed cook', () => {
     await screen.findByTestId('cook-screen');
 
     expect(screen.queryByRole('button', { name: EXPORT_COOK })).toBeNull();
+    expect(screen.queryByRole('button', { name: MORE_COOK_ACTIONS })).toBeNull();
   });
 });
 
 describe('The composer keeps room for the timeline', () => {
-  it('lets the temperature row take the note field’s place, and gives the note back on Cancel', async () => {
+  it('opens a reading as a sheet, and gives the half-typed note back on Cancel', async () => {
     const { data, now } = harness.storage;
     await data.capture.startCook({ id: 'open-cook', startedAt: now() }, 'user', now());
     await harness.render(<CookScreen cookId="open-cook" onBack={jest.fn()} onReview={jest.fn()} />);
     await screen.findByTestId('cook-screen');
     await user.type(screen.getByTestId('note-input'), 'Half-written note');
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await user.press(screen.getByRole('button', { name: ADD_INTERNAL_READING }));
 
-    expect(screen.getByTestId('temperature-panel')).toBeOnTheScreen();
-    expect(screen.queryByTestId('note-input')).toBeNull();
+    expect(await screen.findByTestId('reading-panel-internal')).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: CANCEL }));
 
-    expect(screen.queryByTestId('temperature-panel')).toBeNull();
+    expect(screen.queryByTestId('reading-panel-internal')).toBeNull();
     expect(screen.getByTestId('note-input')).toHaveDisplayValue('Half-written note');
   });
 });

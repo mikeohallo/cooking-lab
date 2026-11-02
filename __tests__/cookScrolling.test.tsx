@@ -53,7 +53,6 @@ const COMPOSER_CONTROLS = [
   'oven-reading-toggle',
   'internal-reading-toggle',
   'note-send',
-  'temperature-elsewhere',
 ] as const;
 
 function flat(style: unknown): Record<string, unknown> {

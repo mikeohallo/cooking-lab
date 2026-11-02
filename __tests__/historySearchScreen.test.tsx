@@ -7,16 +7,15 @@
  * whole, and that the matched words are picked out where the eye looks for them.
  */
 
-import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { screen, userEvent, within } from '@testing-library/react-native';
 
 import {
   CLEAR_SEARCH,
-  COOKING_NOW,
+  COOKING_NOW_OVERLINE,
+  NO_MATCHES_TITLE,
   SEARCH_GROUP_ALL,
   SEARCH_GROUP_SOME,
-  SEARCH_NO_RESULTS_TITLE,
   SEARCH_PLACEHOLDER,
-  SHOW_MY_TAGS,
 } from '../src/content/product';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
@@ -67,6 +66,13 @@ async function openHistory(): Promise<void> {
   await screen.findByTestId('home-screen');
 }
 
+/** Tags are picked in the Filters sheet (0.4.0): open it, tap the tag, Show. */
+async function pickTag(name: string): Promise<void> {
+  await user.press(await screen.findByTestId('search-filters'));
+  await user.press(within(await screen.findByTestId('filters-tags')).getByText(name));
+  await user.press(screen.getByTestId('filters-show'));
+}
+
 describe('the search box', () => {
   it('is there, labelled, before anything has been typed', async () => {
     await fillHistory();
@@ -84,7 +90,7 @@ describe('the search box', () => {
     expect(await screen.findByTestId('history-list')).toBeOnTheScreen();
     expect(screen.queryByTestId('history-results')).toBeNull();
     // An empty box is not a search that found nothing.
-    expect(screen.queryByTestId('history-search-empty')).toBeNull();
+    expect(screen.queryByTestId('home-no-matches')).toBeNull();
   });
 
   it('keeps the filters working alongside it', async () => {
@@ -92,7 +98,7 @@ describe('the search box', () => {
     await openHistory();
 
     expect(screen.getByTestId('history-meal-filter')).toBeOnTheScreen();
-    expect(screen.getByRole('checkbox', { name: 'Breakfast' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Breakfast' })).toBeOnTheScreen();
   });
 });
 
@@ -180,8 +186,8 @@ describe('searching', () => {
 
     await user.type(screen.getByTestId('history-search'), 'aubergine');
 
-    expect(await screen.findByTestId('history-search-empty')).toBeOnTheScreen();
-    expect(screen.getByText(SEARCH_NO_RESULTS_TITLE)).toBeOnTheScreen();
+    expect(await screen.findByTestId('home-no-matches')).toBeOnTheScreen();
+    expect(screen.getByText(NO_MATCHES_TITLE)).toBeOnTheScreen();
   });
 
   it('searches the reviewed cooks, and leaves Cooking now as it is', async () => {
@@ -192,7 +198,7 @@ describe('searching', () => {
 
     const results = await screen.findByTestId('history-results');
     expect(within(results).queryByTestId('cook-card-cook-open')).toBeNull();
-    expect(within(screen.getByTestId('cooking-now')).getByText(COOKING_NOW)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('cooking-now')).getByText(COOKING_NOW_OVERLINE)).toBeOnTheScreen();
     expect(within(screen.getByTestId('cooking-now')).getByTestId('cook-card-cook-open')).toBeOnTheScreen();
   });
 
@@ -210,24 +216,22 @@ describe('searching', () => {
 });
 
 describe('searching by a tag he taps', () => {
-  it('offers his tags in one alphabet, and hides them again', async () => {
+  it('offers his tags in one alphabet in the Filters sheet', async () => {
     await fillHistory();
     await openHistory();
 
-    await user.press(await screen.findByRole('button', { name: SHOW_MY_TAGS }));
+    await user.press(await screen.findByTestId('search-filters'));
 
-    const list = await screen.findByTestId('history-all-tags');
-    expect(list).toBeOnTheScreen();
-    expect(screen.getByText('brown butter')).toBeOnTheScreen();
-    expect(screen.getByText('cast iron')).toBeOnTheScreen();
+    const list = await screen.findByTestId('filters-tags');
+    expect(within(list).getByText('brown butter')).toBeOnTheScreen();
+    expect(within(list).getByText('cast iron')).toBeOnTheScreen();
   });
 
   it('joins the search as one whole term, so two words stay together', async () => {
     await fillHistory();
     await openHistory();
 
-    await user.press(await screen.findByRole('button', { name: SHOW_MY_TAGS }));
-    await user.press(await screen.findByText('brown butter'));
+    await pickTag('brown butter');
 
     await screen.findByTestId('history-results');
     expect(screen.getByTestId('cook-card-cook-pasta')).toBeOnTheScreen();
@@ -235,28 +239,22 @@ describe('searching by a tag he taps', () => {
     expect(screen.queryByTestId('history-group-some')).toBeNull();
   });
 
-  it('shows a tapped tag as selected, and untaps it again', async () => {
+  it('shows a tapped tag as chosen, and untaps it again', async () => {
     await fillHistory();
     await openHistory();
 
-    await user.press(await screen.findByRole('button', { name: SHOW_MY_TAGS }));
-    const chips = await screen.findByTestId('history-all-tags');
-    expect(chips).toBeOnTheScreen();
+    await pickTag('cider');
+    await screen.findByTestId('history-results');
+    expect(screen.getByTestId('search-filters').props.accessibilityLabel).toBe('Filters, 1 on');
 
-    await user.press(screen.getByText('cider'));
+    await user.press(screen.getByTestId('search-filters'));
+    const chip = within(await screen.findByTestId('filters-tags')).getByRole('checkbox', { name: 'cider' });
+    expect(chip.props.accessibilityState).toMatchObject({ checked: true });
+    await user.press(chip);
+    await user.press(screen.getByTestId('filters-show'));
 
-    const picked = await screen.findByTestId('history-picked-tags');
-    expect(picked).toBeOnTheScreen();
-    await waitFor(() =>
-      expect(screen.getByTestId('history-picked-cider').props.accessibilityState).toMatchObject({
-        checked: true,
-      }),
-    );
-
-    await user.press(screen.getByTestId('history-picked-cider'));
-
-    await waitFor(() => expect(screen.queryByTestId('history-picked-tags')).toBeNull());
     expect(await screen.findByTestId('history-list')).toBeOnTheScreen();
+    expect(screen.getByTestId('search-filters').props.accessibilityLabel).toBe('Filters');
   });
 
   it('combines a tapped tag with a typed word', async () => {
@@ -264,8 +262,7 @@ describe('searching by a tag he taps', () => {
     await openHistory();
 
     await user.type(screen.getByTestId('history-search'), 'shoulder');
-    await user.press(await screen.findByRole('button', { name: SHOW_MY_TAGS }));
-    await user.press(await screen.findByText('cider'));
+    await pickTag('cider');
 
     await screen.findByTestId('history-group-all');
     expect(screen.getByTestId('history-group-all')).toContainElement(
@@ -284,6 +281,8 @@ describe('searching by a tag he taps', () => {
     await openHistory();
 
     await screen.findByTestId('history-list');
-    expect(screen.queryByRole('button', { name: SHOW_MY_TAGS })).toBeNull();
+    await user.press(screen.getByTestId('search-filters'));
+    expect(await screen.findByTestId('filters')).toBeOnTheScreen();
+    expect(screen.queryByTestId('filters-tags')).toBeNull();
   });
 });

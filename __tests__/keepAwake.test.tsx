@@ -13,7 +13,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
 import { AppState, Pressable, type AppStateStatus } from 'react-native';
 
-import { SCREEN_CAN_SLEEP, SCREEN_STAYS_ON } from '../src/content/product';
+import { SCREEN_CAN_SLEEP, SCREEN_OFF, SCREEN_ON, SCREEN_STAYS_ON } from '../src/content/product';
 import { CookScreen } from '../src/screens/CookScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { KEEP_AWAKE_TAG } from '../src/state/useKeepScreenOn';
@@ -77,7 +77,9 @@ describe('an open cook in front', () => {
     expect(activate).toHaveBeenCalledWith(KEEP_AWAKE_TAG);
     expect(holding()).toBe(true);
     expect(toggle.props.accessibilityState).toMatchObject({ checked: true });
-    expect(screen.getByText(SCREEN_STAYS_ON)).toBeOnTheScreen();
+    // "Screen on", as drawn; TalkBack hears the whole of it.
+    expect(screen.getByText(SCREEN_ON)).toBeOnTheScreen();
+    expect(toggle.props.accessibilityLabel).toBe(SCREEN_STAYS_ON);
   });
 
   it('lets go when the toggle is turned to "Screen can sleep", and takes hold again when turned back', async () => {
@@ -85,7 +87,8 @@ describe('an open cook in front', () => {
     await fireEvent.press(await screen.findByTestId('screen-awake-toggle'));
 
     expect(holding()).toBe(false);
-    expect(screen.getByText(SCREEN_CAN_SLEEP)).toBeOnTheScreen();
+    expect(screen.getByText(SCREEN_OFF)).toBeOnTheScreen();
+    expect(screen.getByTestId('screen-awake-toggle').props.accessibilityLabel).toBe(SCREEN_CAN_SLEEP);
 
     await fireEvent.press(screen.getByTestId('screen-awake-toggle'));
     expect(holding()).toBe(true);

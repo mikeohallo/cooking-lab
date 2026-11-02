@@ -6,8 +6,8 @@
  * scripted so a refusal and a cancellation can each be driven deliberately.
  */
 
-import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import {
   ADD_PHOTO,
@@ -22,13 +22,9 @@ import {
   REMOVE_PHOTO_KEEP,
   TAKE_PHOTO,
 } from '../src/content/product';
-import { PHOTO_HEIGHT_SHARE } from '../src/layout/photoFrame';
 import { CookScreen } from '../src/screens/CookScreen';
-import { palettes, radius } from '../src/theme/tokens';
+import { radius } from '../src/theme/tokens';
 import { openScreenHarness, type ScreenHarness } from './support/screens';
-
-// Screen tests draw the light theme: the phone's setting in the test runner.
-const colors = palettes.light;
 
 const user = userEvent.setup();
 
@@ -311,7 +307,8 @@ describe('a photograph whose file has gone', () => {
 
     await openCook();
 
-    expect(await screen.findByText('This photo is no longer on the phone.')).toBeOnTheScreen();
+    // A quiet tile in Photos that says so, for the screen reader in words.
+    expect(await screen.findByLabelText('This photo is no longer on the phone.')).toBeOnTheScreen();
     expect(screen.queryByTestId('photo-lost-photo')).toBeNull();
   });
 });
@@ -336,46 +333,27 @@ describe('a photograph in the timeline', () => {
     return id;
   }
 
-  it('is drawn whole, never cropped', async () => {
+  it('is a square in the Photos grid, and drawn whole in the viewer', async () => {
     const id = await photoInTimeline();
-    expect(screen.getByTestId(`photo-${id}`).props.resizeMode).toBe('contain');
+    expect(screen.getByTestId(`photo-${id}`).props.resizeMode).toBe('cover');
+    await user.press(screen.getByTestId(`event-${id}`));
+    expect((await screen.findByTestId('photo-viewer-image')).props.resizeMode).toBe('contain');
   });
 
-  it('has a thin border in the border token and the photo corner radius', async () => {
+  it('has the photo corner radius and a square tile', async () => {
     const id = await photoInTimeline();
-    const frame = flat(screen.getByTestId(`photo-frame-${id}`).props.style);
-    expect(frame.borderWidth).toBe(1);
-    expect(frame.borderColor).toBe(colors.line);
-    expect(frame.borderRadius).toBe(radius.photo);
-    expect(frame.overflow).toBe('hidden');
-    expect(frame.width).toBe('100%');
+    const tile = screen.getByTestId(`event-${id}`);
+    const style = flat(typeof tile.props.style === 'function' ? tile.props.style({ pressed: false }) : tile.props.style);
+    expect(style.borderRadius).toBe(radius.photo);
+    expect(style.overflow).toBe('hidden');
+    expect(style.aspectRatio).toBe(1);
   });
 
-  it('takes its own shape once it has loaded', async () => {
-    const id = await photoInTimeline();
-    await fireEvent(screen.getByTestId(`photo-frame-${id}`), 'layout', {
-      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 240 } },
-    });
-    await fireEvent(screen.getByTestId(`photo-${id}`), 'load', {
-      nativeEvent: { source: { width: 2048, height: 1024 } },
-    });
-    expect(flat(screen.getByTestId(`photo-frame-${id}`).props.style).height).toBe(160);
-  });
-
-  it('is capped at part of the window, and letterboxed, when it is taller', async () => {
-    const id = await photoInTimeline();
-    await fireEvent(screen.getByTestId(`photo-frame-${id}`), 'layout', {
-      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 240 } },
-    });
-    await fireEvent(screen.getByTestId(`photo-${id}`), 'load', {
-      nativeEvent: { source: { width: 512, height: 4096 } },
-    });
-    // At its own shape this one would be 2560 dp tall in a 320 dp frame. It is
-    // drawn at the cap instead, and still whole inside it.
-    const frame = flat(screen.getByTestId(`photo-frame-${id}`).props.style);
-    expect(frame.height).toBeLessThan(2560);
-    expect(frame.height).toBe(Math.round(windowHeight() * PHOTO_HEIGHT_SHARE));
-    expect(screen.getByTestId(`photo-${id}`).props.resizeMode).toBe('contain');
+  it('counts the photos in the heading, and the + tile adds another', async () => {
+    await photoInTimeline();
+    expect(screen.getByLabelText('Photos, 1')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('photo-add-tile'));
+    expect(await screen.findByTestId('photo-panel')).toBeOnTheScreen();
   });
 
   it('still opens full screen when tapped', async () => {
@@ -385,6 +363,3 @@ describe('a photograph in the timeline', () => {
   });
 });
 
-function windowHeight(): number {
-  return Dimensions.get('window').height;
-}

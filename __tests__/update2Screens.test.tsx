@@ -16,15 +16,17 @@ import {
 } from '@testing-library/react-native';
 
 import {
+  CUISINE_HEADING,
   EDITED,
   HOUSEHOLD_DONE,
   NEXT_TIME,
-  NEXT_TIME_HINT,
+  NEXT_TIME_SHOWN,
+  NOT_EATEN_LINE,
   ORIGINAL_VERSION,
+  WHAT_WAS_IT,
   WHO_ATE_IT,
   WHO_USUALLY_EATS,
   YOUR_NOTES,
-  ingredientsShowAll,
 } from '../src/content/product';
 import { HOUSEHOLD_ASKED_KEY } from '../src/data/sqlite/cookRecord';
 import type { EvidenceDecision } from '../src/domain/evidence';
@@ -102,21 +104,55 @@ afterEach(async () => {
 });
 
 describe('meal type on a cook', () => {
-  it('sets it with one tap, labels the cook above its title, and clears it with a second tap', async () => {
+  it('is set on the review with one tap, labels the cook above its title, and clears with a second tap', async () => {
     await startCook('cook-1', 'Porridge');
-    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+    await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
 
     const chip = await screen.findByTestId('meal-type-breakfast');
     expect(screen.getByRole('radio', { name: 'Breakfast' })).toBeOnTheScreen();
-    expect(screen.queryByTestId('cook-meal-label')).toBeNull();
-
     await fireEvent.press(chip);
-    await waitFor(() => expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Breakfast'));
-    expect(await harness.db.data.mealTypes.findForCook('cook-1')).toMatchObject({ mealType: 'breakfast' });
+    await waitFor(async () =>
+      expect(await harness.db.data.mealTypes.findForCook('cook-1')).toMatchObject({ mealType: 'breakfast' }),
+    );
+    expect(screen.getByTestId('meal-type-breakfast').props.accessibilityState).toMatchObject({ checked: true });
 
-    await fireEvent.press(screen.getByTestId('meal-type-breakfast'));
-    await waitFor(() => expect(screen.queryByTestId('cook-meal-label')).toBeNull());
-    expect(await harness.db.data.mealTypes.findForCook('cook-1')).toBeNull();
+    await cleanup();
+    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Breakfast'));
+    // The cook page shows it; the review is where it is chosen.
+    expect(screen.queryByTestId('meal-type-breakfast')).toBeNull();
+
+    await cleanup();
+    await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
+    await fireEvent.press(await screen.findByTestId('meal-type-breakfast'));
+    await waitFor(async () => expect(await harness.db.data.mealTypes.findForCook('cook-1')).toBeNull());
+  });
+
+  it('takes a cuisine on the review, Other in the cook’s own words, and clears it with a second tap', async () => {
+    await startCook('cook-1', 'Moussaka');
+    await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
+
+    await fireEvent.press(await screen.findByTestId('cuisine-greek'));
+    await waitFor(async () =>
+      expect(await harness.db.data.cuisines.findForCook('cook-1')).toMatchObject({ cuisine: 'greek' }),
+    );
+    await fireEvent.press(screen.getByTestId('cuisine-greek'));
+    await waitFor(async () => expect(await harness.db.data.cuisines.findForCook('cook-1')).toBeNull());
+
+    await fireEvent.press(screen.getByTestId('cuisine-other'));
+    await fireEvent.changeText(screen.getByTestId('cuisine-other-input'), '  Home baking ');
+    await fireEvent.press(screen.getByTestId('cuisine-other-save'));
+    await waitFor(async () =>
+      expect(await harness.db.data.cuisines.findForCook('cook-1')).toMatchObject({
+        cuisine: 'other',
+        otherWords: 'Home baking',
+      }),
+    );
+    expect(await screen.findByTestId('cuisine-other-chosen')).toHaveTextContent('Home baking');
+
+    await cleanup();
+    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+    expect(await screen.findByTestId('cook-cuisine-label')).toHaveTextContent('Home baking');
   });
 
   it('shows the label on Home and lets "Who’s eating" be reached from there', async () => {
@@ -136,25 +172,23 @@ describe('meal type on a cook', () => {
 describe('the Ingredients box', () => {
   const LIST = ['4 eggs', '1 tin tomatoes', '1 onion', '2 peppers', '100 g feta', 'cumin'].join('\n');
 
-  it('is a field before cooking; saved, it folds to four lines once the timeline starts', async () => {
+  it('is a field before cooking; then a bar, "6 · Show", that opens the whole list in place', async () => {
     await startCook('cook-1', 'Shakshuka');
     await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
 
     await fireEvent.changeText(await screen.findByTestId('ingredients-input'), LIST);
     await fireEvent.press(screen.getByTestId('ingredients-save'));
     await waitFor(() => expect(screen.getByTestId('ingredients-text')).toHaveTextContent('100 g feta', { exact: false }));
-    // No timeline yet: all of it.
-    expect(screen.queryByTestId('ingredients-show-all')).toBeNull();
 
     await cleanup();
     await note('cook-1', 'Onions in.');
     await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
-    const text = await screen.findByTestId('ingredients-text');
-    expect(text).toHaveTextContent('2 peppers', { exact: false });
-    expect(text).not.toHaveTextContent('100 g feta', { exact: false });
-    expect(screen.getByText(ingredientsShowAll(6))).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId('ingredients-show-all'));
+    const bar = await screen.findByTestId('ingredients-bar');
+    expect(bar.props.accessibilityLabel).toBe('Ingredients, 6 · Show');
+    expect(screen.queryByTestId('ingredients-text')).toBeNull();
+    await fireEvent.press(bar);
     expect(screen.getByTestId('ingredients-text')).toHaveTextContent('cumin', { exact: false });
+    expect(screen.getByTestId('ingredients-bar').props.accessibilityLabel).toBe('Ingredients, 6 · Hide');
     // The composer is still the page's pinned footer.
     expect(screen.getByTestId('screen-footer')).toBeOnTheScreen();
   });
@@ -175,6 +209,7 @@ describe('the Ingredients box', () => {
     await note('cook-1', 'Lentils rinsed.');
     await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
 
+    await fireEvent.press(await screen.findByTestId('ingredients-bar'));
     await fireEvent.press(await screen.findByTestId('ingredients-edit'));
     // Save sits above the field, out of the keyboard's way.
     expect(screen.getByTestId('ingredients-editor')).toBeOnTheScreen();
@@ -198,6 +233,7 @@ describe('the review', () => {
     await harness.render(<ReviewScreen cookId="cook-1" onBack={() => {}} onFinished={() => {}} />);
 
     expect(await screen.findByText(WHO_USUALLY_EATS)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('household-prompt-editor-add-someone'));
     await fireEvent.changeText(screen.getByTestId('household-prompt-editor-name'), 'You');
     await fireEvent.press(screen.getByTestId('household-prompt-editor-add'));
     await waitFor(() => expect(screen.getByTestId('household-prompt-editor-member-id-01')).toBeOnTheScreen());
@@ -223,7 +259,7 @@ describe('the review', () => {
     expect(screen.queryByText(WHO_USUALLY_EATS)).toBeNull();
   });
 
-  it('is in order — who ate it, meal type, your notes, next time — and nothing on it is required', async () => {
+  it('is in order — what it was, cuisine, who ate it, your notes, next time — and nothing on it is required', async () => {
     await household('You', 'Guest');
     await startCook('cook-1', 'Risotto');
     const onFinished = jest.fn();
@@ -232,11 +268,13 @@ describe('the review', () => {
 
     const { texts } = inOrder();
     const at = (label: string) => texts.indexOf(label);
-    expect(at(WHO_ATE_IT)).toBeGreaterThanOrEqual(0);
-    expect(at(WHO_ATE_IT)).toBeLessThan(at('Breakfast'));
-    expect(at('Breakfast')).toBeLessThan(at(YOUR_NOTES));
+    expect(at(WHAT_WAS_IT)).toBeGreaterThanOrEqual(0);
+    expect(at(WHAT_WAS_IT)).toBeLessThan(at('Breakfast'));
+    expect(at('Breakfast')).toBeLessThan(at(CUISINE_HEADING));
+    expect(at(CUISINE_HEADING)).toBeLessThan(at(WHO_ATE_IT));
+    expect(at(WHO_ATE_IT)).toBeLessThan(at(YOUR_NOTES));
     expect(at(YOUR_NOTES)).toBeLessThan(at(NEXT_TIME));
-    expect(screen.getByText(NEXT_TIME_HINT)).toBeOnTheScreen();
+    expect(screen.getByText(NEXT_TIME_SHOWN)).toBeOnTheScreen();
     expect(screen.queryByTestId('household-prompt')).toBeNull();
 
     await fireEvent.press(screen.getByTestId('finish-review'));
@@ -269,6 +307,8 @@ describe('the review', () => {
         notEaten: true,
       }),
     );
+    // N/A says what it means, on the row.
+    expect(within(screen.getByTestId('who-ate-it-member-m-guest')).getByText(NOT_EATEN_LINE)).toBeOnTheScreen();
 
     await fireEvent.press(within(youRow).getByTestId('who-ate-it-member-m-you-add-line'));
     await fireEvent.changeText(screen.getByTestId('who-ate-it-member-m-you-line-input'), 'Creamy.');
@@ -334,35 +374,49 @@ describe('a reviewed cook, and cooking it again', () => {
     granted(await data.cookRecord.addNextTime('cook-1', 'Half the apricots.', { id: 'lesson-1' }, 'user', harness.tick()));
   });
 
-  it('shows your notes, the ratings and next time, all changeable, and old notes word for word', async () => {
-    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+  it('shows your notes, the ratings and next time, and changes them in Edit review, old words kept', async () => {
+    const onReview = jest.fn();
+    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={onReview} />);
     expect(await screen.findByText(YOUR_NOTES)).toBeOnTheScreen();
     expect(screen.getByTestId('verdict-words')).toHaveTextContent(/Tender\.\s+Too sweet\./);
     expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Lunch/Dinner');
-    const ratings = screen.getByTestId('ratings-card');
-    expect(within(ratings).getByTestId('who-ate-it-member-m-guest-na')).toBeChecked();
+    const ratings = await screen.findByTestId('ratings-card');
+    expect(within(ratings).getByTestId('ratings-average')).toHaveTextContent('5.0');
+    expect(within(ratings).getByTestId('rating-r-2')).toHaveTextContent(/N\/A/);
+    expect(within(screen.getByTestId('next-time-card')).getByText('Half the apricots.')).toBeOnTheScreen();
+    // Next time sits above who ate it, first on the page.
+    const order = inOrder().testIDs;
+    expect(order.indexOf('next-time-card')).toBeLessThan(order.indexOf('ratings-card'));
+    await fireEvent.press(screen.getByTestId('edit-review'));
+    expect(onReview).toHaveBeenCalledWith('cook-1');
+    await cleanup();
 
-    // A rating changed after the review.
-    await fireEvent.press(
-      within(within(ratings).getByTestId('who-ate-it-member-m-you')).getByRole('radio', { name: '3 stars' }),
-    );
+    // Edit review: the same screen, filled in.
+    const onBack = jest.fn();
+    await harness.render(<ReviewScreen cookId="cook-1" onBack={onBack} onFinished={() => {}} />);
+    expect(await screen.findByTestId('verdict-input')).toHaveDisplayValue('Tender.\nToo sweet.');
+    expect(screen.getByTestId('next-time-input-lesson-1')).toHaveDisplayValue('Half the apricots.');
+    const you = await screen.findByTestId('who-ate-it-member-m-you');
+    await fireEvent.press(within(you).getByRole('radio', { name: '3 stars' }));
     await waitFor(async () =>
       expect((await harness.db.data.ratings.listForCook('cook-1')).find((r) => r.memberId === 'm-you')?.stars).toBe(3),
     );
-
-    // A next-time line edited, its first words kept.
-    await fireEvent.press(screen.getByTestId('lesson-lesson-1-more'));
-    await fireEvent.press(screen.getByTestId('lesson-lesson-1-edit'));
-    await fireEvent.changeText(screen.getByTestId('lesson-lesson-1-edit-input'), 'A third of the apricots.');
-    await fireEvent.press(screen.getByTestId('lesson-lesson-1-edit-save'));
-    await waitFor(() => expect(screen.getByTestId('lesson-lesson-1-words')).toHaveTextContent('A third of the apricots.'));
+    await fireEvent.changeText(screen.getByTestId('next-time-input-lesson-1'), 'A third of the apricots.');
+    await fireEvent.press(screen.getByTestId('save-review'));
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    // A new wording beside the first, which is kept as it was.
     expect((await harness.db.data.lessons.findById('lesson-1'))?.text).toBe('Half the apricots.');
+    expect((await harness.db.data.lessonRevisions.listForCook('cook-1')).map((edit) => edit.text)).toEqual([
+      'A third of the apricots.',
+    ]);
+    // The verdict was not touched, so no new version of it.
+    expect(await harness.db.data.revisions.listForCook('cook-1')).toEqual([]);
 
-    // And a line added later.
-    await fireEvent.press(screen.getByTestId('next-time-add'));
-    await fireEvent.changeText(screen.getByTestId('next-time-input'), 'Toast the almonds.');
-    await fireEvent.press(screen.getByTestId('next-time-save'));
-    await waitFor(() => expect(screen.getByText('Toast the almonds.')).toBeOnTheScreen());
+    await cleanup();
+    await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
+    expect(await screen.findByText('A third of the apricots.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('next-time-edited'));
+    expect(within(await screen.findByTestId('version-0')).getByText('Half the apricots.')).toBeOnTheScreen();
   });
 
   it('Cook this again starts a new open cook, which shows "Last time" and "2nd time cooking this"', async () => {
@@ -380,20 +434,16 @@ describe('a reviewed cook, and cooking it again', () => {
     const openIt = jest.fn();
     await harness.render(<CookScreen cookId={newId} onBack={() => {}} onReview={() => {}} onOpenCook={openIt} />);
     const card = await screen.findByTestId('last-time');
-    expect(within(card).getByText('You: 5 stars')).toBeOnTheScreen();
-    expect(within(card).getByText('Guest: N/A (didn’t eat it)')).toBeOnTheScreen();
-    expect(within(card).getByText('• Half the apricots.')).toBeOnTheScreen();
-    expect(within(card).getByTestId('last-time-meal')).toHaveTextContent('Lunch/Dinner');
-    expect(screen.getByTestId('times-cooked')).toHaveTextContent('2nd time cooking this');
+    expect(within(card).getByTestId('last-time-average')).toHaveTextContent('5.0 · 1 rating, 1 N/A');
+    // Last time's next-time line heads the new cook's page, first of all.
+    const nextTime = await screen.findByTestId('next-time-card');
+    expect(within(nextTime).getByText('Half the apricots.')).toBeOnTheScreen();
+    const order = inOrder().testIDs;
+    expect(order.indexOf('next-time-card')).toBeLessThan(order.indexOf('last-time'));
+    expect(screen.getByTestId('times-cooked')).toHaveTextContent(/ · 2nd time cooking this$/);
     expect(screen.getByTestId('cook-meal-label')).toHaveTextContent('Lunch/Dinner');
     await fireEvent.press(within(card).getByTestId('last-time-open'));
     expect(openIt).toHaveBeenCalledWith('cook-1');
-
-    // Folded to one line once the timeline has entries.
-    await cleanup();
-    await note(newId, 'Started.');
-    await harness.render(<CookScreen cookId={newId} onBack={() => {}} onReview={() => {}} />);
-    expect(await screen.findByTestId('last-time-folded')).toBeOnTheScreen();
   });
 
   it('falls back to the first lines of the notes when there is no next-time line', async () => {
@@ -409,9 +459,10 @@ describe('a reviewed cook, and cooking it again', () => {
 });
 
 describe('Who’s eating', () => {
-  it('adds, reorders, retires and brings back — never deleting anyone', async () => {
+  it('adds, renames, reorders, takes off and brings back — never deleting anyone', async () => {
     await harness.render(<HouseholdScreen onBack={() => {}} />);
     const add = async (name: string) => {
+      await fireEvent.press(await screen.findByTestId('household-add-someone'));
       await fireEvent.changeText(await screen.findByTestId('household-name'), name);
       await fireEvent.press(screen.getByTestId('household-add'));
       await waitFor(() => expect(screen.getByText(name)).toBeOnTheScreen());
@@ -420,17 +471,33 @@ describe('Who’s eating', () => {
     await add('Guest');
     const names = async () => (await harness.db.data.household.list()).filter((m) => m.retiredAt === null).map((m) => m.name);
     expect(await names()).toEqual(['You', 'Guest']);
+    expect(screen.getByText('Names stay on this phone. They are never sent anywhere.')).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Move up: Guest' }));
+    // Rename, which is also where the order is changed.
+    await fireEvent.press(screen.getByTestId('household-rename-id-02'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Move up' }));
     await waitFor(async () => expect(await names()).toEqual(['Guest', 'You']));
+    await fireEvent.changeText(screen.getByTestId('household-rename-input-id-02'), 'Guest 2');
+    await fireEvent.press(screen.getByTestId('household-rename-save-id-02'));
+    await waitFor(async () => expect(await names()).toEqual(['Guest 2', 'You']));
 
+    // The bin: no longer eats here, ratings kept.
     await fireEvent.press(screen.getByTestId('household-retire-id-01'));
-    await waitFor(async () => expect(await names()).toEqual(['Guest']));
+    await waitFor(async () => expect(await names()).toEqual(['Guest 2']));
     expect(await screen.findByTestId('household-retired')).toBeOnTheScreen();
     expect(await harness.db.data.household.list()).toHaveLength(2);
 
     await fireEvent.press(screen.getByTestId('household-restore-id-01'));
-    await waitFor(async () => expect(await names()).toEqual(['Guest', 'You']));
+    await waitFor(async () => expect(await names()).toEqual(['Guest 2', 'You']));
+  });
+
+  it('refuses a rename to a name already on the list', async () => {
+    await household('You', 'Guest');
+    await harness.render(<HouseholdScreen onBack={() => {}} />);
+    await fireEvent.press(await screen.findByTestId('household-rename-m-guest'));
+    await fireEvent.changeText(screen.getByTestId('household-rename-input-m-guest'), ' you ');
+    await fireEvent.press(screen.getByTestId('household-rename-save-m-guest'));
+    expect(await screen.findByText('you is already on the list.')).toBeOnTheScreen();
+    expect((await harness.db.data.household.list()).map((m) => m.name)).toEqual(['You', 'Guest']);
   });
 });
-

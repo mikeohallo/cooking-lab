@@ -7,7 +7,7 @@
  * has to hold — taking a tag off one cook leaves it on every other.
  */
 
-import { cleanup, screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 
 import {
   ADD_TAG,
@@ -53,6 +53,8 @@ async function tagCook(cookId: string, name: string): Promise<string> {
 async function openCook(id: string): Promise<void> {
   await harness.render(<CookScreen cookId={id} onBack={jest.fn()} onReview={jest.fn()} />);
   await screen.findByTestId('tag-editor');
+  // The cook page shows its tags and "+ Tag"; the rest opens from there (0.4.0).
+  await user.press(screen.getByTestId('tag-open'));
 }
 
 describe('an open cook', () => {
@@ -297,6 +299,7 @@ describe('an open cook', () => {
       failing,
     );
     await screen.findByTestId('tag-editor');
+    await user.press(screen.getByTestId('tag-open'));
 
     await user.type(screen.getByTestId('tag-input'), 'pork chops');
     await user.press(screen.getByRole('button', { name: ADD_TAG }));
@@ -314,6 +317,7 @@ describe('a reviewed cook', () => {
       <CookScreen cookId="cook-1" onBack={jest.fn()} onReview={jest.fn()} />,
     );
     await screen.findByTestId('cook-detail-screen');
+    await user.press(await screen.findByTestId('tag-open'));
 
     await user.type(await screen.findByTestId('tag-input'), 'sunday roast');
     await user.press(screen.getByRole('button', { name: ADD_TAG }));
@@ -322,61 +326,28 @@ describe('a reviewed cook', () => {
   });
 });
 
-describe('Review', () => {
-  it('offers the same tag control, used before and whole alphabet included', async () => {
+describe('the cook page and Review', () => {
+  it('shows a cook’s tags with + Tag, and the rest only once + Tag is tapped', async () => {
     await startCook('cook-1');
-    await startCook('cook-2');
-    const tagId = await tagCook('cook-2', 'pork chops');
-    await cleanup();
+    await tagCook('cook-1', 'pork chops');
+    await harness.render(<CookScreen cookId="cook-1" onBack={jest.fn()} onReview={jest.fn()} />);
+    expect(await screen.findByText('pork chops')).toBeOnTheScreen();
+    expect(screen.queryByTestId('tag-input')).toBeNull();
+    expect(screen.queryByRole('button', { name: SHOW_MY_TAGS })).toBeNull();
 
-    await harness.render(
-      <ReviewScreen cookId="cook-1" onBack={jest.fn()} onFinished={jest.fn()} />,
-    );
+    await user.press(screen.getByTestId('tag-open'));
+    expect(screen.getByTestId('tag-input')).toBeOnTheScreen();
+    // Nothing on the page says "Tags": the chips say it themselves, as drawn.
+    expect(screen.queryByText(TAGS_LABEL)).toBeNull();
+  });
+
+  // The review is drawn without tags (0.4.0); a cook is tagged on its own
+  // page, open or reviewed.
+  it('leaves tags off the review', async () => {
+    await startCook('cook-1');
+    await harness.render(<ReviewScreen cookId="cook-1" onBack={jest.fn()} onFinished={jest.fn()} />);
     await screen.findByTestId('review-screen');
-
-    expect(await screen.findByTestId('tag-editor')).toBeOnTheScreen();
-    expect(await screen.findByTestId(`tag-used-before-${tagId}`)).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: SHOW_MY_TAGS })).toBeOnTheScreen();
-  });
-
-  // Fix round 0.2.1 (F2): the section heading and the control's own label
-  // both said "Tags".
-  it('heads the tags once, not twice', async () => {
-    await startCook('cook-1');
-    await harness.render(
-      <ReviewScreen cookId="cook-1" onBack={jest.fn()} onFinished={jest.fn()} />,
-    );
-    await screen.findByTestId('tag-editor');
-
-    expect(screen.getAllByText(TAGS_LABEL)).toHaveLength(1);
-    expect(screen.queryByTestId('tag-editor-label')).toBeNull();
-  });
-
-  it('keeps the control’s own label on the cook’s page, which has no heading', async () => {
-    await startCook('cook-1');
-    await openCook('cook-1');
-
-    expect(screen.getAllByText(TAGS_LABEL)).toHaveLength(1);
-    expect(screen.getByTestId('tag-editor-label')).toBeOnTheScreen();
-  });
-
-  it('tags the cook from Review and keeps it after the review is saved', async () => {
-    await startCook('cook-1');
-    const onFinished = jest.fn();
-    await harness.render(
-      <ReviewScreen cookId="cook-1" onBack={jest.fn()} onFinished={onFinished} />,
-    );
-    await screen.findByTestId('review-screen');
-
-    await user.type(screen.getByTestId('tag-input'), 'sunday roast');
-    await user.press(screen.getByRole('button', { name: ADD_TAG }));
-    await screen.findByText('sunday roast');
-
-    await user.type(screen.getByTestId('verdict-input'), 'Better than last time.');
-    await user.press(screen.getByRole('button', { name: 'Finish review' }));
-
-    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('cook-1'));
-    const tags = await harness.storage.data.cookTags.listForCook('cook-1');
-    expect(tags.map((tag) => tag.name)).toEqual(['sunday roast']);
+    expect(screen.queryByTestId('tag-editor')).toBeNull();
+    expect(screen.queryByText(TAGS_LABEL)).toBeNull();
   });
 });

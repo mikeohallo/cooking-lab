@@ -228,9 +228,9 @@ describe('an open cook on the inner display', () => {
     expect(screen.getByTestId('note-input')).toBe(input);
     expect(screen.getByTestId('note-input')).toHaveDisplayValue('Half a thought about the');
     expect(screen.getByTestId('screen-scroll')).toBe(scroll);
-    // On one column the ingredients come back above the timeline, folded.
-    expect(within(screen.getByTestId('screen-main-pane')).getByTestId('ingredients')).toBeOnTheScreen();
-    expect(within(screen.getByTestId('screen-main-pane')).getByTestId('last-time-folded')).toBeOnTheScreen();
+    // On one column Last time and the Ingredients bar come back on the page.
+    expect(within(screen.getByTestId('screen-main-pane')).getByTestId('ingredients-bar')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('screen-main-pane')).getByTestId('last-time')).toBeOnTheScreen();
 
     await fold(INNER);
     expect(screen.getByTestId('screen-side-pane')).toBeOnTheScreen();

@@ -57,7 +57,7 @@ afterEach(async () => {
   await harness.close();
 });
 
-it('puts the ⋯ before the long words, and opens its menu above them', async () => {
+it('puts the ⋯ at the top right of the long words, and opens Note options', async () => {
   await harness.render(<CookScreen cookId="cook-1" onBack={() => {}} onReview={() => {}} />);
   await screen.findByTestId('note-note-1-words');
 
@@ -67,10 +67,10 @@ it('puts the ⋯ before the long words, and opens its menu above them', async ()
     Object.assign({}, ...(Array.isArray(style) ? style.flat(Infinity) : [style]).filter(Boolean));
   expect(flat(typeof more.props.style === 'function' ? more.props.style({ pressed: false }) : more.props.style).alignSelf).toBe('flex-start');
 
+  // The options are a sheet of their own (0.4.0), so nothing on the page moves.
   await fireEvent.press(more);
-  const order = testIDsInOrder();
-  expect(order.indexOf('note-note-1-menu')).toBeGreaterThanOrEqual(0);
-  expect(order.indexOf('note-note-1-menu')).toBeLessThan(order.indexOf('note-note-1-words'));
+  expect(await screen.findByTestId('note-note-1-menu')).toBeOnTheScreen();
+  expect(screen.getByTestId('note-note-1-edit')).toBeOnTheScreen();
 });
 
 it('puts Save and Cancel above the field in the editor, and scrolls the editor into view', async () => {

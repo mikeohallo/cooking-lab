@@ -121,10 +121,10 @@ describe('deleting a cook from History', () => {
 });
 
 describe('the cook’s own page', () => {
-  it('offers Delete cook from ⋯, without a long-press, and goes back once deleted', async () => {
-    await cook('cook-a', 'Bread');
+  it('offers Delete cook from a reviewed cook’s ⋯, without a long-press, and goes back once deleted', async () => {
+    await cook('cook-done', 'Pork chops', 'Good.');
     const onBack = jest.fn();
-    await harness.render(<CookScreen cookId="cook-a" onBack={onBack} onReview={() => {}} />);
+    await harness.render(<CookScreen cookId="cook-done" onBack={onBack} onReview={() => {}} />);
 
     const more = await screen.findByTestId('cook-more');
     expect(more.props.accessibilityLabel).toBe('More actions for this cook');
@@ -133,7 +133,16 @@ describe('the cook’s own page', () => {
     await fireEvent.press(screen.getByTestId('delete-cook-confirm-button'));
 
     await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
-    expect(await harness.db.data.cookDeletions.listPending()).toEqual(['cook-a']);
+    expect(await harness.db.data.cookDeletions.listPending()).toEqual(['cook-done']);
+  });
+
+  // As drawn (0.4.0), an open cook's top bar is Home, Screen on and Finish &
+  // review; an open cook is deleted from its Cooking now card on Home.
+  it('draws no ⋯ on an open cook’s page', async () => {
+    await cook('cook-a', 'Bread');
+    await harness.render(<CookScreen cookId="cook-a" onBack={() => {}} onReview={() => {}} />);
+    await screen.findByTestId('cook-screen');
+    expect(screen.queryByTestId('cook-more')).toBeNull();
   });
 
   it('edits a note on an open cook: ⋯, Edit, Save — the newest words, "edited", and the original kept', async () => {
@@ -149,14 +158,18 @@ describe('the cook’s own page', () => {
 
     expect(await screen.findByText('Salted at 7.')).toBeOnTheScreen();
     expect(screen.queryByText('Salted at 8.')).toBeNull();
-    expect(screen.getByText(EDITED)).toBeOnTheScreen();
 
     const [row] = await harness.db.adapter.select({
       sql: "SELECT body FROM cook_events WHERE id = 'cook-a-note'",
     });
     expect(row?.body).toBe('Salted at 8.');
 
-    await fireEvent.press(screen.getByTestId('note-cook-a-note-edited'));
+    // Note options says "edited", and lists the earlier versions with their count.
+    await fireEvent.press(screen.getByTestId('note-cook-a-note-more'));
+    expect(await screen.findByText(new RegExp(` · ${EDITED}$`))).toBeOnTheScreen();
+    const versions = screen.getByTestId('note-cook-a-note-versions');
+    expect(versions.props.accessibilityLabel).toBe('Earlier versions, 1');
+    await fireEvent.press(versions);
     const sheet = await screen.findByTestId('version-0');
     expect(within(sheet).getByText('Salted at 8.')).toBeOnTheScreen();
     expect(within(sheet).getByText(new RegExp(`^${ORIGINAL_VERSION} · `))).toBeOnTheScreen();
@@ -182,14 +195,19 @@ describe('the cook’s own page', () => {
     await fireEvent.press(screen.getByTestId('note-cook-done-note-edit-save'));
     expect(await screen.findByText('Salted at 7.')).toBeOnTheScreen();
 
+    // Your notes are changed in Edit review (0.4.0); each save is a new version.
+    await cleanup();
     for (const words of ['Good. More acid.', 'Good. More acid, less salt.']) {
-      await fireEvent.press(screen.getByTestId('verdict-more'));
-      await fireEvent.press(screen.getByTestId('verdict-edit'));
-      await fireEvent.changeText(screen.getByTestId('verdict-edit-input'), words);
-      await fireEvent.press(screen.getByTestId('verdict-edit-save'));
-      expect(await screen.findByText(words)).toBeOnTheScreen();
+      const onBack = jest.fn();
+      await harness.render(<ReviewScreen cookId="cook-done" onBack={onBack} onFinished={() => {}} />);
+      await fireEvent.changeText(await screen.findByTestId('verdict-input'), words);
+      await fireEvent.press(screen.getByTestId('save-review'));
+      await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+      await cleanup();
     }
 
+    await harness.render(<CookScreen cookId="cook-done" onBack={() => {}} onReview={() => {}} />);
+    expect(await screen.findByText('Good. More acid, less salt.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('verdict-edited'));
     expect(within(await screen.findByTestId('version-0')).getByText('Good. More acid.')).toBeOnTheScreen();
     expect(within(screen.getByTestId('version-1')).getByText('Good.')).toBeOnTheScreen();
@@ -228,6 +246,7 @@ describe('the cook’s own page', () => {
     await cook('cook-done', 'Pork chops', 'Good.');
     await harness.render(<CookScreen cookId="cook-done" onBack={() => {}} onReview={() => {}} />);
 
+    await fireEvent.press(await screen.findByTestId('tag-open'));
     await fireEvent.changeText(await screen.findByTestId('tag-input'), 'brine');
     await fireEvent.press(screen.getByTestId('tag-add'));
     const chip = await screen.findByText('brine');
@@ -241,19 +260,23 @@ describe('the cook’s own page', () => {
 });
 
 describe('Review', () => {
-  it('shows a note’s newest words, marked edited, and offers no editing there', async () => {
+  // As drawn (0.4.0): the review asks about the cook; the notes stay on its page.
+  it('lists none of the notes, and offers no editing of them', async () => {
     await cook('cook-a', 'Bread');
-    await harness.storage.data.capture.reviseNote(
-      'cook-a-note',
-      'Salted at 7.',
-      { id: 'rev-1' },
-      'user',
-      harness.tick(),
-    );
     await harness.render(<ReviewScreen cookId="cook-a" onBack={() => {}} onFinished={() => {}} />);
-
-    expect(await screen.findByText('Salted at 7.')).toBeOnTheScreen();
-    expect(screen.getByText(EDITED)).toBeOnTheScreen();
+    await screen.findByTestId('review-screen');
+    expect(screen.queryByText('Salted at 8.')).toBeNull();
     expect(screen.queryByTestId('note-cook-a-note-more')).toBeNull();
+  });
+
+  it('refuses to empty your notes in Edit review, and keeps the words already there', async () => {
+    await cook('cook-done', 'Pork chops', 'Good.');
+    const onBack = jest.fn();
+    await harness.render(<ReviewScreen cookId="cook-done" onBack={onBack} onFinished={() => {}} />);
+    await fireEvent.changeText(await screen.findByTestId('verdict-input'), '  ');
+    await fireEvent.press(screen.getByTestId('save-review'));
+    expect(await screen.findByTestId('review-edit-failed')).toBeOnTheScreen();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(await harness.db.data.revisions.listForCook('cook-done')).toEqual([]);
   });
 });

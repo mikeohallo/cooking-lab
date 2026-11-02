@@ -84,7 +84,6 @@ describe('the core loop', () => {
     const onFinished = jest.fn();
     await harness.render(<ReviewScreen cookId={cookId} onBack={jest.fn()} onFinished={onFinished} />);
     await screen.findByTestId('review-screen');
-    expect(screen.getByText('58°C')).toBeOnTheScreen();
     await user.type(screen.getByTestId('verdict-input'), 'Great crust. Apple and cabbage needed acid.');
     await user.type(screen.getByTestId('takeaway-input'), 'More acid in the cabbage.');
     harness.tick();
@@ -96,7 +95,7 @@ describe('the core loop', () => {
     const onOpenFromHistory = jest.fn();
     await harness.render(<HomeScreen onOpenCook={onOpenFromHistory} />);
     await screen.findByTestId('history-list');
-    expect(screen.getByText('Great crust. Apple and cabbage needed acid.')).toBeOnTheScreen();
+    expect(screen.getByTestId(`cook-card-${cookId}`)).toBeOnTheScreen();
     await user.press(screen.getByTestId(`cook-card-${cookId}`));
     expect(onOpenFromHistory).toHaveBeenCalledWith(cookId);
     await cleanup();
@@ -108,8 +107,8 @@ describe('the core loop', () => {
     expect(screen.getByText('More acid in the cabbage.')).toBeOnTheScreen();
     expect(screen.getByText('Pork chops, dry brined overnight.')).toBeOnTheScreen();
     expect(screen.getByText('58°C')).toBeOnTheScreen();
-    // The kind is named in words on the read-only card too, never by colour.
-    expect(screen.getByText('Internal')).toBeOnTheScreen();
+    // The kind is named in words in From the cook too, never by colour.
+    expect(screen.getByText(/^Internal /)).toBeOnTheScreen();
     expect(screen.getByText('Rested 8 minutes.')).toBeOnTheScreen();
     expect(screen.queryByTestId('composer')).toBeNull();
     await cleanup();

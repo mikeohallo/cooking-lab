@@ -16,7 +16,7 @@ import {
   CANCEL,
   INTERNAL_READING_LABEL,
   OVEN_READING_LABEL,
-  READING_SOMEWHERE_ELSE,
+  READING_SOMEWHERE_ELSE_CHOICE,
   SAVE_TEMPERATURE,
   SEND_NOTE,
 } from '../src/content/product';
@@ -46,6 +46,12 @@ async function openCook(): Promise<void> {
   await screen.findByTestId('cook-screen');
 }
 
+/** Add a reading → Somewhere else (0.4.0): the sheet's third choice. */
+async function openSomewhereElse(): Promise<void> {
+  await user.press(screen.getByRole('button', { name: ADD_OVEN_READING }));
+  await user.press(await screen.findByRole('radio', { name: READING_SOMEWHERE_ELSE_CHOICE }));
+}
+
 async function events() {
   return harness.storage.data.cookEvents.listForCook({ cookId: 'cook-1' });
 }
@@ -59,10 +65,14 @@ describe('the composer', () => {
     expect(screen.getByRole('button', { name: SEND_NOTE })).toBeOnTheScreen();
   });
 
-  it('offers a way out to a reading taken somewhere else', async () => {
+  it('offers a reading taken somewhere else in the same sheet', async () => {
     await openCook();
 
-    expect(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE })).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: ADD_INTERNAL_READING }));
+    expect(await screen.findByRole('radio', { name: READING_SOMEWHERE_ELSE_CHOICE })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: INTERNAL_READING_LABEL }).props.accessibilityState).toMatchObject({
+      checked: true,
+    });
   });
 
   it('asks an oven reading for a number and nothing else', async () => {
@@ -77,14 +87,14 @@ describe('the composer', () => {
     expect(screen.getByTestId('temperature-celsius').props.keyboardType).toBe('numeric');
   });
 
-  it('takes the note field’s place while it is open, and gives the note back', async () => {
+  it('opens as a sheet over the page, and leaves a half-typed note where it was', async () => {
     await openCook();
     await user.type(screen.getByTestId('note-input'), 'Half-written note');
 
     await user.press(screen.getByRole('button', { name: ADD_INTERNAL_READING }));
 
     expect(await screen.findByTestId('reading-panel-internal')).toBeOnTheScreen();
-    expect(screen.queryByTestId('note-input')).toBeNull();
+    expect(screen.getByTestId('reading-taken')).toHaveTextContent(/^Taken now, \d{1,2}:\d\d (am|pm)$/);
 
     await user.press(screen.getByRole('button', { name: CANCEL }));
 
@@ -174,7 +184,7 @@ describe('a reading taken somewhere else', () => {
   it('asks for a number and the cook’s own words', async () => {
     await openCook();
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
 
     expect(await screen.findByTestId('temperature-panel')).toBeOnTheScreen();
     expect(screen.getByTestId('temperature-celsius')).toBeOnTheScreen();
@@ -184,7 +194,7 @@ describe('a reading taken somewhere else', () => {
   it('writes down no kind at all', async () => {
     await openCook();
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
     await user.type(screen.getByTestId('temperature-celsius'), '4');
     await user.type(screen.getByTestId('temperature-where'), 'the fridge');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
@@ -198,7 +208,7 @@ describe('a reading taken somewhere else', () => {
   it('gets no kind mark and no kind word', async () => {
     await openCook();
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
     await user.type(screen.getByTestId('temperature-celsius'), '4');
     await user.type(screen.getByTestId('temperature-where'), 'the fridge');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
@@ -221,7 +231,7 @@ describe('a reading taken somewhere else', () => {
   it('gets a neutral card: plain surface, a border, ordinary text', async () => {
     await openCook();
 
-    await user.press(screen.getByRole('button', { name: READING_SOMEWHERE_ELSE }));
+    await openSomewhereElse();
     await user.type(screen.getByTestId('temperature-celsius'), '4');
     await user.type(screen.getByTestId('temperature-where'), 'the fridge');
     await user.press(screen.getByRole('button', { name: SAVE_TEMPERATURE }));
