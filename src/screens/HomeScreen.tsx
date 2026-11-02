@@ -183,7 +183,7 @@ export function HomeScreen({
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
   const [selected, setSelected] = useState<CookId | null>(null);
-  const { twoPane } = useLayoutMetrics();
+  const { twoPane, gutter } = useLayoutMetrics();
   const create = useWrite();
   const exportAll = useExport();
 
@@ -434,7 +434,7 @@ export function HomeScreen({
               filtersLabel={FILTERS}
               testID="history-search"
             />
-            <ChipRow wrap={twoPane}>
+            <ChipRow wrap={twoPane} gutter={gutter}>
               <FilterChip
                 label={FILTER_ALL}
                 selected={meal === null}
@@ -527,10 +527,12 @@ export function HomeScreen({
 }
 
 /**
- * The meal chips: one row scrolling sideways on the cover screen; on the inner
- * display's list pane, wrapped onto two rows, as drawn.
+ * The meal chips: one row scrolling sideways on the cover screen, edge to edge
+ * (it runs under the right gutter to the screen's edge, so it reads as
+ * scrollable); on the inner display's list pane, wrapped onto as many rows as
+ * the pane needs.
  */
-function ChipRow({ wrap, children }: { wrap: boolean; children: ReactNode }) {
+function ChipRow({ wrap, gutter, children }: { wrap: boolean; gutter: number; children: ReactNode }) {
   const styles = useStyles();
   if (wrap) {
     return (
@@ -549,8 +551,8 @@ function ChipRow({ wrap, children }: { wrap: boolean; children: ReactNode }) {
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={styles.chipScroll}
-      contentContainerStyle={styles.chips}
+      style={[styles.chipScroll, { marginRight: -gutter }]}
+      contentContainerStyle={[styles.chips, { paddingRight: gutter }]}
       accessibilityLabel={FILTER_MEAL_TYPE}
       testID="history-meal-filter"
     >

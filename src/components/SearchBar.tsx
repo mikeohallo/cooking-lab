@@ -21,9 +21,22 @@ type SearchBarProps = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'v
  * The search over your cooks: a pill on surface-raised with a magnifier, a ×
  * once there is text, and the round filter button beside it showing how many
  * filters are on.
+ *
+ * The placeholder is drawn here rather than by the text box (0.4.0, part 5):
+ * one line, ending with an ellipsis when the bar is too narrow for it, where
+ * Android's own placeholder either wrapped or was cut hard at the edge.
  */
 export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBar(
-  { value, onChangeText, onFilters, filterCount = 0, filtersLabel = 'Filters', clearLabel = 'Clear search', ...input },
+  {
+    value,
+    onChangeText,
+    onFilters,
+    filterCount = 0,
+    filtersLabel = 'Filters',
+    clearLabel = 'Clear search',
+    placeholder,
+    ...input
+  },
   ref,
 ) {
   const styles = useStyles();
@@ -33,15 +46,31 @@ export const SearchBar = forwardRef<TextInput, SearchBarProps>(function SearchBa
     <View style={styles.row}>
       <View style={styles.bar}>
         <Icon name="search" color="inkMuted" size={size.icon - 4} />
-        <TextInput
-          ref={ref}
-          {...input}
-          value={value}
-          onChangeText={onChangeText}
-          placeholderTextColor={colors.inkMuted}
-          accessibilityLabel={input.accessibilityLabel ?? input.placeholder}
-          style={[styles.input, fontsReady ? fontStyleFor(type.body.fontWeight) : null]}
-        />
+        <View style={styles.field}>
+          {placeholder && value === '' ? (
+            <AppText
+              tone="inkMuted"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              importantForAccessibility="no"
+              accessibilityElementsHidden
+              pointerEvents="none"
+              style={styles.placeholder}
+              testID="search-placeholder"
+            >
+              {placeholder}
+            </AppText>
+          ) : null}
+          <TextInput
+            ref={ref}
+            {...input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholderTextColor={colors.inkMuted}
+            accessibilityLabel={input.accessibilityLabel ?? placeholder}
+            style={[styles.input, fontsReady ? fontStyleFor(type.body.fontWeight) : null]}
+          />
+        </View>
         {value.length > 0 ? (
           <Pressable
             accessibilityRole="button"
@@ -94,24 +123,34 @@ const useStyles = makeStyles(({ colors }) =>
       borderRadius: radius.pill,
       backgroundColor: colors.surfaceRaised,
     },
-    input: {
+    field: {
       flex: 1,
+      minWidth: 0,
+      justifyContent: 'center',
+    },
+    placeholder: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+    },
+    input: {
       minHeight: size.targetMin,
+      paddingHorizontal: 0,
       color: colors.ink,
       fontSize: type.body.fontSize,
       lineHeight: type.body.lineHeight,
       paddingVertical: 0,
     },
     clear: {
-      width: size.targetMin - 4,
-      height: size.targetMin - 4,
+      width: size.inlineButton,
+      height: size.inlineButton,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.pill,
     },
     filterButton: {
-      width: size.targetMin + 2,
-      height: size.targetMin + 2,
+      width: size.filterButton,
+      height: size.filterButton,
       borderRadius: radius.pill,
       backgroundColor: colors.surfaceRaised,
       alignItems: 'center',

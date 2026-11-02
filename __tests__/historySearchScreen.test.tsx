@@ -7,7 +7,7 @@
  * whole, and that the matched words are picked out where the eye looks for them.
  */
 
-import { screen, userEvent, within } from '@testing-library/react-native';
+import { act, fireEvent, screen, userEvent, within } from '@testing-library/react-native';
 
 import {
   CLEAR_SEARCH,
@@ -79,8 +79,24 @@ describe('the search box', () => {
     await openHistory();
 
     const box = screen.getByTestId('history-search');
-    expect(box.props.placeholder).toBe(SEARCH_PLACEHOLDER);
     expect(box.props.accessibilityLabel).toBe(SEARCH_PLACEHOLDER);
+    // One line, ending with an ellipsis when the bar is too narrow (0.4.0, part 5).
+    // Drawn for the eye only: the box itself carries the words for a screen reader.
+    const shown = screen.getByTestId('search-placeholder', { includeHiddenElements: true });
+    expect(shown).toHaveTextContent(SEARCH_PLACEHOLDER);
+    expect(shown.props.numberOfLines).toBe(1);
+    expect(shown.props.ellipsizeMode).toBe('tail');
+    expect(SEARCH_PLACEHOLDER.endsWith('…')).toBe(true);
+  });
+
+  it('hides the placeholder once something is typed', async () => {
+    await fillHistory();
+    await openHistory();
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('history-search'), 'tart');
+    });
+    expect(screen.queryByTestId('search-placeholder', { includeHiddenElements: true })).toBeNull();
   });
 
   it('leaves today’s list alone until something is typed', async () => {
