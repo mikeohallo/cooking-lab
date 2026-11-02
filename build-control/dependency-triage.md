@@ -135,6 +135,25 @@ The merged manifest is still `INTERNET` and `CAMERA` and nothing else.
 the base commit's lockfile (`decode-uri-component`, `deepmerge`, `glob`,
 `minimatch`, `node-forge`, `uuid`, `zod`); none of the three adds one.
 
+## Added in 0.4.0 part 7, 2 November 2026
+
+Two packages for the web preview (`build-control/PREVIEW.md`), at the versions
+`npx expo install` picks for SDK 57, both as **dev dependencies**: they are for
+drawing the screens in a browser on the PC, not for the phone.
+
+| Package | Version | Why | In the APK | What it brought with it |
+|---|---|---|---|---|
+| `react-native-web` | `^0.21.2` (0.21.4 installed) | Draws the app's React Native views in a browser, for the web preview | **No.** Metro uses it only when it bundles for the web. An Android export of the JavaScript at part 7 was searched: none of its code is in it | `fbjs`, `inline-style-prefixer`, `styleq`, `postcss-value-parser`, `memoize-one`, `cross-fetch` (with `node-fetch`) and a few small ones: eighteen new lockfile entries, all dev |
+| `@expo/metro-runtime` | `~57.0.17` | Metro's runtime for web bundles; `expo export --platform web` asks for it | **Already was**, in the same role: `expo-router` has always depended on it. Listing it directly moved the one copy in the tree from 57.0.15 to 57.0.17, the newest in the SDK 57 range | Nothing new |
+
+`npx expo install … -- --save-dev` still wrote both into `dependencies`; they
+were moved to `devDependencies` by hand and `npm install` re-run. An APK build
+runs `npm ci`, which installs dev dependencies too, so nothing changes for it.
+
+Neither declares a permission or adds native Android code. `npm audit
+--audit-level=critical` passes and lists the same 56 (6 low, 44 moderate,
+6 high) as before part 7; neither package adds one.
+
 ## In CI
 
 CI runs `npm audit --audit-level=critical` after installing. A new critical
