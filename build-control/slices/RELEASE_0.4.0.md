@@ -1,6 +1,6 @@
 # Release 0.4.0 — the new look, and the cover and inner screens
 
-**Status:** built, tests green on the desktop; part 6 not yet tried on a device
+**Status:** built, tests green on the desktop; parts 6 and 7 not yet tried on a device
 **Date:** 2 November 2026
 **Version:** 0.4.0 (`versionCode` 7)
 **Schema:** version 5 · **Backup format:** version 5
@@ -10,11 +10,12 @@ Mike (product owner) approved the 0.4.0 plan and its design on 2 November
 2026. The release was built in three parts, and a fourth, Delete note, was
 added on 2 November at his request. A fifth, an adaptive layout and the faults
 from the first test build, followed the same day, and a sixth, four small
-fixes from the second test build. Parts 1 and 2 have records of their own,
-kept as they are; this is the whole release in one record, with parts 3 to 6
-in full. Code, tests and docs only.
+fixes from the second test build, and a seventh, a web preview and a scale
+pass to normal app sizes. Parts 1 and 2 have records of their own, kept as
+they are; this is the whole release in one record, with parts 3 to 7 in
+full. Code, tests and docs only.
 
-## The release in six parts
+## The release in seven parts
 
 1. **The foundation and the data** (`RELEASE_0.4.0_PART1.md`, to `13432bf`).
    The design system's tokens in light and dark, following the phone's own
@@ -49,6 +50,10 @@ in full. Code, tests and docs only.
    N/A never breaks; Who ate it?'s stars, N/A and pencil never split; the
    cause of labels cut short after a live font-size change (inside React
    Native, left as it is); typed words never dropped without warning.
+7. **A web preview, and a scale pass** (below, after part 6). The real
+   screens in a browser, on a synthetic notebook, at any size, font scale and
+   theme; then type and drawn sizes brought down to Material 3's, every
+   control keeping a 48 dp touch area.
 
 ## Part 3: what was built
 
@@ -687,3 +692,124 @@ The line said no device work. `ACCEPTANCE.md` → "0.4.0 checks" adds step 12
 a restart, for the reason in fix 3) and step 13 (the title on Back). Whether
 the word joiners hold N/A together in Android's line breaker, and how the
 closed-up stars look, can only be seen there.
+
+
+## Part 7: a web preview, and a scale pass to normal app sizes
+
+Mike looked at 0.4.0 on the Fold 6 and found everything far too big: the
+type, the buttons, the chips, the photos. Part 7 adds a way for the build
+chat to see every screen without a phone, then brings what is drawn down to
+Material 3's sizes while every control keeps its 48 dp touch area. Code,
+tests and docs only. The version stays 0.4.0, `versionCode` 7.
+
+### 1. The web preview
+
+The app's real screens in a browser (`build-control/PREVIEW.md`).
+
+- **Two dev dependencies:** `react-native-web` 0.21.4 and
+  `@expo/metro-runtime` 57.0.17, at the versions `npx expo install` picks
+  for SDK 57 (`build-control/dependency-triage.md`). Metro serves `.wasm`.
+- **Preview mode, on the web only.** `src/data/runtime.web.ts` replaces the
+  storage runtime in a web bundle: an unencrypted SQLite database in memory
+  (expo-sqlite's web build), made by the app's own migrations and filled
+  through the app's own services from `src/preview/seed.web.ts`. The
+  camera and library answer "cancelled"; sharing does nothing.
+- **The preview notebook:** two open cooks (the muffins a second time, with
+  Last time, Next time, an Oven and an Internal reading, notes with one
+  edited, two photos; a traybake the first time); twelve reviewed cooks
+  across all five meals, nine with a cuisine (one Other) and three without;
+  ratings from You and Guest (the household) and Guest 2 (a guest), with two
+  N/As and four lines; ingredients and tags. Photos are flat colour blocks
+  drawn in code.
+- **URL options:** `?screen=` opens any of eleven screens in the state the
+  design pack shows; `?theme=light|dark`; `?fontScale=` multiplies every
+  text style. A screen's sheets and states are reached by pressing and typing
+  on its own controls, so no screen has a way in for the preview.
+- **`npm run preview:web`** exports to `preview-web/` (ignored);
+  **`npm run preview:serve`** serves it on 127.0.0.1 with Node alone. Only
+  `.wasm`'s type matters; the isolation headers are sent but not needed.
+  expo-sqlite locks its browser storage, so one tab per address.
+- **Nothing of it reaches the Android build.** Every preview file is
+  `.web.ts` or `.web.tsx`; shared code reaches it from the root layout and
+  the type scale only, each behind `Platform.OS === 'web'`, which Metro
+  drops from an Android bundle. An Android export of the JavaScript before and
+  after part 7 differs by 63 bytes: the root layout's one-line wrapper, and
+  the tokens file loading `Platform`. No preview module, name or data is in
+  it.
+
+### 2. The scale pass
+
+The rule, now in Design Baseline v3 section 4: **touch area 48, drawn size
+per Material 3.** Every control keeps a 48 dp touch area; what is drawn
+follows Material 3, and a hit area (`touchSlop`, `src/theme/touch.ts`)
+makes up the rest. Before, every drawn size was made equal to its touch
+target, and the type ran a size or two above Material 3 with 800 almost
+everywhere.
+
+- **Type:** the table in Design Baseline v3 section 3, before and after.
+  800 stays for the app's name and titles only.
+- **Drawn sizes:** buttons 40 (the main action, Finish review's bar and New
+  Cook 48); chips 32; the round ⋯, filter, Back, pencil, bin and camera 40;
+  the search bar's × and Send 36; icon circles 32; the cover's cook-card
+  photo 80 × 68 and the inner one 64 × 56; Cooking now a compact card with a
+  56 photo and one row of meta that wraps only where it must. The full table,
+  before and after, is in section 4.
+- **Space:** the cover gutter 16 (20 turned sideways), inner 20; cards and
+  zones padded 12 to 14; gaps between sections a step tighter. Corners: card
+  16, zone 18, field 12, photo 12; pills stay pills.
+
+### Part 7: the decisions
+
+1. **The packages are dev dependencies.** The phone never runs
+   `react-native-web`; `@expo/metro-runtime` was already in the tree under
+   `expo-router` and is now 57.0.17 rather than 57.0.15, the one copy.
+2. **Preview mode is every web bundle,** not a flag: the web has nowhere to
+   keep an encrypted notebook, and nothing ships to the web.
+3. **The preview's sheets are opened by tapping, not by new props.** The
+   browser clicks the screen's own controls; Jest presses them.
+4. **The type scale's preview hook mutates the rows once, at load,** behind
+   `Platform.OS === 'web'`. On a phone the rows are the literal values above.
+5. **The two phone-bundle guards skip web files.** `fixtureSeparation`
+   (no synthetic data in the bundle) and `liveFontScale` (the font scale
+   read only live) now skip `.web.*` files, which never reach the phone;
+   `previewNotInAndroid.test.ts` holds them to that.
+6. **Tracking** on titles was scaled down with their sizes; the line gave
+   only overline's.
+7. **Sizes the line did not name:** the title photo 92 → 72, a person's
+   circle in Who's eating 52 → 40, photos' corners 14 → 12, the search bar
+   50 → 48 (a text field, so its drawn size is its touch area), links and
+   Screen on 48 → 40 like buttons, icons in a 32 circle 22 → 18. Unchanged:
+   text fields (48), the reading box, the star's own sizes.
+8. **Stars reach 5 dp either side** to 48 wide. Neighbours share that 5; a
+   tap there goes to the star on the right. Their drawn and own widths are
+   as part 6 left them.
+9. **Who ate it?'s row is about 8 dp narrower** (the pencil 48 → 40, N/A
+   32 tall but still 48 wide). By part 6's estimate that brings the 640
+   two-pane case to within the line at font 1.0 and 1.15; Jest cannot
+   measure it, and it was not tried on a device.
+10. **Cooking now puts the title first,** then one row of meal, cuisine and
+    the started line, so the meta shares a line wherever it fits.
+
+### Part 7: verification
+
+On the desktop: `check:secrets`, `typecheck`, `lint` (no warnings) and the
+suite pass: **88 suites, 1749 tests**, up from 85 and 1685 at part 6.
+
+| Test file | What it pins down |
+|---|---|
+| `webPreview.test.tsx` (new, 23) | The URL options; the preview notebook made by the migrations and covering every screen in the design pack, with only You, Guest and Guest 2; photos as colour, never files; every `?screen=` drawn, its steps reaching its state, with no error |
+| `previewNotInAndroid.test.ts` (new, 4) | Every preview file a web file; the browser's runtime beside the phone's; the preview reached from shared code only behind `Platform.OS === 'web'`, never by a plain import |
+| `touchArea.test.tsx` (new, 37) | Every pressable on every preview screen, and on Home's menu, a cook's actions and Delete's confirm, Add a photo, the tag and title editors, earlier versions and a reviewed cook's menu, on the cover and inner screens: drawn size plus hit area at least 48 each way |
+| `fonts`, `editDeleteScreens`, `innerScreens`, `photoScreens` | The new weights; ⋯, the pencil and the camera drawn 40 with a 48 touch area |
+| `noFixedWidths`, `contrast`, `noHandTypedStyles` | Unchanged, and passing |
+
+The preview was also built and served. After the scale pass every
+`?screen=` opened in Chromium at 369 × 800 and reached its state with no
+console error; Home, the reviewed cook at font 1.15 and the review in dark
+were also looked at on 792 × 880.
+
+### Part 7: not tried on a device
+
+The line said no device work. How the new sizes feel in the hand, and
+whether a 32 chip's hit area ever lands on its neighbour, can only be seen on
+the Fold.

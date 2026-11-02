@@ -58,36 +58,82 @@ colour is never used.
 
 ## 3. Type
 
-One family, Plus Jakarta Sans, bundled with the app, as in v2. Heavy weights
-(800) for titles and headings are a large part of the look.
+One family, Plus Jakarta Sans, bundled with the app, as in v2. Since 0.4.0
+part 7 the sizes sit at Material 3's, and 800 is kept for the app's name and
+titles only; headings and cards are 700, Next time and buttons 600.
 
-| Style | Size / line | Weight | For |
-|---|---:|---:|---|
-| `appTitle` | 34 / 40 | 800 | "Cooking Lab" on Home, once (30 / 36 on the inner screen) |
-| `title` | 28 / 33 | 800 | A cook's title on the cook and review screens |
-| `titleCompact` | 24 / 29 | 800 | The title beside its photo in an inner pane |
-| `heading` | 22 / 28 | 800 | Section headings: Your cooks, Readings, Notes, Photos, Who ate it? |
-| `cardTitle` | 17 / 22 | 800 | A cook on a card; a person's name |
-| `nextTime` | 17 / 25 | 700 | Next time's words, bigger and bolder than body on purpose (18 / 26 in the inner side column) |
-| `body`, `bodyStrong` | 16 / 24 | 400, 700 | Notes, Your notes, ingredients. Never under 16 on the cook screen |
-| `secondary` | 14 / 20 | 400 | Dates, counts, times |
-| `overline` | 13 / 18 | 800 | NEXT TIME, COOKING NOW, written in capitals in the copy |
-| `label` | 13 / 18 | 700 | The meal label, cuisine pill, status and tag chips |
-| `chip` | 14 / 18 | 700 | Filter chips and the composer's reading chips |
-| `button`, `buttonMain` | 16 / 20, 17 / 22 | 800 | Every button; New Cook and a screen's foot button |
-| `readingNumber` | 30 / 34 | 800 | A temperature, Celsius only |
+| Style | Size / line | Weight | Was (before part 7) | For |
+|---|---:|---:|---|---|
+| `appTitle` | 26 / 32 | 800 | 34 / 40, 800 | "Cooking Lab" on Home, once |
+| `appTitleInner` | 24 / 30 | 800 | 30 / 36, 800 | The same on the inner screen |
+| `title` | 22 / 28 | 800 | 28 / 33, 800 | A cook's title on the cook and review screens |
+| `titleCompact` | 20 / 26 | 800 | 24 / 29, 800 | The title beside its photo in an inner pane |
+| `heading` | 18 / 24 | 700 | 22 / 28, 800 | Section headings: Your cooks, Readings, Notes, Photos, Who ate it? |
+| `cardTitle` | 16 / 22 | 700 | 17 / 22, 800 | A cook on a card; a person's name |
+| `nextTime` | 16 / 24 | 600 | 17 / 25, 700 | Next time's words |
+| `nextTimeLarge` | 17 / 25 | 600 | 18 / 26, 700 | The same in the inner side column |
+| `body` | 16 / 22 | 400 | 16 / 24, 400 | Notes, Your notes, ingredients. Never under 16 on the cook screen |
+| `bodyStrong` | 16 / 22 | 600 | 16 / 24, 700 | The same, stressed |
+| `secondary` | 13 / 18 | 400 | 14 / 20, 400 | Dates, counts, times |
+| `overline` | 12 / 16 | 700, tracking 0.8 | 13 / 18, 800, tracking 1 | NEXT TIME, COOKING NOW, written in capitals in the copy |
+| `label` | 12 / 16 | 600 | 13 / 18, 700 | The meal label, cuisine pill, status and tag chips |
+| `chip` | 13 / 18 | 600 | 14 / 18, 700 | Filter chips and the composer's reading chips |
+| `button` | 14 / 20 | 600 | 16 / 20, 800 | Every button |
+| `buttonMain` | 15 / 20 | 700 | 17 / 22, 800 | New Cook and a screen's foot button |
+| `readingNumber` | 24 / 28 | 700 | 30 / 34, 800 | A temperature, Celsius only |
+
+Titles keep a little negative tracking, scaled down with their size
+(`appTitle` and `appTitleInner` −0.6, `title` −0.5, `titleCompact` −0.4,
+`heading` and `cardTitle` −0.2, `readingNumber` −0.5).
 
 ## 4. Shape, space and size
 
 - **Corners:** `pill` for every button (New Cook too), the search bar, chips
-  and icon circles; `card` (20) for cards and the title photo; `photo` (14)
-  for photos in cards and grids; `zone` (22) for the Next time card and sheet
-  tops; `field` (16) for text fields, the Ingredients bar and the Undo bar.
+  and icon circles; `card` (16) for cards and the title photo; `photo` (12)
+  for photos in cards and grids; `zone` (18) for the Next time card and sheet
+  tops; `field` (12) for text fields, the Ingredients bar and the Undo bar.
 - **Spacing** comes only from the steps 4, 8, 12, 16, 20, 24, 32, 40. The cover
-  screen's side margin is 18 (16 plus 2); inner panes use 20.
-- **Sizes:** every control at least 48 dp; the main action 56 dp; icon circles
-  40 dp (36 on the inner screen); a card's photo 104 × 88 on the cover screen
-  and 72 × 64 in the inner list; running text never wider than 680 dp.
+  screen's side margin is 16 (20 when it is turned sideways); inner panes use
+  20. Cards and zones are padded 12 to 14. Gaps between sections are a step
+  tighter than before part 7.
+- **Touch area 48, drawn size per Material 3.** Every control a finger can
+  press keeps a touch area of at least 48 × 48 dp, Android's minimum. What is
+  drawn follows Material 3: a button is 40 tall, a chip 32, a round icon
+  button 40 or less. Where the drawn size is under 48, the control's hit area
+  (`hitSlop`, from `touchSlop` in `src/theme/touch.ts`) reaches out the rest
+  of the way, evenly.
+  *Why:* until part 7 every drawn size was made equal to its touch target, and
+  the type ran a size or two above Material 3 with 800 nearly everywhere; on
+  the Fold everything looked far too big. Material 3 gets its 48 from the
+  space around a control, not by drawing it at 48.
+  `__tests__/touchArea.test.tsx` measures every pressable on every screen and
+  sheet, on the cover and inner screens, and holds it to 48.
+- **Sizes (dp), drawn:**
+
+| What | Now | Was |
+|---|---:|---:|
+| Touch area of any control (`targetMin`) | 48 | 48 |
+| A button (`button`) | 40 | 48 |
+| The main action: New Cook, Finish review's bar, the composer's bar (`targetMain`) | 48 | 56 |
+| A filter, choice, tag or reading chip; N/A (`chip`, `tagChip`) | 32 | 40, 34; N/A 48 |
+| A round icon button: ⋯, Back, a pencil, the bin, the camera (`iconButton`) | 40 | 48 |
+| The filter button beside the search bar (`filterButton`) | 40 | 50 |
+| The search bar's × and Send (`inlineButton`) | 36 | 44 |
+| The search bar | 48 | 50 |
+| Links (Show all, edited) and Screen on | 40 | 48 |
+| Icon circles: sections, readings, Next time's bulb, a card's chevron (`iconCircle`, `iconCircleInner`, `nextCircle`) | 32 | 40, 36, 44 |
+| An icon inside a 32 circle | 18 | 22 |
+| A cook card's photo, cover screen (`photoCardW` × `photoCardH`) | 80 × 68 | 104 × 88 |
+| The same, inner list (`photoCardWInner` × `photoCardHInner`) | 64 × 56 | 72 × 64 |
+| Cooking now's photo, both screens (`photoNow`) | 56 × 56 | 104 × 88; 72 × 64 inner |
+| The photo beside a cook's title (`photoTitle`) | 72 | 92 |
+| A person's circle in Who's eating (`avatar`) | 40 | 52 |
+| A star: drawn width, own width, height | 30, 38, 48 | unchanged; its hit area now reaches 5 either side |
+| Running text, widest | 680 | 680 |
+
+- **Cooking now** is a compact card: a 56 photo, the title, and one row of
+  meta (meal, cuisine, when it started, notes, which time) that wraps only
+  where it has to.
 - **Icons:** rounded line icons on a 24 grid, a 2 px line, round caps and
   joins, after Material Symbols Rounded. The app draws its own
   (`src/components/Icon.tsx`) and names the nearest Material Symbol for each.
@@ -166,6 +212,7 @@ generated or decorative food pictures, as in v1 and v2.
   opacity on the whole control, and says why nearby when it is not obvious.
 - Font scaling is respected: no fixed-height text containers, and a card's
   title wraps to every line it needs.
+- Every control keeps a 48 dp touch area, whatever its drawn size (section 4).
 
 ## 9. v1 and v2 rules that still stand
 
