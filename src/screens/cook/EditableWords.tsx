@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
+import { Icon } from '../../components/Icon';
 import { Notice } from '../../components/Notice';
 import { TextField } from '../../components/TextField';
 import { CANCEL, EDIT, EDITED, EDIT_UNCHANGED, SAVE_EDIT, UNSAVED_KEPT } from '../../content/product';
@@ -29,6 +30,16 @@ type EditableWordsProps = {
   editLabel: string;
   /** Rendered above the words, e.g. "Verdict". */
   heading?: ReactNode;
+  /**
+   * The cook page's notes (0.4.0): ⋯ opens the Note options sheet instead of
+   * its own small menu, and the sheet's Edit note opens the editor here.
+   */
+  onMore?: () => void;
+  /** Whether the editor is open, when the caller decides (with `onMore`). */
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
+  /** Shows "edited" under the words. Off where the sheet offers the versions. */
+  showEdited?: boolean;
   testID: string;
 };
 
@@ -62,16 +73,35 @@ export function EditableWords({
   actionsLabel,
   editLabel,
   heading,
+  onMore,
+  editing: editingProp,
+  onEditingChange,
+  showEdited = true,
   testID,
 }: EditableWordsProps) {
   const styles = useStyles();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editingOwn, setEditingOwn] = useState(false);
+  const editing = editingProp ?? editingOwn;
+  const setEditing = (next: boolean) => {
+    setEditingOwn(next);
+    onEditingChange?.(next);
+  };
+  const [opened, setOpened] = useState(editing);
   const [draft, setDraft] = useState(words);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const editorRef = useRef<View>(null);
   const { reveal } = useScreenScroll();
+
+  // Opened from outside (the sheet's Edit note): start from the words now.
+  if (editing !== opened) {
+    setOpened(editing);
+    if (editing) {
+      setDraft(words);
+      setProblem(null);
+    }
+  }
 
   useEffect(() => {
     if (editing) {
@@ -183,27 +213,25 @@ export function EditableWords({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={actionsLabel}
-            accessibilityState={{ expanded: menuOpen }}
-            onPress={() => setMenuOpen((open) => !open)}
+            accessibilityState={onMore ? undefined : { expanded: menuOpen }}
+            onPress={() => (onMore ? onMore() : setMenuOpen((open) => !open))}
             style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
             hitSlop={4}
             testID={`${testID}-more`}
           >
-            <AppText variant="bodyStrong" tone="inkMuted" importantForAccessibility="no">
-              ⋯
-            </AppText>
+            <Icon name="more" color="inkMuted" size={size.icon - 4} />
           </Pressable>
         ) : null}
       </View>
 
-      {caption !== undefined || edited ? (
+      {caption !== undefined || (edited && showEdited) ? (
         <View style={styles.captionRow}>
           {caption !== undefined ? (
             <AppText variant="secondary" tone="inkMuted">
               {caption}
             </AppText>
           ) : null}
-          {edited ? (
+          {edited && showEdited ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Edited. Show earlier versions"

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../components/Button';
@@ -26,6 +26,8 @@ type CookActionsProps = {
   onClose: () => void;
   /** Called once the cook has been deleted (pending its Undo). */
   onDeleted?: (cookId: CookId) => void;
+  /** More for this cook above Delete: Export this cook, on its own page (0.4.0). */
+  extra?: ReactNode;
 };
 
 /**
@@ -38,7 +40,7 @@ type CookActionsProps = {
  * anything happens. Even then the cook is only hidden: the Undo bar brings it
  * back for a few seconds (`PendingDeletionProvider`).
  */
-export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
+export function CookActions({ cook, onClose, onDeleted, extra }: CookActionsProps) {
   const styles = useStyles();
   const { requestDelete } = usePendingDeletion();
   const [confirming, setConfirming] = useState(false);
@@ -87,6 +89,8 @@ export function CookActions({ cook, onClose, onDeleted }: CookActionsProps) {
               <AppText variant="bodyStrong" numberOfLines={2}>
                 {cook.title ?? UNTITLED_COOK}
               </AppText>
+
+              {extra && !confirming ? extra : null}
 
               {problem ? (
                 <Notice

@@ -5,7 +5,7 @@ import { PaneSheet } from '../../layout/panes';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { CLOSE_VERSIONS, EARLIER_VERSIONS, ORIGINAL_VERSION } from '../../content/product';
-import type { IsoTimestamp, Revision } from '../../domain/entities';
+import type { IsoTimestamp, Lesson, LessonRevision, Revision } from '../../domain/entities';
 import { formatDateTime } from '../../format/dateTime';
 import { makeStyles } from '../../theme/theme';
 import { space } from '../../theme/tokens';
@@ -37,6 +37,18 @@ export function earlierVersions(
     ...ordered.map((revision) => ({ text: revision.text, at: revision.revisedAt, original: false })),
   ];
   // The newest is the one on screen; the rest, newest first.
+  return all.slice(0, -1).reverse();
+}
+
+/** Every earlier wording of one next-time line, newest first, the first marked original. */
+export function earlierNextTimeVersions(lesson: Lesson, edits: readonly LessonRevision[]): readonly Version[] {
+  const mine = edits
+    .filter((edit) => edit.lessonId === lesson.id)
+    .sort((left, right) => (left.revisedAt < right.revisedAt ? -1 : left.revisedAt > right.revisedAt ? 1 : 0));
+  const all: Version[] = [
+    { text: lesson.text, at: lesson.createdAt, original: true },
+    ...mine.map((edit) => ({ text: edit.text, at: edit.revisedAt, original: false })),
+  ];
   return all.slice(0, -1).reverse();
 }
 

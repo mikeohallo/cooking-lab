@@ -8,7 +8,9 @@ import { TagChip } from '../../components/TagChip';
 import { TextField } from '../../components/TextField';
 import {
   ADD_TAG,
+  ADD_TAG_CHIP,
   ADD_TAG_PLACEHOLDER,
+  DONE_TAGGING,
   HIDE_MY_TAGS,
   NO_TAGS_YET,
   SHOW_MY_TAGS,
@@ -29,6 +31,11 @@ type TagEditorProps = {
   refreshToken?: number;
   /** Prints the control's own "Tags" label. Off where the screen heads it already. */
   labelled?: boolean;
+  /**
+   * The cook page's form (0.4.0): the tags as chips with "+ Tag" after them,
+   * and the field, Used before and Show me my tags only once + Tag is tapped.
+   */
+  compact?: boolean;
   testID?: string;
 };
 
@@ -69,9 +76,12 @@ export function TagEditor({
   cookId,
   refreshToken = 0,
   labelled = true,
+  compact = false,
   testID = 'tag-editor',
 }: TagEditorProps) {
   const styles = useStyles();
+  const [opened, setOpened] = useState(false);
+  const expanded = !compact || opened;
   const tagging = useCookTags(cookId, refreshToken);
   const [draft, setDraft] = useState('');
   const [suggestions, setSuggestions] = useState<readonly Tag[]>([]);
@@ -122,7 +132,31 @@ export function TagEditor({
         </AppText>
       ) : null}
 
-      {tagging.tags.length > 0 ? (
+      {compact ? (
+        <View style={styles.chips} testID="cook-tags">
+          {tagging.tags.map((tag) => (
+            <TagChip
+              key={tag.id}
+              name={tag.name}
+              variant="removable"
+              disabled={tagging.saving}
+              onPress={() => void tagging.remove(tag.id)}
+              testID={`cook-tag-${tag.id}`}
+            />
+          ))}
+          <TagChip
+            name={opened ? DONE_TAGGING : `+ ${ADD_TAG_CHIP}`}
+            variant="add"
+            onPress={() => setOpened((now) => !now)}
+            testID="tag-open"
+          />
+          {opened && tagging.tags.length === 0 && !tagging.loading ? (
+            <AppText variant="secondary" tone="inkMuted" testID="cook-tags-empty">
+              {NO_TAGS_YET}
+            </AppText>
+          ) : null}
+        </View>
+      ) : tagging.tags.length > 0 ? (
         <View style={styles.chips} testID="cook-tags">
           {tagging.tags.map((tag) => (
             <TagChip
@@ -150,23 +184,24 @@ export function TagEditor({
         />
       ) : null}
 
-      <View ref={typing} style={styles.typing} testID="tag-typing">
-        {suggestions.length > 0 ? (
-          <View style={styles.chips} testID="tag-suggestions">
-            {suggestions.map((tag) => (
-              <TagChip
-                key={tag.id}
-                name={tag.name}
-                variant="pick"
-                disabled={tagging.saving}
-                onPress={() => {
-                  setDraft('');
-                  void tagging.addExisting(tag);
-                }}
-                testID={`tag-suggestion-${tag.id}`}
-              />
-            ))}
-          </View>
+      {expanded ? (
+        <View ref={typing} style={styles.typing} testID="tag-typing">
+          {suggestions.length > 0 ? (
+            <View style={styles.chips} testID="tag-suggestions">
+              {suggestions.map((tag) => (
+                <TagChip
+                  key={tag.id}
+                  name={tag.name}
+                  variant="pick"
+                  disabled={tagging.saving}
+                  onPress={() => {
+                    setDraft('');
+                    void tagging.addExisting(tag);
+                  }}
+                  testID={`tag-suggestion-${tag.id}`}
+                />
+              ))}
+            </View>
         ) : null}
 
         <View style={styles.addRow}>
@@ -197,7 +232,9 @@ export function TagEditor({
         </View>
       </View>
 
-      {usedBefore.length > 0 ? (
+      ) : null}
+
+      {expanded && usedBefore.length > 0 ? (
         <View style={styles.block} testID="tags-used-before">
           <AppText variant="label" tone="inkMuted">
             {USED_BEFORE}
@@ -217,7 +254,7 @@ export function TagEditor({
         </View>
       ) : null}
 
-      {tagging.allTags.length > 0 ? (
+      {expanded && tagging.allTags.length > 0 ? (
         <Button
           label={showingAll ? HIDE_MY_TAGS : SHOW_MY_TAGS}
           variant="text"
@@ -226,7 +263,7 @@ export function TagEditor({
         />
       ) : null}
 
-      {showingAll ? (
+      {expanded && showingAll ? (
         <View style={styles.chips} testID="all-tags">
           {tagging.allTags.map((tag) => (
             <TagChip

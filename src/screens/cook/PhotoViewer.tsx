@@ -7,6 +7,7 @@ import { AppText } from '../../components/AppText';
 import { Notice } from '../../components/Notice';
 import {
   CLOSE_PHOTO,
+  PHOTO_ADDED_AT,
   PHOTO_ALT,
   PHOTO_LABEL,
   REMOVE_PHOTO,
@@ -24,6 +25,11 @@ export type ViewedPhoto = {
   readonly uri: string;
   /** When the photograph was added, which is its place in the timeline. */
   readonly ts: string;
+  /**
+   * A Gallery photo whose own time would not do sits at the time it was
+   * added, and says so (0.2.2; see `src/domain/photoTime.ts`).
+   */
+  readonly placedWhenAdded?: boolean;
 };
 
 type PhotoViewerProps = {
@@ -118,8 +124,10 @@ export function PhotoViewer({ photo, onClose, onRemove, canRemove = true }: Phot
                 style={[styles.bar, { paddingBottom: BAR_BOTTOM_PADDING + insets.bottom }]}
                 testID="photo-viewer-bar"
               >
-                <AppText variant="secondary" tone="inkMuted">
-                  {`${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
+                <AppText variant="secondary" tone="inkMuted" testID={`photo-caption-${photo.eventId}`}>
+                  {photo.placedWhenAdded
+                    ? `${PHOTO_LABEL} · ${PHOTO_ADDED_AT} ${formatDateTime(photo.ts)}`
+                    : `${PHOTO_LABEL} · ${formatDateTime(photo.ts)}`}
                 </AppText>
 
                 {problem ? (
