@@ -1,62 +1,73 @@
-import { useState, type ReactElement } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useMemo, useState, type ReactElement } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { usePendingDeletion } from '../state/PendingDeletion';
+import { UndoSlot, usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
+import { useCardPhotoUris } from '../state/useCardPhotos';
 import { useCookList } from '../state/useCookList';
 import { useExport } from '../state/useExport';
 import { useHistoryIndex } from '../state/useHistoryIndex';
+import { useNoteCounts } from '../state/useNoteCounts';
 import { useTagIndex } from '../state/useTagIndex';
 import { useWrite } from '../state/useWrite';
 import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
 import { CoreLoop } from '../components/CoreLoop';
+import { FilterChip } from '../components/FilterChip';
+import { MEAL_ICON } from '../components/Icon';
 import { NewCookButton } from '../components/NewCookButton';
 import { Pager } from '../components/Pager';
+import { SearchBar } from '../components/SearchBar';
 import { IconButton } from '../components/TopBar';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ShellHeader } from '../components/ShellHeader';
 import { Notice } from '../components/Notice';
 import {
-  COOKING_NOW,
+  CLEAR_FILTERS,
   EMPTY_HOME_BODY,
   EMPTY_HOME_TITLE,
   EXPORT_EVERYTHING,
   EXPORT_EVERYTHING_HINT,
-  FILTER_NO_RESULTS_BODY,
-  FILTER_NO_RESULTS_TITLE,
+  FILTERS,
+  FILTER_ALL,
+  FILTER_MEAL_TYPE,
   HOME_MORE,
   NEW_COOK_HINT,
   NEW_COOK_TITLE,
+  NO_MATCHES_BODY,
+  NO_MATCHES_TITLE,
   PAGE_NEXT,
   PAGE_PREVIOUS,
-  PRODUCT_TAGLINE,
   SEARCH_GROUP_ALL,
   SEARCH_GROUP_SOME,
-  SEARCH_NO_RESULTS_BODY,
-  SEARCH_NO_RESULTS_TITLE,
+  SEARCH_PLACEHOLDER,
   UNSAVED_KEPT,
   WHOS_EATING,
   WHOS_EATING_HINT,
+  YOUR_COOKS,
+  matchCount,
+  reviewedCount,
 } from '../content/product';
 import { getBuildStamp, versionLine } from '../config/appIdentity';
-import type { Cook, CookId } from '../domain/entities';
-import type { StoredMealType } from '../domain/enums';
+import { MEAL_TYPE_LABELS, cuisineLabel, timesCooked } from '../domain/cookRecord';
+import type { Cook, CookCuisine, CookId } from '../domain/entities';
+import { STORED_MEAL_TYPES, type StoredMealType } from '../domain/enums';
 import { RevealOnChange } from '../layout/RevealOnChange';
 import { HOME_LIST_PANE_WIDTH } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
-import { space } from '../theme/tokens';
+import { mealColorRole, space } from '../theme/tokens';
 import { CookActions } from './CookActions';
 import { CookScreen } from './CookScreen';
 import { ExportNotice } from './ExportNotice';
-import { applyFilters, filtersActive, type CookFilters } from './history/filters';
+import { applyFilters, cuisineOptions, peopleToPick, type FilterInputs } from './history/filters';
 import { searchCooks, searchable, type SearchHit } from './history/search';
 import { CookCard } from './home/CookCard';
-import { pageOf, pagePosition, pageSummary } from './home/paging';
+import { CookingNowCard } from './home/CookingNowCard';
+import { FiltersSheet, NO_SHEET_FILTERS, sheetFilterCount, type SheetFilters } from './home/FiltersSheet';
+import { pageOf, pagePosition } from './home/paging';
 import { starredRatings } from './home/ratingsLine';
-import { SearchPanel } from './home/SearchPanel';
 
 type HomeScreenProps = {
   onOpenCook: (cookId: CookId) => void;
@@ -73,25 +84,64 @@ type Entry = {
   readonly group?: 'all' | 'some';
 };
 
+type Query = {
+  readonly typed: string;
+  readonly meal: StoredMealType | null;
+  readonly sheet: SheetFilters;
+};
+
+type Indexes = {
+  readonly inputs: FilterInputs;
+  readonly tagsByCook: Parameters<typeof searchable>[1];
+  readonly ingredientsByCook: ReadonlyMap<CookId, string>;
+  readonly cuisineWordsByCook: ReadonlyMap<CookId, string>;
+};
+
+/** The reviewed cooks a query shows, in order, grouped when it is a search. */
+export function entriesFor(
+  cooks: readonly Cook[],
+  indexes: Indexes,
+  query: Query,
+): { readonly entries: readonly Entry[]; readonly searching: boolean } {
+  const shown = applyFilters(cooks, indexes.inputs, {
+    mealTypes: query.meal === null ? [] : [query.meal],
+    who: query.sheet.who,
+    cuisines: query.sheet.cuisines,
+  });
+  const results = searchCooks(
+    searchable(shown, indexes.tagsByCook, indexes.ingredientsByCook, indexes.cuisineWordsByCook),
+    { typed: query.typed, pickedTags: query.sheet.tags },
+  );
+  const searching = results.terms.length > 0;
+  return {
+    searching,
+    entries: searching
+      ? [
+          ...results.all.map((hit) => ({ cook: hit.cook, hit, group: 'all' as const })),
+          ...results.some.map((hit) => ({ cook: hit.cook, hit, group: 'some' as const })),
+        ]
+      : shown.map((cook) => ({ cook })),
+  };
+}
+
 /**
- * Home, which is also History (0.3.0).
+ * Home, which is also History (0.4.0, part 2).
  *
- * Top to bottom: the title with its ⋯ menu (Export everything, Who's eating);
- * New Cook, one tap, as always; *Cooking now*, the open cooks, hidden when
- * there are none; the search box with the meal-type chips, Who & stars and
- * *Show me my tags* under it; then every reviewed cook, newest first, ten to a
- * page.
+ * Top to bottom: "Cooking Lab" and its round ⋯ (Export everything, Who's
+ * eating, the version line); a Cooking now card for each open cook; Your
+ * cooks with how many are reviewed, the search bar and its round filter
+ * button, and the meal chips in one scrolling row; then the reviewed cooks,
+ * newest first, ten to a page. New Cook floats above the foot of the screen,
+ * always in reach, with the list scrolling under it, and the Undo bar after a
+ * delete sits just above it.
  *
- * Search and filters work on the reviewed cooks and page the same way,
- * starting at page 1 each time they change. The page and the scroll position
- * live in this screen, which stays mounted under a cook's page, so opening a
- * cook and coming back finds the same page where it was left.
+ * The filter button opens the Filters sheet (who and stars, cuisine, tags).
+ * Search and filters start again at page 1 each time they change. The page
+ * and the scroll position live in this screen, which stays mounted under a
+ * cook's page, so coming back finds the same page where it was left.
  *
- * On the unfolded inner display, all of that is the left-hand pane (about
- * 380 dp), and the chosen cook's whole page — Cook this again, ratings, notes,
- * next time, ingredients, the timeline — is the right-hand one. The first cook
- * on the page is chosen; tapping a card changes the right-hand pane without
- * leaving Home. An open cook still opens on its own page, with its composer.
+ * On the unfolded inner display all of that is the left-hand pane and the
+ * chosen cook's page the right-hand one (0.3.0); part 3 of 0.4.0 redraws it.
  */
 export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
   const styles = useStyles();
@@ -103,14 +153,17 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const open = useCookList({ status: 'open', sort: 'newest_first' }, reload);
   const reviewed = useCookList({ status: 'reviewed', sort: 'newest_first' }, reload);
   const cooks = reviewed.status === 'ready' ? reviewed.cooks : EMPTY_COOKS;
+  const openCooks = open.status === 'ready' ? open.cooks : EMPTY_COOKS;
   const ids = cooks.map((cook) => cook.id);
+  const openIds = openCooks.map((cook) => cook.id);
   const tagIndex = useTagIndex(ids, reload);
   const index = useHistoryIndex(ids, reload);
+  const noteCounts = useNoteCounts(openIds, reload);
 
   const [typed, setTyped] = useState('');
-  const [pickedTags, setPickedTags] = useState<readonly string[]>([]);
-  const [mealFilter, setMealFilter] = useState<readonly StoredMealType[]>([]);
-  const [who, setWho] = useState<CookFilters['who']>(null);
+  const [meal, setMeal] = useState<StoredMealType | null>(null);
+  const [sheet, setSheet] = useState<SheetFilters>(NO_SHEET_FILTERS);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageMoves, setPageMoves] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -121,30 +174,41 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const exportAll = useExport();
 
   // A new search or filter starts again at page 1.
-  const queryKey = JSON.stringify([typed, pickedTags, mealFilter, who]);
+  const queryKey = JSON.stringify([typed, meal, sheet]);
   const [pagedFor, setPagedFor] = useState(queryKey);
   if (pagedFor !== queryKey) {
     setPagedFor(queryKey);
     setPage(1);
   }
 
-  const mealTypes = reviewed.status === 'ready' ? reviewed.mealTypes : EMPTY_MEALS;
-  const verdicts = reviewed.status === 'ready' ? reviewed.verdicts : EMPTY_VERDICTS;
-  const filters: CookFilters = { mealTypes: mealFilter, who };
-  const filtering = filtersActive(filters);
-  const shown = applyFilters(cooks, { mealTypes, ratingsByCook: index.ratingsByCook }, filters);
-  const results = searchCooks(searchable(shown, tagIndex.byCook, index.ingredientsByCook), {
-    typed,
-    pickedTags,
-  });
-  const searching = results.terms.length > 0;
-  const entries: readonly Entry[] = searching
-    ? [
-        ...results.all.map((hit) => ({ cook: hit.cook, hit, group: 'all' as const })),
-        ...results.some.map((hit) => ({ cook: hit.cook, hit, group: 'some' as const })),
-      ]
-    : shown.map((cook) => ({ cook }));
+  // Every cook we know of, open and reviewed, for "2nd time".
+  const byId = useMemo(() => {
+    const all = new Map<CookId, Cook>();
+    for (const cook of [...openCooks, ...cooks]) {
+      all.set(cook.id, cook);
+    }
+    return all;
+  }, [openCooks, cooks]);
+  const timesOf = (cook: Cook) => timesCooked(cook, (id) => byId.get(id) ?? null);
+
+  const mealTypes: Readonly<Record<CookId, StoredMealType>> = {
+    ...(open.status === 'ready' ? open.mealTypes : {}),
+    ...(reviewed.status === 'ready' ? reviewed.mealTypes : {}),
+  };
+  const cuisineRows: Readonly<Record<CookId, CookCuisine>> = {
+    ...(open.status === 'ready' ? open.cuisines : {}),
+    ...(reviewed.status === 'ready' ? reviewed.cuisines : {}),
+  };
+  const indexes: Indexes = {
+    inputs: { mealTypes, ratingsByCook: index.ratingsByCook, cuisines: index.cuisines },
+    tagsByCook: tagIndex.byCook,
+    ingredientsByCook: index.ingredientsByCook,
+    cuisineWordsByCook: index.cuisineWordsByCook,
+  };
+  const { entries, searching } = entriesFor(cooks, indexes, { typed, meal, sheet });
+  const narrowed = searching || meal !== null || sheetFilterCount(sheet) > 0;
   const current = pageOf(entries, page);
+  const photoUris = useCardPhotoUris([...openIds, ...current.items.map((entry) => entry.cook.id)], reload);
   // The cook in the right-hand pane: the one tapped, while it is on this page,
   // or else the first on the page.
   const chosen: CookId | null = twoPane
@@ -167,8 +231,14 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
     setPageMoves((moves) => moves + 1);
   };
 
+  const clearAll = () => {
+    setTyped('');
+    setMeal(null);
+    setSheet(NO_SHEET_FILTERS);
+  };
+
   const loaded = open.status === 'ready' && reviewed.status === 'ready';
-  const isEmpty = loaded && open.cooks.length === 0 && reviewed.cooks.length === 0;
+  const isEmpty = loaded && openCooks.length === 0 && cooks.length === 0;
   const loadProblem =
     open.status === 'failed' ? open.message : reviewed.status === 'failed' ? reviewed.message : null;
 
@@ -177,10 +247,13 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       key={entry.cook.id}
       cook={entry.cook}
       hit={entry.hit}
-      verdict={verdicts[entry.cook.id] ?? entry.cook.verdict}
       mealType={mealTypes[entry.cook.id] ?? null}
+      cuisine={cuisineLabel(cuisineRows[entry.cook.id] ?? null)}
+      photoUri={photoUris.get(entry.cook.id) ?? null}
       ratings={starredRatings(index.ratingsByCook.get(entry.cook.id) ?? [], index.household)}
+      timesCooked={timesOf(entry.cook)}
       selected={twoPane ? entry.cook.id === chosen : undefined}
+      compact={twoPane}
       onPress={() => (twoPane ? setSelected(entry.cook.id) : onOpenCook(entry.cook.id))}
       onLongPress={() => setActionsFor(entry.cook)}
     />
@@ -196,9 +269,23 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
     />
   );
 
+  const floating = (
+    <>
+      <UndoSlot inline />
+      <NewCookButton
+        label={NEW_COOK_TITLE}
+        accessibilityHint={NEW_COOK_HINT}
+        onPress={() => void startCook()}
+        pending={create.state.status === 'pending'}
+        testID="new-cook"
+      />
+    </>
+  );
+
   return (
     <ScreenContainer
       testID="home-screen"
+      floating={floating}
       side={
         chosen !== null
           ? {
@@ -219,10 +306,10 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       }
       fixed={{ pane: 'main', width: HOME_LIST_PANE_WIDTH }}
     >
-      <ShellHeader subtitle={isEmpty ? PRODUCT_TAGLINE : undefined} trailing={more} />
+      <ShellHeader trailing={more} />
 
       {menuOpen ? (
-        <Card testID="home-menu">
+        <Card testID="home-menu" style={styles.menu}>
           {loaded && !isEmpty ? (
             <View style={styles.menuItem} testID="export-section">
               <Button
@@ -256,15 +343,6 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
         </Card>
       ) : null}
 
-      <View style={styles.newCook}>
-        <NewCookButton
-          label={NEW_COOK_TITLE}
-          accessibilityHint={NEW_COOK_HINT}
-          onPress={() => void startCook()}
-          pending={create.state.status === 'pending'}
-          testID="new-cook"
-        />
-      </View>
       {create.state.status === 'failed' ? (
         <Notice
           title={create.state.message}
@@ -283,23 +361,23 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       ) : null}
 
       {isEmpty ? (
-        <View style={styles.section}>
-          <Notice title={EMPTY_HOME_TITLE} body={EMPTY_HOME_BODY} testID="home-empty" />
+        <View style={styles.empty}>
+          <Notice title={EMPTY_HOME_TITLE} body={EMPTY_HOME_BODY} icon="book" testID="home-empty" />
           <CoreLoop />
         </View>
       ) : null}
 
-      {open.status === 'ready' && open.cooks.length > 0 ? (
-        <View style={styles.section} testID="cooking-now">
-          <AppText variant="heading" accessibilityRole="header">
-            {COOKING_NOW}
-          </AppText>
-          {open.cooks.map((cook) => (
-            <CookCard
+      {openCooks.length > 0 ? (
+        <View style={styles.cookingNow} testID="cooking-now">
+          {openCooks.map((cook) => (
+            <CookingNowCard
               key={cook.id}
               cook={cook}
-              verdict={open.verdicts[cook.id] ?? cook.verdict}
-              mealType={open.mealTypes[cook.id] ?? null}
+              mealType={mealTypes[cook.id] ?? null}
+              cuisine={cuisineLabel(cuisineRows[cook.id] ?? null)}
+              photoUri={photoUris.get(cook.id) ?? null}
+              notes={noteCounts.get(cook.id) ?? null}
+              timesCooked={timesOf(cook)}
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
             />
@@ -310,41 +388,69 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
       {reviewed.status === 'ready' && cooks.length > 0 ? (
         <>
           <RevealOnChange token={pageMoves} style={styles.section} testID="home-search-block">
-            <SearchPanel
-              typed={typed}
-              onType={setTyped}
-              pickedTags={pickedTags}
-              onPickTags={setPickedTags}
-              mealFilter={mealFilter}
-              onMealFilter={setMealFilter}
-              who={who}
-              onWho={setWho}
-              allTags={tagIndex.allTags}
-              household={index.household}
-              guestNames={index.guestNames}
+            <View style={styles.headingRow}>
+              <AppText variant="heading" accessibilityRole="header" style={styles.heading}>
+                {YOUR_COOKS}
+              </AppText>
+              <AppText variant="secondary" tone="inkMuted" testID="home-count">
+                {narrowed ? matchCount(entries.length, cooks.length) : reviewedCount(cooks.length)}
+              </AppText>
+            </View>
+            <SearchBar
+              value={typed}
+              onChangeText={setTyped}
+              placeholder={SEARCH_PLACEHOLDER}
+              accessibilityLabel={SEARCH_PLACEHOLDER}
+              autoCapitalize="none"
+              autoCorrect={false}
+              onFilters={() => setSheetOpen(true)}
+              filterCount={sheetFilterCount(sheet)}
+              filtersLabel={FILTERS}
+              testID="history-search"
             />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={styles.chipScroll}
+              contentContainerStyle={styles.chips}
+              accessibilityLabel={FILTER_MEAL_TYPE}
+              testID="history-meal-filter"
+            >
+              <FilterChip
+                label={FILTER_ALL}
+                selected={meal === null}
+                role="radio"
+                onPress={() => setMeal(null)}
+                testID="history-meal-all"
+              />
+              {STORED_MEAL_TYPES.map((mealType) => (
+                <FilterChip
+                  key={mealType}
+                  label={MEAL_TYPE_LABELS[mealType]}
+                  selected={meal === mealType}
+                  role="radio"
+                  icon={MEAL_ICON[mealType]}
+                  iconColor={mealColorRole[mealType]}
+                  onPress={() => setMeal(meal === mealType ? null : mealType)}
+                  testID={`history-meal-${mealType}`}
+                />
+              ))}
+            </ScrollView>
           </RevealOnChange>
 
-          {!searching && filtering && shown.length === 0 ? (
+          {narrowed && entries.length === 0 ? (
             <Notice
-              title={FILTER_NO_RESULTS_TITLE}
-              body={FILTER_NO_RESULTS_BODY}
-              testID="history-filter-empty"
-            />
-          ) : null}
-          {searching && entries.length === 0 ? (
-            <Notice
-              title={SEARCH_NO_RESULTS_TITLE}
-              body={SEARCH_NO_RESULTS_BODY}
-              testID="history-search-empty"
+              title={NO_MATCHES_TITLE}
+              body={NO_MATCHES_BODY}
+              icon="search"
+              action={{ label: CLEAR_FILTERS, onPress: clearAll }}
+              testID="home-no-matches"
             />
           ) : null}
 
           {entries.length > 0 ? (
             <View style={styles.list}>
-              <AppText variant="label" tone="inkMuted" testID="home-page-summary">
-                {pageSummary(current)}
-              </AppText>
               {searching ? (
                 <View style={styles.list} testID="history-results">
                   <PageGroup
@@ -381,6 +487,22 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
         </>
       ) : null}
 
+      <FiltersSheet
+        // A fresh draft each time it opens.
+        key={sheetOpen ? 'open' : 'closed'}
+        visible={sheetOpen}
+        current={sheet}
+        people={peopleToPick(index.household, index.guestNames)}
+        cuisines={cuisineOptions(index.otherCuisineWords)}
+        tags={tagIndex.allTags}
+        countFor={(draft) => entriesFor(cooks, indexes, { typed, meal, sheet: draft }).entries.length}
+        onApply={(draft) => {
+          setSheet(draft);
+          setSheetOpen(false);
+        }}
+        onClose={() => setSheetOpen(false)}
+      />
+
       <CookActions cook={actionsFor} onClose={() => setActionsFor(null)} />
     </ScreenContainer>
   );
@@ -401,7 +523,7 @@ function PageGroup({ label, entries, render, testID }: PageGroupProps) {
   }
   return (
     <View style={styles.list} testID={testID}>
-      <AppText variant="heading" accessibilityRole="header">
+      <AppText variant="bodyStrong" tone="inkMuted" accessibilityRole="header">
         {label}
       </AppText>
       {entries.map(render)}
@@ -409,22 +531,43 @@ function PageGroup({ label, entries, render, testID }: PageGroupProps) {
   );
 }
 
-/** Stable empties while the lists load, so the hooks below do not loop. */
+/** A stable empty while the lists load, so the hooks below do not loop. */
 const EMPTY_COOKS: readonly Cook[] = [];
-const EMPTY_MEALS: Readonly<Record<CookId, StoredMealType>> = {};
-const EMPTY_VERDICTS: Readonly<Record<CookId, string | null>> = {};
 
 const useStyles = makeStyles(() =>
   StyleSheet.create({
-    section: {
-      gap: space.xs,
-      marginTop: space.lg,
+    menu: {
+      marginBottom: space.md,
     },
-    newCook: {
-      marginVertical: space.xs,
+    empty: {
+      gap: space.xs,
+      marginTop: space.xxl,
+      alignItems: 'center',
+    },
+    cookingNow: {
+      gap: space.sm,
+      marginBottom: space.lg,
+    },
+    section: {
+      gap: space.sm,
+    },
+    headingRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: space.sm,
+    },
+    heading: {
+      flexShrink: 1,
+    },
+    chipScroll: {
+      flexGrow: 0,
+    },
+    chips: {
+      gap: space.xs,
     },
     list: {
-      gap: space.xs,
+      gap: space.sm,
       marginTop: space.xs,
     },
     menuItem: {
