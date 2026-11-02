@@ -105,9 +105,27 @@ that is nearly square, about 792 × 880 upright and 880 × 792 sideways.
   cooks with the search bar and the round filter button; the filter chips (All,
   then the five meals); cook cards with photos, ten to a page; New Cook as a
   centred orange pill.
-- **Inner screen:** list and detail. The list is a fixed 400 dp pane on the
-  left, upright and sideways; the chosen cook fills the rest. From 600 dp the
-  screen has two panes; from 840 dp (sideways) the detail pane is wider.
+- **Inner screen:** list and detail. One column under 600 dp wide; from 600
+  up, two panes.
+- **Layouts adapt to the space they are given** (0.4.0, part 5, replacing the
+  design pack's "fixed 400"). No fixed widths for panes, columns, rows or
+  buttons. A pane is a share of the window between a minimum and a maximum,
+  worked out from the live window on every render, and the other pane takes
+  the rest:
+  - Home's list pane and the review's left pane: 45 % of the window, never
+    less than 320 or more than 400 (`pane-list-share`, `pane-list-min`,
+    `pane-list-max`);
+  - the cook page's side column: 42 %, between 280 and 380
+    (`pane-side-share`, `pane-side-min`, `pane-side-max`).
+  Content flows to fit with flex wrapping and natural sizes: no label breaks
+  inside a word; a row of buttons that does not fit wraps, a button a line at
+  full width, the main action first; Who ate it?'s stars, N/A and pencil sit
+  beside the name or wrap under it as one group. The only fixed numbers are
+  limits (touch targets, line length, a pane's minimum and maximum) and marks
+  drawn at their own size, and they live in `src/theme/tokens.ts`.
+  Why: fixed widths taken from one phone broke on the Fold 6 bench (707 and
+  823 dp wide, font size 1.15) — words broke letter by letter and the detail
+  side was crushed to about 300 dp.
 - **Unfolding or turning keeps your place:** the same cook, scroll position
   and half-typed note.
 

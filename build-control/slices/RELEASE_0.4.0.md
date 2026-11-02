@@ -1,6 +1,6 @@
 # Release 0.4.0 — the new look, and the cover and inner screens
 
-**Status:** built, tests green on the desktop; no APK built, nothing installed, not yet tried on a device
+**Status:** built, tests green on the desktop; part 5 not yet tried on a device
 **Date:** 2 November 2026
 **Version:** 0.4.0 (`versionCode` 7)
 **Schema:** version 5 · **Backup format:** version 5
@@ -8,11 +8,12 @@
 
 Mike (product owner) approved the 0.4.0 plan and its design on 2 November
 2026. The release was built in three parts, and a fourth, Delete note, was
-added on 2 November at his request. Parts 1 and 2 have records of their own,
-kept as they are; this is the whole release in one record, with parts 3 and
-4 in full. Code, tests and docs only.
+added on 2 November at his request. A fifth, an adaptive layout and the faults
+from the first test build, followed the same day. Parts 1 and 2 have records
+of their own, kept as they are; this is the whole release in one record, with
+parts 3, 4 and 5 in full. Code, tests and docs only.
 
-## The release in four parts
+## The release in five parts
 
 1. **The foundation and the data** (`RELEASE_0.4.0_PART1.md`, to `13432bf`).
    The design system's tokens in light and dark, following the phone's own
@@ -36,6 +37,13 @@ kept as they are; this is the whole release in one record, with parts 3 and
    after adding a note by mistake with no way to remove it. Note options ends
    with Delete note; Undo for the same window as a deleted cook; the note and
    its earlier versions deleted for good once it passes. No schema change.
+5. **An adaptive layout, and the test build's faults** (below, after part
+   4). The first test build (`7511d07`) on the Fold 6 bench showed that the
+   inner layouts' fixed widths broke there. Panes are now shares of the
+   window between limits, and content flows to fit. Also fixed: no Undo bar
+   after Delete note on the cover, Home keeping the inner width after a fold,
+   the Notes card overflowing after a turn, Edit review in Home's right pane
+   opening the cook page, New Cook covering controls, and "°C °C".
 
 ## Part 3: what was built
 
@@ -45,7 +53,8 @@ kept as they are; this is the whole release in one record, with parts 3 and
   shorter side is too: both inner screens, either way round. The Fold 8's
   inner screen is about 792 × 880 upright and 880 × 710 sideways above the
   taskbar; the Fold 6 bench's about 707 × 823 and 823 × 660.
-- Every pane width comes from the tokens. Home's list pane is `pane-list`
+- *Superseded by part 5: panes are no longer fixed widths.* Every pane width
+  comes from the tokens. Home's list pane is `pane-list`
   (400) in both orientations. The cook page's side column is a new token,
   `pane-side` (344), as screens 11 and 14 draw it. The review's left pane is
   `pane-list`, giving way only where the window is too narrow for the right
@@ -402,3 +411,110 @@ part 3. No package added; `package-lock.json` unchanged.
 
 Delete note on the Fold 8 and the Fold 6 bench, both displays, light and dark:
 `ACCEPTANCE.md` → "0.4.0 checks", step 10.
+
+## Part 5: an adaptive layout, and the test build's faults
+
+The test build of `7511d07` was run on the Fold 6 bench on 2 November
+(inner 707 × 823 and 823 × 707, cover 369 × 905, font size 1.15). The
+inner layouts had been built at fixed widths taken from one phone — a 400
+list pane, a 344 side column, the review's left pane worked out from them —
+and there they crushed the detail side to about 300, broke "Cook this again"
+letter by letter, stacked "‹ Home" a letter a line and pushed things off the
+edge. Mike withdrew the design pack's "fixed 400" and set a rule in its place.
+
+### The rule
+
+Layouts adapt to the space they are given. No fixed widths for panes,
+columns, rows or buttons. The only fixed numbers are limits (touch targets,
+line length, a pane's minimum and maximum) and they live in
+`src/theme/tokens.ts`. Recorded in `DESIGN_BASELINE_V3.md`, section 5.
+
+### What was built
+
+1. **Panes.** One column under 600 dp wide, as before; two panes from 600.
+   Home's list pane and the review's left pane are 45 % of the window, never
+   less than 320 or more than 400 (`paneListShare`, `paneListMin`,
+   `paneListMax`, replacing `paneList`). The cook page's side column is 42 %,
+   280 to 380 (`paneSideShare`, `paneSideMin`, `paneSideMax`, replacing
+   `paneSide`). The other pane takes the rest. `paneWidths` in
+   `src/layout/responsive.ts` works them out from the live window on every
+   render; `ScreenContainer` takes `panes="home" | "cook" | "review"` in place
+   of a fixed width, and nothing keeps a width in state.
+2. **Content flows to fit.** Buttons never shrink below their words. Cook
+   this again and Edit review wrap, each onto its own line at full width,
+   Cook this again first. The top bar wraps: ‹ Home whole on the first line,
+   Screen on and Finish & review on the next when they do not fit beside it,
+   and a line each if they do not fit beside each other. Who ate it?: the
+   name, then the stars, N/A and pencil as one group, beside the name when it
+   fits and under it as one block when not (only on the cover does the group
+   wrap inside itself). Other button rows (title edit, the household prompt)
+   wrap too.
+3. **New Cook** is docked at the foot of the list (or Home's list pane), on
+   the page colour with a soft fade above it; the list ends above it.
+4. **Search** draws its own placeholder: one line, ending with an ellipsis.
+5. **The meal chips** on the cover scroll edge to edge, running under the
+   right gutter; on the inner screen they wrap onto as many rows as needed.
+6. **Delete note on the cover shows the Undo bar.** Home stays mounted under
+   a cook's page, and its Undo slot claimed the bar, so the cook's page on
+   one column drew none. Every screen now draws the bar in its own main pane.
+7. **Folding.** The main pane had `width: 400` on two panes and only `flex: 1`
+   on one column, relying on the native side dropping the removed width. On
+   the bench it did not: Home ran 31 dp (400 − 369) off the cover. Every pane
+   style now sets the same keys in every state (`paneStyle`).
+8. **Turning.** Notes and Photos switched between a style and none, so keys
+   were added and removed on each turn; upright, the squashed ‹ Home also
+   grew the page by several lines, which is what moved the scroll. Both
+   states now set the same keys, and the top bar no longer changes height.
+9. **Edit review in Home's right pane** opens Edit review (`onReview`, routed
+   to `/cook/<id>/review`), not the cook page.
+10. **Add a reading** has no "°C" placeholder beside its "°C" unit.
+
+### Part 5: the decisions
+
+What the line did not settle.
+
+1. **The font scale does not change the panes.** Panes follow the window's
+   width only; text wraps inside them. The tests check the same widths at
+   1.0, 1.15 and 1.3.
+2. **Marks drawn at their own size are allowed** as fixed widths: icon
+   circles, photo thumbnails, the sheet's handle, dots, the rail, the filter
+   count and a person's photo circle. They are never a pane, column, row or
+   button. `widthTokens` lists them beside the limits, and the arithmetic that
+   made some of them (`targetMin + 2`, `dot + space.xxs`) became named tokens
+   at the same values.
+3. **The pane that takes the rest is `auto`.** It grows into the space rather
+   than being set to window minus share, so a left or right inset (a cutout
+   sideways) never makes the two overflow.
+4. **The two-pane rule keeps the shorter-side check** ("as now"): 600 wide and
+   600 on the shorter side, so a phone turned sideways stays one column.
+5. **The fade** is the page colour, clear at the top, 24 dp tall, drawn with
+   React Native's background image. Dark has its own.
+6. **The cook's top bar actions, when wrapped, sit to the right**, as they did
+   beside ‹ Home; the other button rows go full width.
+7. **The review's foot** is one full-width button already; it is never
+   squeezed.
+8. **The Undo bar on every screen.** A screen in front draws it in its own
+   main pane, on one column too. Screens behind draw it as well, unseen; Undo
+   on either does the same thing.
+
+### Part 5: verification
+
+On the desktop: `check:secrets`, `typecheck`, `lint` (no warnings) and the
+suite pass — **82 suites, 1646 tests**, up from 80 and 1498 at the end of
+part 4. No package added; `package-lock.json` unchanged.
+
+| Test file | What it pins down |
+|---|---|
+| `noFixedWidths.test.ts` (new, 4) | No width, minWidth or maxWidth in `src/screens` or `src/components` that is not a limit token, a drawn mark's token, or a share of the window; it would catch a fixed pane, a sum and a token off the list |
+| `adaptiveLayout.test.tsx` (new, 142) | The pane maths at 320, 369, 412, 600, 707, 792, 823 and 880 wide at font scales 1.0, 1.15 and 1.3; Home, an open cook, a reviewed cook and the review at each, with the button rows and top bar set to wrap; every fold and turn between cover, inner upright and inner sideways and back, with no width kept; fold, unfold, fold; sideways, upright, sideways keeping Notes in its column; the Undo bar on the cover and inner screens, open and reviewed, with Home underneath; Edit review from Home's right pane; the cover's chip row to the edge; no "°C" placeholder |
+| `innerScreens.test.tsx`, `twoPanes.test.tsx` | Pane widths as shares; Who ate it?'s group; the bench sideways review |
+| `coverScreens.test.tsx` | New Cook docked after the scrolling area, on the page colour, with the fade |
+| `historySearchScreen.test.tsx` | The placeholder: one line, ending with an ellipsis, gone once typed |
+
+### Part 5: not tried on a device
+
+Everything above, on the bench and the Fold 8: `ACCEPTANCE.md` → "0.4.0
+checks", step 11, runs each inner screen at several simulated sizes and font
+scales (`wm density` and `font_scale` on the bench). Whether the fade shows
+as drawn, and the native cause of the fold and turn faults, can only be seen
+there.

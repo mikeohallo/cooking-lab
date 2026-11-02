@@ -102,6 +102,26 @@ the repo and are never copied into it or the report.
     its Remove). Export this cook and Export everything afterwards leave the
     deleted note out (checked as files by the test suite,
     `deleteNote.test.ts`).
+11. **Several sizes and font scales (part 5).** Layouts adapt to the space
+    they are given, so each inner screen is run at more than the bench's own
+    size. Note the bench's density and font scale first (`adb shell wm
+    density`, `adb shell settings get system font_scale`). Then, on the inner
+    display upright and sideways, set each of these in turn with `adb shell wm
+    density <dpi>` and `adb shell settings put system font_scale <scale>`,
+    open Home with a cook chosen, an open cook and its review, and screenshot
+    each: the bench's own density at font scales 1.0, 1.15 and 1.3, and a
+    higher and a lower density (narrower and wider windows) at 1.15. Each
+    time: no word breaks inside itself; Cook this again, Edit review, ‹ Home,
+    Screen on and Finish & review keep their words on one line, wrapping onto
+    lines of their own when they do not fit; Who ate it?'s stars, N/A and
+    pencil sit beside the name or under it as one group; New Cook never covers
+    the chips, the search box or a card; every card and chevron fits inside its
+    pane. Then fold, unfold and fold again, and turn sideways, upright and
+    sideways mid-cook: no pane keeps its old width, nothing runs off an edge,
+    and the Notes card fits its column. Delete note on the cover display shows
+    "Note deleted · Undo", and Undo works. Put the density and the font scale
+    back as found (`adb shell wm density reset` only if it was the default)
+    and say so in the report.
 
 ## The report
 
