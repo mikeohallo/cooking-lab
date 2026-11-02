@@ -12,7 +12,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { StyleSheet } from 'react-native';
 
 import type { EvidenceDecision } from '../src/domain/evidence';
-import { computeLayoutMetrics, cookSidePaneWidth, listPaneWidth } from '../src/layout/responsive';
+import { computeLayoutMetrics, cookSidePaneWidth, listPaneWidth, notesAndPhotosLayout } from '../src/layout/responsive';
 import { CookScreen } from '../src/screens/CookScreen';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { ReviewScreen } from '../src/screens/ReviewScreen';
@@ -315,15 +315,21 @@ describe('the cook page on the inner screen (11, 14)', () => {
     expect(firstRow.children).toHaveLength(3);
   });
 
-  it('sideways: Notes and Photos side by side, the photos two to a row', async () => {
+  // Part 8: side by side only when each gets 300 dp of the main column.
+  // Sideways on the Fold 8 each would get 229, so they stack.
+  it('sideways: Notes above Photos, each the whole main column, the photos three to a row', async () => {
     mockWindow.figures = SIDEWAYS;
+    expect(notesAndPhotosLayout(SIDEWAYS.width, SIDEWAYS.height)).toMatchObject({ layout: 'stacked', besideEach: 229 });
     await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
     await screen.findByTestId('cook-side');
-    expect(styleOf('notes-and-photos').flexDirection).toBe('row');
-    expect(within(screen.getByTestId('notes-and-photos')).getByTestId('notes-column')).toBeOnTheScreen();
-    expect(within(screen.getByTestId('notes-and-photos')).getByTestId('photos-column')).toBeOnTheScreen();
+    expect(styleOf('notes-and-photos').flexDirection).toBe('column');
+    const both = screen.getByTestId('notes-and-photos');
+    const ids = idsInOrder(both);
+    expect(ids.indexOf('notes-column')).toBeLessThan(ids.indexOf('photos-column'));
+    expect(styleOf('notes-column')).toMatchObject({ flexGrow: 0, alignSelf: 'stretch' });
+    expect(styleOf('photos-column')).toMatchObject({ flexGrow: 0, alignSelf: 'stretch' });
     const firstRow = screen.getByTestId('photos').children[0] as { children: unknown[] };
-    expect(firstRow.children).toHaveLength(2);
+    expect(firstRow.children).toHaveLength(3);
   });
 
   it('works on the Fold 6 bench, both ways round', async () => {
@@ -332,7 +338,8 @@ describe('the cook page on the inner screen (11, 14)', () => {
       await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
       expect(await screen.findByTestId('cook-side')).toBeOnTheScreen();
       expect(styleOf('screen-side-pane').width).toBe(cookSidePaneWidth(figures.width));
-      expect(styleOf('notes-and-photos').flexDirection === 'row').toBe(figures === BENCH_SIDEWAYS);
+      // Each would get 179 upright and 212 sideways: stacked both ways (part 8).
+      expect(styleOf('notes-and-photos').flexDirection).toBe('column');
     }
   });
 

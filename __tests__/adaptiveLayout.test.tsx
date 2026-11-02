@@ -366,13 +366,15 @@ describe('folding and turning keep no width from before', () => {
     expect(snapshot()).toEqual(first);
   });
 
-  it('sideways → upright → sideways: Notes fits its column again, with the same keys set both ways', async () => {
+  // Part 8: Notes and Photos sit side by side only with 300 dp each. The
+  // bench sideways gives each 212, so they stack there too.
+  it('sideways → upright → sideways: Notes keeps the whole column, with the same keys set both ways', async () => {
     mockWindow.figures = SIDEWAYS;
     await harness.render(<CookScreen cookId="cook-now" onBack={() => {}} onReview={() => {}} />);
     await screen.findByTestId('notes');
     const sideways = styleOf('notes-column');
-    expect(sideways).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 });
-    expect(styleOf('notes-and-photos').flexDirection).toBe('row');
+    expect(sideways).toMatchObject({ flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 0 });
+    expect(styleOf('notes-and-photos').flexDirection).toBe('column');
 
     await become(UPRIGHT);
     const upright = styleOf('notes-column');
@@ -382,7 +384,7 @@ describe('folding and turning keep no width from before', () => {
 
     await become(SIDEWAYS);
     expect(styleOf('notes-column')).toEqual(sideways);
-    expect(styleOf('notes-and-photos').flexDirection).toBe('row');
+    expect(styleOf('notes-and-photos').flexDirection).toBe('column');
     // The top bar no longer grows a letter a line upright, which is what moved
     // the page on the bench: the back control keeps its words whole.
     expectWrappingTopBar();

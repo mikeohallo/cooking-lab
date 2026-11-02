@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
@@ -77,6 +77,7 @@ import { latestWords } from '../domain/evidence';
 import { photoPlacedWhenAdded } from '../domain/photoTime';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
 import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
+import { notesAndPhotosLayout } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDayAndTime, formatTime } from '../format/dateTime';
 import { makeStyles } from '../theme/theme';
@@ -179,11 +180,15 @@ export function CookScreen({
   const styles = useStyles();
   // On the inner display a cook takes the whole screen in two columns (0.4.0):
   // the page and the composer on the left; Next time, Last time and the whole
-  // ingredients list in a side column on the right. Sideways, Notes and Photos
-  // sit side by side. Inside Home's pane it is one column.
+  // ingredients list in a side column on the right. Notes and Photos sit side
+  // by side only sideways, and only when each gets at least 300 dp of the main
+  // column (0.4.0, part 8); otherwise they stack. Inside Home's pane it is one
+  // column.
   const { twoPane, sideways: turned } = useLayoutMetrics();
+  const window = useWindowDimensions();
   const split = twoPane && !embedded;
   const sideways = split && turned;
+  const beside = split && notesAndPhotosLayout(window.width, window.height).layout === 'beside';
   // Words being typed, kept while a part moves between columns on folding.
   const kept = useKeptStore();
   const back = embedded ? undefined : onBack;
@@ -704,26 +709,26 @@ export function CookScreen({
                   <ReadingsGrid readings={readings} narrow={!sideways} />
                 </SectionGroup>
               ) : null}
-              {/* Notes and Photos: stacked, or side by side with the inner
-                  display turned. The same views either way, so turning never
-                  draws a note being edited afresh. */}
-              <View style={sideways ? styles.beside : styles.stacked} testID="notes-and-photos">
+              {/* Notes and Photos: stacked, or side by side when each gets
+                  300 dp. The same views either way, so turning never draws a
+                  note being edited afresh. */}
+              <View style={beside ? styles.beside : styles.stacked} testID="notes-and-photos">
                 {notes.length > 0 ? (
-                  <View style={sideways ? styles.half : styles.whole} testID="notes-column">
+                  <View style={beside ? styles.half : styles.whole} testID="notes-column">
                     <SectionGroup title={NOTES} count={notes.length}>
                       <Card style={styles.tight}>{notesList}</Card>
                     </SectionGroup>
                   </View>
                 ) : null}
                 {photos.length > 0 ? (
-                  <View style={sideways ? styles.half : styles.whole} testID="photos-column">
+                  <View style={beside ? styles.half : styles.whole} testID="photos-column">
                     <SectionGroup title={PHOTOS} count={photos.length}>
                       <PhotoGrid
                         photos={photos}
                         uris={photoUris}
                         onOpen={openPhoto}
                         onAdd={() => setPhotoSheet(true)}
-                        columns={sideways ? 2 : split ? 3 : 4}
+                        columns={beside ? 2 : split ? 3 : 4}
                       />
                     </SectionGroup>
                   </View>

@@ -347,6 +347,12 @@ export const size = {
   paneSideMin: 280,
   paneSideMax: 380,
   paneSideShare: 0.42,
+  /**
+   * Notes and Photos sit side by side on the cook page only when each would
+   * get at least this much of the main column (0.4.0, part 8). Below it a
+   * note wraps a word or two to a line, so they stack. A limit, not a width.
+   */
+  notesPhotosMin: 300,
   /** The round filter button beside the search bar, drawn. */
   filterButton: 40,
   /** The × in the search bar, and the composer's send button, drawn. */

@@ -152,3 +152,46 @@ export function computeLayoutMetrics(width: number, height?: number): LayoutMetr
     sideways: twoPane && safeWidth > safeHeight,
   };
 }
+
+/**
+ * The width of the cook page's main column of cards: the main pane on two
+ * panes, the window on one, less a gutter each side, and never wider than a
+ * column of cards grows (`size.column`).
+ */
+export function cookMainColumnWidth(width: number, height?: number): number {
+  const metrics = computeLayoutMetrics(width, height);
+  const panes = paneWidths('cook', metrics.width, height);
+  const pane = panes.mode === 'two' ? panes.main : metrics.width;
+  return Math.max(0, Math.min(metrics.contentMaxWidth, pane - 2 * metrics.gutter));
+}
+
+/** The gap between Notes and Photos, side by side or stacked. */
+export const NOTES_PHOTOS_GAP = space.sm;
+
+export type NotesAndPhotos = {
+  /** Side by side, or Notes above Photos. */
+  readonly layout: 'beside' | 'stacked';
+  /** The main column they share. */
+  readonly column: number;
+  /** What each would get side by side: half the column, less half the gap. */
+  readonly besideEach: number;
+  /** The width each is drawn at, for tests and the report; never set as a style. */
+  readonly notes: number;
+  readonly photos: number;
+};
+
+/**
+ * Notes and Photos on a cook's page (0.4.0, part 8). Side by side only with
+ * the inner display turned and only when each would get at least
+ * `size.notesPhotosMin` (300) of the main column; otherwise stacked, Notes
+ * above Photos, as upright. Worked out from the live window on every render,
+ * the same way as the panes.
+ */
+export function notesAndPhotosLayout(width: number, height?: number): NotesAndPhotos {
+  const metrics = computeLayoutMetrics(width, height);
+  const column = cookMainColumnWidth(width, height);
+  const besideEach = Math.floor((column - NOTES_PHOTOS_GAP) / 2);
+  const beside = metrics.twoPane && metrics.sideways && besideEach >= size.notesPhotosMin;
+  const each = beside ? besideEach : column;
+  return { layout: beside ? 'beside' : 'stacked', column, besideEach, notes: each, photos: each };
+}
