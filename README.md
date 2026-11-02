@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/mikeohallo/cooking-lab/actions/workflows/ci.yml)
 
-**For** one cook, on one Android phone, who wants a dish to get better each time it's made. **It does** three things today: records a cook as it happens (notes, photos, oven and food temperatures), asks one question afterwards and keeps the answer in the cook's own words, and finds any cook again by title or tag. Evidence is kept apart from interpretation, and nothing the cook writes is lost: an edit keeps the earlier words, and a cook is only deleted when its owner deletes it.
+**For** one cook, on one Android phone, who wants a dish to get better each time it's made. **It does** three things today: records a cook as it happens (notes, photos, oven and food temperatures), asks one question afterwards and keeps the answer in the cook's own words, and finds any cook again by title or tag. Evidence is kept apart from interpretation. Nothing you write is lost unless you delete it: an edit keeps the earlier words, and a note or a cook is only deleted when you delete it.
 
 **Try it:** the app is built from this repo and installed on your own phone (see "Building the TEST APK"); there's nothing to download. Everything but the build runs anywhere with Node: `npm ci && npm test`.
 
@@ -22,8 +22,8 @@ The app records a cook as it happens — notes, temperatures, photographs —
 asks one question afterwards, and stores the answer in the cook's own words.
 Evidence is kept strictly separate from interpretation: an assistant may
 *propose* findings and lessons, but nothing enters history until the cook
-approves it. Nothing the cook writes is lost: an edit keeps the earlier words,
-and a cook is only deleted when its owner deletes it.
+approves it. Nothing you write is lost unless you delete it: an edit keeps the
+earlier words, and a note or a cook is only deleted when you delete it.
 
 It is also an experiment in how a product leader builds software with AI.
 The product owner sets direction, makes product decisions and tests on the
@@ -87,7 +87,14 @@ be started in one tap and captured as it happens:
 * **Editing with history.** Any note, and the review's notes and next-time
   lines once a cook is reviewed, can be edited; the edit is kept beside the
   earlier words, and every earlier version can be read with its time. The
-  title can be changed on any cook. Notes are never deleted.
+  title can be changed on any cook.
+* **Deleting a note.** ⋯ on a note, then Delete note, on any cook: no
+  question first. The note goes at once and "Note deleted · Undo" stays up for
+  the same few seconds as a deleted cook; Undo brings it back as it was, with
+  its earlier versions. After that the note and its earlier versions are gone
+  for good. If the app closes before then, the note is kept. Readings, the
+  review's notes, Next time and the ingredients are not deleted this way, and
+  a photo keeps its own Remove.
 * **Deleting a cook.** Long-press a cook, or use ⋯ on a reviewed cook's page,
   then confirm. "Cook deleted · Undo" stays up for a few seconds; after that
   the cook, its notes, readings, photos and edits are gone for good.

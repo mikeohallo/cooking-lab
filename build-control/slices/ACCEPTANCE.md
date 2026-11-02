@@ -88,6 +88,20 @@ the repo and are never copied into it or the report.
    inner sideways.
 9. **The Fold 6 bench and the Fold 8** both, where both are to hand: the
    inner layouts on each, upright and sideways.
+10. **Delete note (part 4).** On an open cook with three notes, one of them
+    edited: ⋯ on the edited note shows Edit note, Earlier versions and Delete
+    note last, in red, as screen 09 draws it, on the cover display and on the
+    inner display. Delete note: no question; the note goes at once, "Notes · 3"
+    becomes "Notes · 2", Home's Cooking now says "2 notes", and "Note deleted
+    · Undo" is up. Undo: the note is back in its place with its words, "edited"
+    and its earlier versions. Delete it again and wait: the bar goes and the
+    note stays gone after closing and reopening the app. Delete a third and
+    close the app at once, before the bar goes: at the next start it is still
+    there. The same on a reviewed cook's From the cook. TalkBack reads the row
+    as "Delete note". Readings and photos offer no Delete note (a photo keeps
+    its Remove). Export this cook and Export everything afterwards leave the
+    deleted note out (checked as files by the test suite,
+    `deleteNote.test.ts`).
 
 ## The report
 

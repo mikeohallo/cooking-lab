@@ -12,14 +12,16 @@
  * version and screen size in its ⋯ menu. A cook records its meal type (Side
  * among them), an optional cuisine, ingredients and who ate it; its page is
  * grouped by section with Next time first; Cook this again shows what was
- * said last time. The look follows the phone's light or dark setting. On the
+ * said last time. A written note can be deleted from its options, with Undo;
+ * an edit keeps the earlier words. The look follows the phone's light or dark
+ * setting. On the
  * inner display Home's list sits beside the chosen cook, a cook's page has a
  * side column, and the review has two panes, upright and sideways. There is
  * no separate History screen, so nothing here names one.
  */
 
 export const PRODUCT_TAGLINE =
-  'A private cooking notebook for one kitchen. Stored on this device. Nothing you write is lost, and you choose what to export or share.';
+  'A private cooking notebook for one kitchen. Stored on this device. Nothing you write is lost unless you delete it, and you choose what to export or share.';
 
 export const CORE_LOOP_STEPS = ['Cook', 'Observe', 'Review', 'Learn', 'Cook again'] as const;
 

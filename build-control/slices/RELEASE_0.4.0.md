@@ -7,11 +7,12 @@
 **Builds on:** 0.3.0 (`RELEASE_0.3.0.md`), at `4af5172`
 
 Mike (product owner) approved the 0.4.0 plan and its design on 2 November
-2026. The release was built in three parts. Parts 1 and 2 have records of
-their own, kept as they are; this is the whole release in one record, with
-part 3 in full. Code, tests and docs only.
+2026. The release was built in three parts, and a fourth, Delete note, was
+added on 2 November at his request. Parts 1 and 2 have records of their own,
+kept as they are; this is the whole release in one record, with parts 3 and
+4 in full. Code, tests and docs only.
 
-## The release in three parts
+## The release in four parts
 
 1. **The foundation and the data** (`RELEASE_0.4.0_PART1.md`, to `13432bf`).
    The design system's tokens in light and dark, following the phone's own
@@ -31,6 +32,10 @@ part 3 in full. Code, tests and docs only.
    screen's own layouts for Home, the cook page and the review, upright and
    sideways; folding, unfolding and turning keeping your place; version
    0.4.0; the docs.
+4. **Delete note** (below, after part 3). Mike asked for it on 2 November,
+   after adding a note by mistake with no way to remove it. Note options ends
+   with Delete note; Undo for the same window as a deleted cook; the note and
+   its earlier versions deleted for good once it passes. No schema change.
 
 ## Part 3: what was built
 
@@ -118,7 +123,7 @@ view and anything half typed:
 ### 6. Small things
 
 - Note options still has no Delete note: notes are kept, as the evidence
-  rules say (part 2's decision 1).
+  rules say (part 2's decision 1). Superseded by part 4, which adds it.
 - The ⋯ menu's version line now reads "0.4.0 (<commit>) · <width> × <height>".
 
 ### 7. Version and docs
@@ -279,3 +284,121 @@ each against its picture (`ACCEPTANCE.md` → "0.4.0 checks"):
 8. The status and navigation bars, and no white flash at launch in dark.
 9. The Fold 6 bench's narrower review (345 dp left pane) and its sideways
    cook page (Notes and Photos side by side in 479 dp).
+
+## Part 4: Delete note
+
+Mike asked for it on 2 November 2026, after adding a note by mistake and
+finding no way to remove it. Code, tests and docs only; the version stays
+0.4.0, `versionCode` 7. No schema change (schema 5), no backup format change
+(format 5), no new table, package or permission.
+
+### What Mike gets
+
+- **Note options ends with Delete note,** in the danger colour with the bin
+  icon, as screen 09 draws it: from a note's ⋯ on any cook, open or reviewed,
+  on the cover screen and on the inner screen. A screen reader reads it as
+  "Delete note", a button.
+- **No "are you sure?".** The note leaves the page at once, the counts follow
+  ("Notes · 2" becomes "Notes · 1"; Cooking now's "3 notes" becomes "2
+  notes"), and the Undo bar reads "Note deleted · Undo" for `UNDO_WINDOW_MS`,
+  the same window as a deleted cook.
+- **Undo** brings the note back exactly as it was: the same words, the same
+  place among the notes, every earlier version and "edited".
+- **When the window passes** the note is deleted for good: its row and every
+  revision of it, in one transaction.
+- **If the app closes during the window,** the note is simply not deleted: it
+  is still there at the next start.
+
+### The rule
+
+Rule 14 in `src/domain/evidence.ts`, `deleteNote`: a written note is deleted
+only when its owner deletes it. The cook may delete a `user_note`; every other
+kind of entry is refused (`only_a_written_note_may_be_deleted`), and the
+assistant is refused whatever it names (`ai_cannot_delete_a_note`). Rules 10
+and 11 name it as their one exception and are otherwise unchanged: Remove
+still takes back only a photograph, a note's first words still cannot be
+overwritten in place, and an edit of a kept note still keeps the earlier
+words. The verdict (Your notes), Next time and the ingredients are not
+timeline entries and cannot reach it. The rule runs twice: when Delete note is
+pressed, and again in the service before the transaction.
+
+### What references `cook_events`
+
+Read from the schema itself by the test (`pragma_foreign_key_list` over every
+table), not from memory:
+
+| Table | Column | When the note is deleted |
+|---|---|---|
+| `revisions` | `cook_event_id`, `ON DELETE CASCADE` | Every earlier version of the note goes. The transaction deletes them by name first; the cascade would too. A verdict's revisions (`cook_event_id` NULL) and other notes' are untouched. |
+| `finding_sources` | `cook_event_id`, `ON DELETE CASCADE` | A finding's citation of the note goes. The finding itself belongs to the cook (`findings.cook_id`) and stays, with any other citations. No screen creates findings yet. |
+
+Nothing else references `cook_events`. `cook_deletions`, card photos and the
+backup are keyed on cooks or read the timeline afresh.
+
+### How it is built
+
+- `deleteNote` (rule 14) and its two denial codes.
+- `CookEventRepository.deleteNote`: one transaction that reaches only a
+  `user_note` row and its revisions. `CookCaptureService.requestNoteDeletion`
+  (the rule, nothing written) and `deleteNote` (the rule, then the
+  transaction).
+- `src/data/deletion/notes.ts`: the note deletion workflow. `request` holds the
+  note back in memory, `undo` lets it go, `finish` deletes it for good, and
+  `pending` is what is held. Built at start-up beside the cook deletion
+  workflow (`noteDeletions` on the storage).
+- `PendingDeletionProvider` holds a cook or a note, one at a time, with
+  "Cook deleted" or "Note deleted" on the bar and `pendingNote` beside
+  `pending`.
+- The cook page leaves a held note out of its sections and counts and reloads
+  when the bar goes; `useNoteCounts` leaves it out of Cooking now.
+- The export service takes `heldNotes`: Export everything reads the snapshot
+  without the held note, its revisions and any citation of it (what the
+  foreign keys will take), and Export this cook leaves it and its revisions
+  out.
+
+## Part 4: the decisions
+
+What the brief did not settle.
+
+1. **The undo window lives in memory.** The brief asks for no table and for
+   the note to survive the app closing, so nothing is written until the
+   window passes. A cook's window, by contrast, is a row in `cook_deletions`
+   finished at the next start. If the provider is unmounted with a note held,
+   the note is let go and kept, as if the app had closed.
+2. **One Undo at a time, cook or note.** Deleting a note while a cook's Undo
+   is up finishes the cook first, and the other way round, as two cooks did.
+3. **A failed final delete shows the note again.** Nothing is pending to
+   retry at the next start, and hiding it forever would lose it from view.
+4. **A finding keeps its other citations** when a note it cites is deleted
+   (the foreign key's own behaviour); a finding citing only that note stays,
+   citing nothing. No finding can be made on screen yet.
+5. **Export while a note is held leaves it out** without finishing the
+   deletion, so Undo still works after an export.
+6. **A note open for editing when deleted** closes its editor.
+7. **A refused or failed request** shows "This note was not deleted" with
+   the reason above the page; the note stays.
+8. **On the inner cook page** the Undo bar sits in the main column, where the
+   note was, as a cook's does in Home's list pane.
+9. **The Undo button's hint** is "Brings the note back exactly as it was";
+   the bar keeps the cook's test ids (`undo-bar`, `undo-delete`).
+10. **The promise in the app's tagline** (`PRODUCT_TAGLINE`) reads "Nothing
+    you write is lost unless you delete it", the README's sentence cut to fit
+    beside "you choose what to export or share".
+
+## Part 4: verification
+
+On the desktop: `check:secrets`, `typecheck`, `lint` (no warnings) and the
+suite pass — **80 suites, 1498 tests**, up from 77 and 1473 at the end of
+part 3. No package added; `package-lock.json` unchanged.
+
+| Test file | What it pins down |
+|---|---|
+| `deleteNoteRule.test.ts` (new, 4) | Rule 14: the cook's written note allowed; the assistant refused; every other kind refused; rules 10 and 11 unchanged beside it |
+| `deleteNote.test.ts` (new, 12) | Against real SQLite: what references `cook_events`, read from the schema; a request writes nothing; Undo restores the note, its versions and its place; the window passing leaves no row, no revision and no citation; the other notes, the reading, the finding and the other cook untouched; closing during the window keeps it; the assistant and a reading refused at the store; both exports while held, after, and after Undo |
+| `deleteNoteScreens.test.tsx` (new, 8) | The cover screen: Delete note last, a button labelled "Delete note", in the danger colour; on a reviewed cook; at once with no question; Undo in its place with "edited" and two earlier versions; deleted for good when the window passes; kept when the app goes; out of both exports while held; Cooking now's count and Notes · 3 → 2 |
+| `innerScreens.test.tsx` (49, one new) | The inner sheet ends with Delete note; deleting from the inner page with the Undo bar in the main column, and Undo |
+
+## Part 4: not tried on a device
+
+Delete note on the Fold 8 and the Fold 6 bench, both displays, light and dark:
+`ACCEPTANCE.md` → "0.4.0 checks", step 10.
