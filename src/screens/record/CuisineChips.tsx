@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../components/AppText';
@@ -18,6 +18,7 @@ import {
 import { CUISINE_LABELS, cuisineLabel } from '../../domain/cookRecord';
 import type { CookCuisine } from '../../domain/entities';
 import { NAMED_CUISINES, type Cuisine } from '../../domain/enums';
+import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { space } from '../../theme/tokens';
 
@@ -36,22 +37,32 @@ type CuisineChipsProps = {
  * Cuisine on the review (0.4.0): the ten as choice chips, then + Other, which
  * opens a short field for the cook's own words. One tap sets it; a tap on the
  * chosen one clears it. Optional, and nothing is chosen for the cook.
+ *
+ * Other's words save when their field is left — it loses focus, or the
+ * keyboard is closed — just as Save does (0.4.0, part 6). Unchanged or empty
+ * words save nothing.
  */
 export function CuisineChips({ value, onChange, testID = 'cuisine' }: CuisineChipsProps) {
   const styles = useStyles();
   const [pending, setPending] = useState(false);
+  // Pending at once, not after a render: Return saves and then leaves the
+  // field, and the leave must see the save already under way.
+  const saving = useRef(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState('');
   const otherWords = value?.cuisine === 'other' ? cuisineLabel(value) : null;
 
   const save = async (cuisine: Cuisine | null, words: string | null): Promise<boolean> => {
-    if (pending) {
+    if (saving.current) {
       return false;
     }
+    saving.current = true;
     setPending(true);
     setProblem(null);
-    const failure = await onChange(cuisine, words);
+    const failure = await onChange(cuisine, words).finally(() => {
+      saving.current = false;
+    });
     setPending(false);
     setProblem(failure);
     return failure === null;
@@ -64,6 +75,14 @@ export function CuisineChips({ value, onChange, testID = 'cuisine' }: CuisineChi
   };
 
   const tooLong = draft.trim().length > MAX_OTHER_WORDS;
+
+  const leaving = useSaveOnLeave(() => {
+    const words = draft.trim();
+    if (!writing || pending || words === '' || tooLong || words === otherWords) {
+      return;
+    }
+    return saveOther();
+  });
 
   return (
     <View style={styles.block} testID={testID}>
@@ -115,6 +134,7 @@ export function CuisineChips({ value, onChange, testID = 'cuisine' }: CuisineChi
             value={draft}
             onChangeText={setDraft}
             autoFocus
+            {...leaving}
             maxLength={MAX_OTHER_WORDS + 10}
             onSubmitEditing={() => void saveOther()}
             invalid={tooLong}

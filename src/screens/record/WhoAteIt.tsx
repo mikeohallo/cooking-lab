@@ -28,6 +28,7 @@ import type { RatingAnswer, RatingPerson } from '../../domain/evidence';
 import { activeMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH, MAX_RATING_LINE_LENGTH } from '../../domain/invariants';
 import { useKeptState } from '../../layout/KeptState';
+import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
 
@@ -102,6 +103,11 @@ function rowsFor(
  * Every tap saves at once, as a tag does: nothing here waits for *Finish
  * review*, and nothing is required. A tap on the chosen star clears it. N/A
  * means "didn't eat it": it takes the stars away and counts nowhere.
+ *
+ * A person's own line saves when its field is left — it loses focus, or the
+ * keyboard is closed — just as Save line does (0.4.0, part 6). An unchanged
+ * or empty line saves nothing there; Save line still clears one. A guest's
+ * name keeps its words with Add in sight until Add or Cancel.
  */
 export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: WhoAteItProps) {
   const styles = useStyles();
@@ -221,6 +227,16 @@ function RatingRow({
     setEditingLine(true);
   };
 
+  const leavingLine = useSaveOnLeave(async () => {
+    const words = lineDraft.trim();
+    if (!editingLine || pending || words === '' || words === (line ?? '') || words.length > MAX_RATING_LINE_LENGTH) {
+      return;
+    }
+    if (await send({ stars, notEaten, line: lineDraft })) {
+      setEditingLine(false);
+    }
+  });
+
   return (
     <View style={styles.row} testID={testID}>
       {/* The rail: a dot per person, joined by a line. */}
@@ -272,6 +288,7 @@ function RatingRow({
               placeholder={RATING_LINE_PLACEHOLDER}
               accessibilityLabel={`${RATING_LINE_PLACEHOLDER}, ${row.name}`}
               autoFocus
+              {...leavingLine}
               invalid={lineDraft.trim().length > MAX_RATING_LINE_LENGTH}
               testID={`${testID}-line-input`}
             />

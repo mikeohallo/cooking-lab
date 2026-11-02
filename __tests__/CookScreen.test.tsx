@@ -163,7 +163,8 @@ describe('CookScreen — an open cook', () => {
     await screen.findByTestId('cook-screen');
 
     await user.press(screen.getByTestId('cook-title'));
-    await user.type(screen.getByTestId('cook-title-input'), 'Rolled lamb breast');
+    // Still typing: leaving the field would save it too (part 6).
+    await user.type(screen.getByTestId('cook-title-input'), 'Rolled lamb breast', { skipBlur: true });
     await user.press(screen.getByRole('button', { name: SAVE_TITLE }));
 
     expect(await screen.findByText('Rolled lamb breast')).toBeOnTheScreen();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../../components/Button';
@@ -25,6 +25,7 @@ import type { HouseholdMember, HouseholdMemberId } from '../../domain/entities';
 import { activeMembers, retiredMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH } from '../../domain/invariants';
 import { useStorage } from '../../state/StorageProvider';
+import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
 
@@ -43,6 +44,11 @@ type HouseholdEditorProps = {
  * the review's rows and keeps every rating they gave, and can be brought back
  * from the list underneath. The order is the number; it is changed with Move
  * up and Move down, offered to a screen reader on each card.
+ *
+ * A changed name saves when its field is left — it loses focus, or the
+ * keyboard is closed — just as Save does (0.4.0, part 6). An unchanged or
+ * empty name saves nothing. A new person's name keeps its words with Add in
+ * sight until Add or Cancel.
  */
 export function HouseholdEditor({ members, onChanged, testID = 'household' }: HouseholdEditorProps) {
   const styles = useStyles();
@@ -53,13 +59,17 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
   const [renameDraft, setRenameDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Busy at once, not after a render: Return saves and then leaves the field,
+  // and the leave must see the save already under way.
+  const working = useRef(false);
   const active = activeMembers(members);
   const retired = retiredMembers(members);
 
   const run = async (work: () => Promise<string | null>): Promise<boolean> => {
-    if (busy) {
+    if (working.current) {
       return false;
     }
+    working.current = true;
     setBusy(true);
     setProblem(null);
     try {
@@ -71,6 +81,7 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
       setProblem(cause instanceof Error ? cause.message : String(cause));
       return false;
     } finally {
+      working.current = false;
       setBusy(false);
     }
   };
@@ -86,8 +97,8 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
       return null;
     });
 
-  const rename = (id: HouseholdMemberId) =>
-    void run(async () => {
+  const rename = (id: HouseholdMemberId): Promise<boolean> =>
+    run(async () => {
       const decision = await data.householdWorkflow.rename(id, renameDraft);
       if (!decision.allowed) {
         return decision.message;
@@ -95,6 +106,21 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
       setRenaming(null);
       return null;
     });
+
+  const leavingRename = useSaveOnLeave(() => {
+    const member = active.find((candidate) => candidate.id === renaming);
+    const name = renameDraft.trim();
+    if (
+      member === undefined ||
+      busy ||
+      name === '' ||
+      name === member.name ||
+      name.length > MAX_PERSON_NAME_LENGTH
+    ) {
+      return;
+    }
+    return rename(member.id);
+  });
 
   const move = (id: HouseholdMemberId, direction: 'up' | 'down') =>
     void run(async () => (await data.householdWorkflow.move(id, direction), null));
@@ -114,7 +140,8 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
               onChangeText={setRenameDraft}
               accessibilityLabel={`${RENAME}: ${member.name}`}
               autoFocus
-              onSubmitEditing={() => rename(member.id)}
+              {...leavingRename}
+              onSubmitEditing={() => void rename(member.id)}
               invalid={renameDraft.trim().length > MAX_PERSON_NAME_LENGTH}
               helper={problem ?? undefined}
               testID={`${testID}-rename-input-${member.id}`}
@@ -141,7 +168,7 @@ export function HouseholdEditor({ members, onChanged, testID = 'household' }: Ho
                 label={SAVE_NAME}
                 variant="secondary"
                 disabled={renameDraft.trim() === '' || busy}
-                onPress={() => rename(member.id)}
+                onPress={() => void rename(member.id)}
                 testID={`${testID}-rename-save-${member.id}`}
               />
             </View>

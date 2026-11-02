@@ -9,6 +9,7 @@ import { useCookRecord } from '../state/useCookRecord';
 import { useKeepScreenOn, useScreenStaysOn } from '../state/useKeepScreenOn';
 import { useExport } from '../state/useExport';
 import { usePhotoUris } from '../state/usePhotoUris';
+import { useSaveOnLeave } from '../state/useSaveOnLeave';
 import { useWrite, type WriteState } from '../state/useWrite';
 import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
@@ -863,11 +864,32 @@ type EditableTitleProps = {
   compact?: boolean;
 };
 
-/** The title, tappable to edit in place. Optional, and user-authored only. */
+/**
+ * The title, tappable to edit in place. Optional, and user-authored only.
+ *
+ * A changed title saves when the field is left — it loses focus, or the
+ * keyboard is closed with Back — just as Save title does (0.4.0, part 6). An
+ * unchanged or empty title saves nothing there; Save title still clears one.
+ */
 function EditableTitle({ cook, onSave, writeState, compact = false }: EditableTitleProps) {
   const styles = useStyles();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cook.title ?? '');
+  const leaving = useSaveOnLeave(async () => {
+    const trimmed = draft.trim();
+    if (
+      !editing ||
+      writeState.status === 'pending' ||
+      trimmed === '' ||
+      trimmed === (cook.title ?? '') ||
+      trimmed.length > MAX_TITLE_LENGTH
+    ) {
+      return;
+    }
+    if (await onSave(trimmed)) {
+      setEditing(false);
+    }
+  });
 
   if (!editing) {
     return (
@@ -903,6 +925,7 @@ function EditableTitle({ cook, onSave, writeState, compact = false }: EditableTi
         placeholder={COOK_TITLE_PLACEHOLDER}
         accessibilityLabel="Cook title"
         autoFocus
+        {...leaving}
         invalid={tooLong}
         helper={
           tooLong
