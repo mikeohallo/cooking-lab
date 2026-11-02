@@ -16,7 +16,6 @@ import {
   READING_SOMEWHERE_ELSE_CHOICE,
   READING_WORD_ELSEWHERE,
   SAVE_TEMPERATURE,
-  TEMPERATURE_PLACEHOLDER,
   TEMPERATURE_WHERE_PLACEHOLDER,
   takenNow,
 } from '../../content/product';
@@ -186,8 +185,6 @@ function ReadingBody({
         <TextInput
           value={celsius}
           onChangeText={setCelsius}
-          placeholder={TEMPERATURE_PLACEHOLDER}
-          placeholderTextColor={colors.inkMuted}
           accessibilityLabel={
             kind === null ? 'Temperature in Celsius' : `${word} temperature in Celsius`
           }

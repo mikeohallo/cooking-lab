@@ -57,7 +57,6 @@ export const READING_SOMEWHERE_ELSE = 'Somewhere else?';
 export const OVEN_READING_LABEL = 'Oven';
 /** "Internal", never "Inside": one is the food's temperature, the other a room. */
 export const INTERNAL_READING_LABEL = 'Internal';
-export const TEMPERATURE_PLACEHOLDER = '°C';
 export const TEMPERATURE_WHERE_PLACEHOLDER = 'Where? (optional)';
 export const SAVE_TEMPERATURE = 'Add reading';
 export const CANCEL = 'Cancel';
