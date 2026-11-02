@@ -55,7 +55,8 @@ import {
 import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDayAndTime } from '../format/dateTime';
-import { REVIEW_RATINGS_PANE_WIDTH } from '../layout/responsive';
+import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
+import { reviewPaneWidth } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
 import { radius, size, space, type ColorRole } from '../theme/tokens';
@@ -89,9 +90,12 @@ type ReviewScreenProps = {
  */
 export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) {
   const styles = useStyles();
-  // On the inner display: who ate it on the left, beside your notes and next
-  // time on the right, with Finish review under them (0.3.0).
-  const split = useLayoutMetrics().twoPane;
+  // On the inner display (0.4.0): the title, what it was, cuisine and your
+  // notes on the left; who ate it and next time on the right, with Finish
+  // review pinned at its foot.
+  const { twoPane: split, width } = useLayoutMetrics();
+  // Words being typed for a person, kept while Who ate it? moves between panes.
+  const kept = useKeptStore();
   const { data, newId, now } = useStorage();
   const { load, reload, acceptCook } = useCook(cookId);
   const openWrite = useWrite();
@@ -331,165 +335,199 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     />
   );
 
-  const words = (
-    <>
-      <View style={styles.section}>
-        <AppText variant="heading" accessibilityRole="header">
-          {YOUR_NOTES}
-        </AppText>
-        <View style={styles.iconRow}>
-          <IconCircle icon="page" tint="noteIcon" ink="ink" />
-          <View style={styles.grow}>
-            <TextField
-              value={verdict}
-              onChangeText={setVerdictDraft}
-              placeholder={YOUR_NOTES_PLACEHOLDER}
-              accessibilityLabel={YOUR_NOTES}
-              multiline
-              rows={3}
-              invalid={verdictTooLong}
-              helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
-              testID="verdict-input"
-            />
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.iconRow}>
-          <IconCircle icon="lightbulb" tint="primary" ink="onPrimary" />
-          <View style={styles.grow}>
-            <AppText variant="heading" tone="nextInk" accessibilityRole="header">
-              {NEXT_TIME}
-            </AppText>
-            <AppText variant="secondary" tone="inkMuted">
-              {NEXT_TIME_SHOWN}
-            </AppText>
-          </View>
-        </View>
-        {editing
-          ? lessons.map((lesson) => (
-              <TextField
-                key={lesson.id}
-                tone="next"
-                value={lessonDrafts[lesson.id] ?? lessonNow(lesson.id)}
-                onChangeText={(text) => setLessonDrafts((now) => ({ ...now, [lesson.id]: text }))}
-                accessibilityLabel={NEXT_TIME}
-                multiline
-                rows={2}
-                testID={`next-time-input-${lesson.id}`}
-              />
-            ))
-          : null}
-        {!editing || lessons.length === 0 ? (
+  const notesSection = (
+    <View style={styles.section}>
+      <AppText variant="heading" accessibilityRole="header">
+        {YOUR_NOTES}
+      </AppText>
+      <View style={styles.iconRow}>
+        <IconCircle icon="page" tint="noteIcon" ink="ink" />
+        <View style={styles.grow}>
           <TextField
-            tone="next"
-            value={takeaway}
-            onChangeText={setTakeaway}
-            placeholder={TAKEAWAY_PLACEHOLDER}
-            accessibilityLabel={NEXT_TIME}
-            accessibilityHint={NEXT_TIME_SHOWN}
+            value={verdict}
+            onChangeText={setVerdictDraft}
+            placeholder={YOUR_NOTES_PLACEHOLDER}
+            accessibilityLabel={YOUR_NOTES}
             multiline
-            rows={2}
-            invalid={takeawayTooLong}
-            helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
-            testID="takeaway-input"
+            rows={3}
+            invalid={verdictTooLong}
+            helper={verdictTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+            testID="verdict-input"
           />
-        ) : null}
+        </View>
       </View>
-    </>
+    </View>
   );
 
-  return (
-    <ScreenContainer
-      testID="review-screen"
-      footer={split ? undefined : footButton}
-      side={split ? { children: words, footer: footButton, testID: 'review-side' } : undefined}
-      fixed={{ pane: 'main', width: REVIEW_RATINGS_PANE_WIDTH }}
-    >
-      <View style={styles.header}>
-        {bar}
-        <View style={styles.titleRow}>
-          <View style={styles.grow}>
-            <AppText variant="title" accessibilityRole="header" tone={cook.title ? 'ink' : 'inkMuted'}>
-              {cook.title ?? UNTITLED_COOK}
-            </AppText>
-            <AppText variant="secondary" tone="inkMuted">
-              {[
-                formatDayAndTime(cook.startedAt),
-                record.status === 'ready' ? timesCookedLine(record.timesCooked) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </AppText>
-          </View>
-          {titlePhoto ? <Image source={{ uri: titlePhoto }} style={styles.photo} testID="review-photo" /> : null}
-        </View>
-      </View>
-
-      {saveWrite.state.status === 'failed' ? (
-        <Notice title={saveWrite.state.message} body={UNSAVED_KEPT} tone="problem" testID="review-save-failed" />
-      ) : null}
-      {problem ? <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID="review-edit-failed" /> : null}
-      {lessonProblem ? (
-        <Notice
-          title="Your verdict was saved, but the takeaway was not"
-          body={`${lessonProblem} ${UNSAVED_KEPT}`}
-          tone="problem"
-          action={{ label: RETRY, onPress: () => void finish() }}
-          testID="lesson-save-failed"
-        />
-      ) : null}
-
-      {record.status === 'ready' && askHousehold ? (
-        <Card testID="household-prompt" style={styles.prompt}>
-          <AppText variant="heading" accessibilityRole="header">
-            {WHO_USUALLY_EATS}
+  const nextSection = (
+    <View style={styles.section}>
+      <View style={styles.iconRow}>
+        <IconCircle icon="lightbulb" tint="primary" ink="onPrimary" />
+        <View style={styles.grow}>
+          <AppText variant="heading" tone="nextInk" accessibilityRole="header">
+            {NEXT_TIME}
           </AppText>
           <AppText variant="secondary" tone="inkMuted">
-            {WHO_USUALLY_EATS_BODY}
+            {NEXT_TIME_SHOWN}
           </AppText>
-          <HouseholdEditor
-            members={record.household}
-            onChanged={(members: readonly HouseholdMember[]) => acceptHousehold(members)}
-            testID="household-prompt-editor"
-          />
-          <View style={styles.promptActions}>
-            <Button label={HOUSEHOLD_SKIP} variant="text" onPress={finishAsking} testID="household-prompt-skip" />
-            <Button
-              label={HOUSEHOLD_DONE}
-              variant="outlined"
-              onPress={finishAsking}
-              testID="household-prompt-done"
+        </View>
+      </View>
+      {editing
+        ? lessons.map((lesson) => (
+            <TextField
+              key={lesson.id}
+              tone="next"
+              value={lessonDrafts[lesson.id] ?? lessonNow(lesson.id)}
+              onChangeText={(text) => setLessonDrafts((now) => ({ ...now, [lesson.id]: text }))}
+              accessibilityLabel={NEXT_TIME}
+              multiline
+              rows={2}
+              testID={`next-time-input-${lesson.id}`}
             />
-          </View>
-        </Card>
-      ) : null}
-
-      {record.status === 'ready' ? (
-        <>
-          <Section title={WHAT_WAS_IT}>
-            <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
-          </Section>
-          <Section title={CUISINE_HEADING} trailing={OPTIONAL}>
-            <CuisineChips value={record.cuisine} onChange={setCuisine} />
-          </Section>
-          <Section title={WHO_ATE_IT}>
-            <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} />
-          </Section>
-        </>
-      ) : record.status === 'failed' ? (
-        <Notice
-          title="Part of this cook could not be loaded"
-          body={`Nothing was changed. ${record.message}`}
-          tone="problem"
-          testID="review-record-failed"
+          ))
+        : null}
+      {!editing || lessons.length === 0 ? (
+        <TextField
+          tone="next"
+          value={takeaway}
+          onChangeText={setTakeaway}
+          placeholder={TAKEAWAY_PLACEHOLDER}
+          accessibilityLabel={NEXT_TIME}
+          accessibilityHint={NEXT_TIME_SHOWN}
+          multiline
+          rows={2}
+          invalid={takeawayTooLong}
+          helper={takeawayTooLong ? `Keep it under ${MAX_TEXT_LENGTH} characters.` : undefined}
+          testID="takeaway-input"
         />
       ) : null}
+    </View>
+  );
 
-      {/* On two panes your notes and next time are in the right-hand pane. */}
-      {split ? null : words}
-    </ScreenContainer>
+  const who =
+    record.status === 'ready' ? (
+      <Section title={WHO_ATE_IT}>
+        <WhoAteIt household={record.household} ratings={record.ratings} onRate={rate} oneLine={split} />
+      </Section>
+    ) : null;
+
+  const photo = titlePhoto ? (
+    <Image source={{ uri: titlePhoto }} style={styles.photo} testID="review-photo" />
+  ) : null;
+
+  return (
+    <KeptStateProvider store={kept}>
+      <ScreenContainer
+        testID="review-screen"
+        footer={split ? undefined : footButton}
+        side={
+          split
+            ? {
+                children: (
+                  <>
+                    {who}
+                    {nextSection}
+                  </>
+                ),
+                footer: footButton,
+                testID: 'review-side',
+                surface: true,
+              }
+            : undefined
+        }
+        fixed={{ pane: 'main', width: reviewPaneWidth(width) }}
+      >
+        <View style={styles.header}>
+          {bar}
+          <View style={styles.titleRow}>
+            {/* The photo is on the left of the title on the inner display, as drawn. */}
+            {split ? photo : null}
+            <View style={styles.grow}>
+              <AppText
+                variant={split ? 'titleCompact' : 'title'}
+                accessibilityRole="header"
+                tone={cook.title ? 'ink' : 'inkMuted'}
+              >
+                {cook.title ?? UNTITLED_COOK}
+              </AppText>
+              <AppText variant="secondary" tone="inkMuted">
+                {[
+                  formatDayAndTime(cook.startedAt),
+                  record.status === 'ready' ? timesCookedLine(record.timesCooked) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </AppText>
+            </View>
+            {split ? null : photo}
+          </View>
+        </View>
+
+        {saveWrite.state.status === 'failed' ? (
+          <Notice title={saveWrite.state.message} body={UNSAVED_KEPT} tone="problem" testID="review-save-failed" />
+        ) : null}
+        {problem ? <Notice title={problem} body={UNSAVED_KEPT} tone="problem" testID="review-edit-failed" /> : null}
+        {lessonProblem ? (
+          <Notice
+            title="Your verdict was saved, but the takeaway was not"
+            body={`${lessonProblem} ${UNSAVED_KEPT}`}
+            tone="problem"
+            action={{ label: RETRY, onPress: () => void finish() }}
+            testID="lesson-save-failed"
+          />
+        ) : null}
+
+        {record.status === 'ready' && askHousehold ? (
+          <Card testID="household-prompt" style={styles.prompt}>
+            <AppText variant="heading" accessibilityRole="header">
+              {WHO_USUALLY_EATS}
+            </AppText>
+            <AppText variant="secondary" tone="inkMuted">
+              {WHO_USUALLY_EATS_BODY}
+            </AppText>
+            <HouseholdEditor
+              members={record.household}
+              onChanged={(members: readonly HouseholdMember[]) => acceptHousehold(members)}
+              testID="household-prompt-editor"
+            />
+            <View style={styles.promptActions}>
+              <Button label={HOUSEHOLD_SKIP} variant="text" onPress={finishAsking} testID="household-prompt-skip" />
+              <Button
+                label={HOUSEHOLD_DONE}
+                variant="outlined"
+                onPress={finishAsking}
+                testID="household-prompt-done"
+              />
+            </View>
+          </Card>
+        ) : null}
+
+        {record.status === 'ready' ? (
+          <>
+            <Section title={WHAT_WAS_IT}>
+              <MealTypeChips value={record.mealType?.mealType ?? null} onChange={saveMealType} />
+            </Section>
+            <Section title={CUISINE_HEADING} trailing={OPTIONAL}>
+              <CuisineChips value={record.cuisine} onChange={setCuisine} />
+            </Section>
+            {/* On two panes Who ate it? is in the right-hand pane. */}
+            {split ? null : who}
+          </>
+        ) : record.status === 'failed' ? (
+          <Notice
+            title="Part of this cook could not be loaded"
+            body={`Nothing was changed. ${record.message}`}
+            tone="problem"
+            testID="review-record-failed"
+          />
+        ) : null}
+
+        {/* Your notes stay in this pane either way, so folding never draws the
+            field afresh; Next time moves to the right-hand pane on two. */}
+        {notesSection}
+        {split ? null : nextSection}
+      </ScreenContainer>
+    </KeptStateProvider>
   );
 }
 

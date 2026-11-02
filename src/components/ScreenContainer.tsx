@@ -22,6 +22,18 @@ export type SidePane = {
   /** Pinned under the side pane's own scrolling area, as `footer` is for the main one. */
   footer?: ReactNode;
   testID?: string;
+  /**
+   * The pane is drawn on `surface` rather than the page (0.4.0): the chosen
+   * cook beside Home's list, the cook page's side column, the review's right
+   * pane, as the design pack draws them.
+   */
+  surface?: boolean;
+  /**
+   * The children fill the pane and scroll themselves (`EmbeddedPane`), with a
+   * footer of their own: the chosen cook beside Home's list, whose Cook this
+   * again and Edit review are pinned to the pane's foot.
+   */
+  fill?: boolean;
 };
 
 type ScreenContainerProps = {
@@ -122,21 +134,28 @@ export function ScreenContainer({ children, footer, testID, side, fixed, floatin
         </View>
         {showSide ? (
           <View
-            style={[sizeOf('side'), styles.side]}
+            style={[sizeOf('side'), styles.side, side.surface && styles.surface]}
             testID="screen-side-pane"
           >
             <PaneOverlayHost enabled>
-              <Pane
-                footer={side.footer}
-                footerLimit={footerLimit}
-                gutter={gutter}
-                maxWidth={contentMaxWidth}
-                columnTestID={side.testID}
-                scrollTestID="screen-side-scroll"
-                footerTestID="screen-side-footer"
-              >
-                {side.children}
-              </Pane>
+              {side.fill ? (
+                <View style={styles.flex} testID={side.testID}>
+                  {side.children}
+                </View>
+              ) : (
+                <Pane
+                  footer={side.footer}
+                  footerLimit={footerLimit}
+                  gutter={gutter}
+                  maxWidth={contentMaxWidth}
+                  columnTestID={side.testID}
+                  scrollTestID="screen-side-scroll"
+                  footerTestID="screen-side-footer"
+                  surface={side.surface}
+                >
+                  {side.children}
+                </Pane>
+              )}
             </PaneOverlayHost>
           </View>
         ) : null}
@@ -145,8 +164,50 @@ export function ScreenContainer({ children, footer, testID, side, fixed, floatin
   );
 }
 
+/**
+ * A page drawn inside another screen's pane (0.4.0): its own scrolling area
+ * and its own footer pinned to the pane's foot. Home puts the chosen cook in
+ * one, beside the list, with Cook this again and Edit review at its foot.
+ * The pane it sits in must be a `fill` side pane.
+ */
+export function EmbeddedPane({
+  children,
+  footer,
+  testID,
+  surface = true,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  testID?: string;
+  surface?: boolean;
+}) {
+  const styles = useStyles();
+  const { gutter, contentMaxWidth } = useLayoutMetrics();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
+  const { height: windowHeight } = useWindowDimensions();
+  const clearance = bottomClearance(Platform.OS, insets.bottom, keyboardHeight);
+  return (
+    <View style={styles.flex} testID={testID}>
+      <Pane
+        footer={footer}
+        footerLimit={footerMaxHeight(windowHeight, insets.top, clearance)}
+        gutter={gutter}
+        maxWidth={contentMaxWidth}
+        scrollTestID="embedded-scroll"
+        footerTestID="embedded-footer"
+        surface={surface}
+      >
+        {children}
+      </Pane>
+    </View>
+  );
+}
+
 type PaneProps = {
   children: ReactNode;
+  /** The footer on `surface`, as its pane is. */
+  surface?: boolean;
   footer?: ReactNode;
   footerLimit: number;
   gutter: number;
@@ -168,6 +229,7 @@ function Pane({
   scrollTestID,
   footerTestID,
   floating,
+  surface = false,
 }: PaneProps) {
   const styles = useStyles();
   const scrollRef = useRef<ScrollView>(null);
@@ -225,7 +287,7 @@ function Pane({
         </View>
       ) : null}
       {footer ? (
-        <View style={[styles.footer, { maxHeight: footerLimit }]} testID={footerTestID}>
+        <View style={[styles.footer, surface && styles.surface, { maxHeight: footerLimit }]} testID={footerTestID}>
           <ScrollView
             testID={`${footerTestID}-scroll`}
             style={styles.footerScroll}
@@ -258,9 +320,12 @@ const useStyles = makeStyles(({ colors }) =>
     // The side pane is always to the right of the main one, after it in the
     // tree, so adding it never moves the main pane.
     side: {
-      borderLeftWidth: 1,
+      borderLeftWidth: size.hairline,
       borderLeftColor: colors.line,
       backgroundColor: colors.page,
+    },
+    surface: {
+      backgroundColor: colors.surface,
     },
     scrollContent: {
       flexGrow: 1,

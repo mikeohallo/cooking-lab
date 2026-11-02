@@ -1,3 +1,5 @@
+import { breakpoint, size, space } from '../theme/tokens';
+
 /**
  * Responsive primitives for Cooking Lab.
  *
@@ -19,31 +21,55 @@ export const WIDE_BREAKPOINT = 720;
 export const CONTENT_MAX_WIDTH = 560;
 
 /**
- * Two panes side by side (0.3.0) from this width up — and only when the
- * display's shorter side is at least as long, so a phone or the Fold's cover
- * display turned sideways stays one column.
+ * Two panes side by side (0.3.0) from `breakpoint.medium` (600) up — and only
+ * when the display's shorter side is at least as long, so a phone or the
+ * Fold's cover display turned sideways stays one column.
  *
- * Measured on the Fold (Android 16, 420 dpi): the cover display is about
- * 369 x 905 dp and the inner display about 707 x 823 dp. 600 sits well clear
- * of both: the cover display is one column either way up, and the inner
- * display is two panes either way up. A split-screen half of the inner display
- * (about 350 dp) is one column.
+ * Measured on the Fold 6 bench (Android 16, 420 dpi): the cover display is
+ * about 369 x 905 dp and the inner display about 707 x 823 dp. The Fold 8's
+ * inner display is about 792 x 880 upright and 880 x 792 sideways (about 710
+ * tall above the taskbar). 600 sits well clear of all of them: the cover
+ * display is one column either way up, and both inner displays are two panes
+ * either way up. A split-screen half of the inner display (about 350 dp) is
+ * one column.
  */
-export const TWO_PANE_MIN_WIDTH = 600;
-export const TWO_PANE_MIN_SHORT_SIDE = 600;
+export const TWO_PANE_MIN_WIDTH = breakpoint.medium;
+export const TWO_PANE_MIN_SHORT_SIDE = breakpoint.medium;
 
-/** Home's list pane on the inner display: search, filters, a page of ten. */
-export const HOME_LIST_PANE_WIDTH = 380;
+/** Home's list pane on the inner display (0.4.0): `pane-list`, both ways round. */
+export const HOME_LIST_PANE_WIDTH = size.paneList;
 
-/** An open cook's side pane on the inner display: Last time and the ingredients. */
-export const COOK_SIDE_PANE_WIDTH = 340;
+/** An open cook's side column on the inner display: Next time, Last time, Ingredients. */
+export const COOK_SIDE_PANE_WIDTH = size.paneSide;
 
-/** The review's ratings pane on the inner display, beside the notes. */
-export const REVIEW_RATINGS_PANE_WIDTH = 360;
+/**
+ * The narrowest the review's right pane may be: the rail and its gap, five
+ * star buttons, N/A and the pencil, with their gaps, and the pane's gutters.
+ */
+export const REVIEW_RIGHT_PANE_MIN =
+  size.dot +
+  space.xxs +
+  space.sm +
+  5 * (size.starButton + space.xxs * 2) +
+  2 * size.targetMin +
+  2 * space.xxs +
+  2 * space.ml;
+
+/**
+ * The review's left pane on the inner display (0.4.0): `pane-list`, unless the
+ * window is too narrow to leave the right pane room for a person's stars, N/A
+ * and pencil on one line, in which case it gives way. On the Fold 8 it is
+ * always 400; on the Fold 6 bench upright (707 wide) it is 345.
+ */
+export function reviewPaneWidth(windowWidth: number): number {
+  return Math.max(0, Math.min(size.paneList, Math.round(windowWidth - REVIEW_RIGHT_PANE_MIN)));
+}
 
 /** Horizontal gutters from Design Baseline v1: 20 dp on a cover screen, 24 dp wider. */
 const NARROW_GUTTER = 20;
 const WIDE_GUTTER = 24;
+/** Inner panes use `space-ml` (Design Baseline v3). */
+const PANE_GUTTER = space.ml;
 
 export type LayoutMetrics = {
   readonly width: number;
@@ -60,6 +86,11 @@ export type LayoutMetrics = {
   readonly allowsInlineLoop: boolean;
   /** Whether a screen may show two panes side by side (the unfolded inner display). */
   readonly twoPane: boolean;
+  /**
+   * Two panes on a window wider than it is tall: the inner display turned
+   * sideways (0.4.0). The cook page sets Notes and Photos side by side.
+   */
+  readonly sideways: boolean;
 };
 
 /**
@@ -78,9 +109,10 @@ export function computeLayoutMetrics(width: number, height?: number): LayoutMetr
     width: safeWidth,
     isNarrow,
     isWide,
-    gutter: isNarrow ? NARROW_GUTTER : WIDE_GUTTER,
+    gutter: twoPane ? PANE_GUTTER : isNarrow ? NARROW_GUTTER : WIDE_GUTTER,
     contentMaxWidth: CONTENT_MAX_WIDTH,
     allowsInlineLoop: safeWidth >= NARROW_BREAKPOINT,
     twoPane,
+    sideways: twoPane && safeWidth > safeHeight,
   };
 }

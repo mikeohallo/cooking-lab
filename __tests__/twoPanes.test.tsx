@@ -1,5 +1,6 @@
 /**
- * Two panes on the unfolded inner display (0.3.0), and one column on the
+ * Two panes on the unfolded inner display (0.3.0, redrawn in 0.4.0 — see
+ * also `innerScreens.test.tsx`), and one column on the
  * cover display. Real screens and real SQLite; the window is the Fold's, as
  * measured on Android 16 at 420 dpi.
  */
@@ -241,16 +242,18 @@ describe('an open cook on the inner display', () => {
 });
 
 describe('the review on the inner display', () => {
-  it('puts who ate it beside your notes and next time, with Finish review under them', async () => {
+  it('puts what it was and your notes beside who ate it and next time, with Finish review under them (0.4.0)', async () => {
     const { data, now } = harness.storage;
     await data.capture.startCook({ id: 'cook-r', title: 'Tagine', startedAt: now() }, 'user', now());
     await harness.render(<ReviewScreen cookId="cook-r" onBack={() => {}} onFinished={() => {}} />);
     const side = await screen.findByTestId('review-side');
     const main = screen.getByTestId('screen-main-pane');
 
-    expect(await within(main).findByTestId('who-ate-it')).toBeOnTheScreen();
-    expect(within(main).queryByTestId('verdict-input')).toBeNull();
-    expect(within(side).getByTestId('verdict-input')).toBeOnTheScreen();
+    expect(await within(side).findByTestId('who-ate-it')).toBeOnTheScreen();
+    expect(within(main).queryByTestId('who-ate-it')).toBeNull();
+    expect(within(main).getByTestId('meal-type')).toBeOnTheScreen();
+    expect(within(main).getByTestId('verdict-input')).toBeOnTheScreen();
+    expect(within(side).queryByTestId('verdict-input')).toBeNull();
     expect(within(side).getByTestId('takeaway-input')).toBeOnTheScreen();
     expect(within(screen.getByTestId('screen-side-footer')).getByTestId('finish-review')).toBeOnTheScreen();
     expect(within(main).queryByTestId('finish-review')).toBeNull();

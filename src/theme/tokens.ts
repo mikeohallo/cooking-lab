@@ -306,6 +306,12 @@ export const size = {
   measure: 680,
   /** The list pane on the inner screen. */
   paneList: 400,
+  /**
+   * The cook page's side column on the inner screen (Next time, Last time,
+   * Ingredients), as drawn in the design pack's screens 11 and 14, upright
+   * and sideways alike.
+   */
+  paneSide: 344,
   /** Filter chips sit 40 tall inside a 48 touch area. */
   chip: 40,
   /** Tag chips. */

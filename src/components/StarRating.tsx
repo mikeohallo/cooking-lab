@@ -75,7 +75,8 @@ export function NotApplicableToggle({ label, accessibilityLabel, on, onPress, di
       style={({ pressed }) => [styles.na, on && styles.naOn, pressed && styles.pressed, disabled && styles.off]}
       testID={testID}
     >
-      <AppText variant="label" tone={on ? 'onSelected' : 'ink'}>
+      {/* N/A is one word: it never breaks over two lines (0.3.0). */}
+      <AppText variant="label" tone={on ? 'onSelected' : 'ink'} numberOfLines={1} style={styles.naLabel}>
         {label}
       </AppText>
     </Pressable>
@@ -160,6 +161,9 @@ const useStyles = makeStyles(({ colors }) =>
       borderRadius: radius.pill,
       borderWidth: size.hairline,
       borderColor: colors.controlLine,
+    },
+    naLabel: {
+      flexShrink: 0,
     },
     naOn: {
       backgroundColor: colors.selected,

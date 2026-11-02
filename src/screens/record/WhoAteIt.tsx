@@ -27,6 +27,7 @@ import type { HouseholdMember, Rating } from '../../domain/entities';
 import type { RatingAnswer, RatingPerson } from '../../domain/evidence';
 import { activeMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH, MAX_RATING_LINE_LENGTH } from '../../domain/invariants';
+import { useKeptState } from '../../layout/KeptState';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
 
@@ -38,6 +39,12 @@ type WhoAteItProps = {
   ratings: readonly Rating[];
   /** Saves one person's answer; resolves with a message when it was not saved. */
   onRate: (person: RatingPerson, answer: RatingAnswer) => Promise<string | null>;
+  /**
+   * Keep each person's stars, N/A and pencil on one line, never wrapping
+   * (0.4.0, on the inner display, whose pane is made wide enough for them).
+   * The name takes a line of its own above them if it must.
+   */
+  oneLine?: boolean;
   testID?: string;
 };
 
@@ -102,11 +109,12 @@ function rowsFor(
  * review*, and nothing is required. A tap on the chosen star clears it. N/A
  * means "didn't eat it": it takes the stars away and counts nowhere.
  */
-export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: WhoAteItProps) {
+export function WhoAteIt({ household, ratings, onRate, oneLine = false, testID = 'who-ate-it' }: WhoAteItProps) {
   const styles = useStyles();
-  const [pendingGuests, setPendingGuests] = useState<readonly string[]>([]);
-  const [addingGuest, setAddingGuest] = useState(false);
-  const [guestDraft, setGuestDraft] = useState('');
+  // Kept across folding: on the inner display this part moves to the other pane.
+  const [pendingGuests, setPendingGuests] = useKeptState<readonly string[]>(`${testID}-pending-guests`, []);
+  const [addingGuest, setAddingGuest] = useKeptState(`${testID}-adding-guest`, false);
+  const [guestDraft, setGuestDraft] = useKeptState(`${testID}-guest-draft`, '');
   const rows = rowsFor(household, ratings, pendingGuests);
 
   const addGuest = () => {
@@ -134,6 +142,7 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
             first={index === 0}
             last={index === rows.length - 1}
             onRate={onRate}
+            oneLine={oneLine}
             testID={`${testID}-${row.key}`}
           />
         ))}
@@ -182,19 +191,21 @@ function RatingRow({
   first,
   last,
   onRate,
+  oneLine,
   testID,
 }: {
   row: Row;
   first: boolean;
   last: boolean;
   onRate: WhoAteItProps['onRate'];
+  oneLine: boolean;
   testID: string;
 }) {
   const styles = useStyles();
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [editingLine, setEditingLine] = useState(false);
-  const [lineDraft, setLineDraft] = useState(row.rating?.line ?? '');
+  const [editingLine, setEditingLine] = useKeptState(`${testID}-editing-line`, false);
+  const [lineDraft, setLineDraft] = useKeptState(`${testID}-line-draft`, row.rating?.line ?? '');
   const stars = row.rating?.stars ?? null;
   const notEaten = row.rating?.notEaten ?? false;
   const line = row.rating?.line ?? null;
@@ -233,7 +244,7 @@ function RatingRow({
             {row.name}
             {row.guest ? <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText> : null}
           </AppText>
-          <View style={styles.controlsRight}>
+          <View style={[styles.controlsRight, oneLine && styles.oneLine]} testID={`${testID}-controls`}>
             <StarButtons
               stars={stars}
               onTap={tapStar}
@@ -386,6 +397,11 @@ const useStyles = makeStyles(({ colors }) =>
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xxs,
+    },
+    oneLine: {
+      flexWrap: 'nowrap',
+      flexShrink: 0,
+      marginLeft: 'auto',
     },
     pencil: {
       width: size.targetMin,
