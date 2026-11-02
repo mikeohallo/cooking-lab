@@ -138,8 +138,8 @@ const useStyles = makeStyles(({ name, colors, shadows }) =>
       opacity: DISABLED_OPACITY,
     },
     send: {
-      width: size.targetMin - 4,
-      height: size.targetMin - 4,
+      width: size.inlineButton,
+      height: size.inlineButton,
       borderRadius: radius.pill,
       backgroundColor: colors.primary,
       alignItems: 'center',

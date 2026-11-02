@@ -96,8 +96,8 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.md,
     },
     circle: {
-      width: size.targetMain - 4,
-      height: size.targetMain - 4,
+      width: size.avatar,
+      height: size.avatar,
       borderRadius: radius.pill,
       backgroundColor: colors.zone,
       alignItems: 'center',

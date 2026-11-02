@@ -140,7 +140,7 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
     },
     star: {
-      width: size.starButton + space.xxs * 2,
+      width: size.starTarget,
       minHeight: size.targetMin,
       alignItems: 'center',
       justifyContent: 'center',

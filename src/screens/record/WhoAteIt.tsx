@@ -336,7 +336,7 @@ const useStyles = makeStyles(({ colors }) =>
       gap: space.sm,
     },
     rail: {
-      width: size.dot + space.xxs,
+      width: size.rail,
       alignItems: 'center',
     },
     railTop: {
@@ -353,8 +353,8 @@ const useStyles = makeStyles(({ colors }) =>
       backgroundColor: 'transparent',
     },
     dot: {
-      width: size.dot + 2,
-      height: size.dot + 2,
+      width: size.railDot,
+      height: size.railDot,
       borderRadius: radius.pill,
     },
     dotOn: {
