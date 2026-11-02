@@ -37,7 +37,7 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => {
 });
 
 const mockConstants: { expoConfig: Record<string, unknown> | null } = {
-  expoConfig: { version: '0.3.0', extra: { appVariant: 'production', buildCommit: 'abc1234' } },
+  expoConfig: { version: '0.4.0', extra: { appVariant: 'production', buildCommit: 'abc1234' } },
 };
 
 jest.mock('expo-constants', () => ({
@@ -77,10 +77,10 @@ describe('the version line', () => {
   });
 
   it('takes the version and commit the build carries, and never guesses', () => {
-    expect(getBuildStamp()).toEqual({ version: '0.3.0', commit: 'abc1234' });
+    expect(getBuildStamp()).toEqual({ version: '0.4.0', commit: 'abc1234' });
     mockConstants.expoConfig = { extra: {} };
     expect(getBuildStamp()).toEqual({ version: 'unknown', commit: 'unknown' });
-    mockConstants.expoConfig = { version: '0.3.0', extra: { appVariant: 'production', buildCommit: 'abc1234' } };
+    mockConstants.expoConfig = { version: '0.4.0', extra: { appVariant: 'production', buildCommit: 'abc1234' } };
   });
 
   it('is carried from the same commit app.config.ts stamps into the APK', () => {
@@ -93,13 +93,13 @@ describe('the version line', () => {
   it('ends the ⋯ menu, in the secondary style, and follows the window', async () => {
     await harness.render(<HomeScreen onOpenCook={jest.fn()} onHousehold={jest.fn()} />);
     await fireEvent.press(await screen.findByTestId('home-more'));
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.3.0 (abc1234) · 369 × 905');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905');
 
     await windowBecomes(INNER);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.3.0 (abc1234) · 707 × 824');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 707 × 824');
     await windowBecomes(INNER_TURNED);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.3.0 (abc1234) · 824 × 707');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 824 × 707');
     await windowBecomes(COVER);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.3.0 (abc1234) · 369 × 905');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905');
   });
 });

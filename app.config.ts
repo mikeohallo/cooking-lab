@@ -66,12 +66,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'cooking-lab',
     scheme: 'cookinglab',
     icon,
-    // 0.3.0: update 2 — meal types, ingredients, who ate it, Cook this again
-    // (part 1); colour scheme A and Plus Jakarta Sans, Home as History with
-    // pages, two panes on the inner display (part 2).
+    // 0.4.0: the new look in light and dark, Side and cuisine, card photos
+    // (part 1); the cover screen's screens (part 2); the inner screen's own
+    // layouts, upright and sideways (part 3).
     // Bump `versionCode` with every production build that follows; Android will
     // not update an installed app to the same code.
-    version: '0.3.0',
+    version: '0.4.0',
     orientation: 'default',
     // 0.4.0: light or dark follows the phone's own setting, and changes live
     // when the phone switches (src/theme/theme.tsx). expo-system-ui carries
@@ -81,7 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 6,
+      versionCode: 7,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
         // The launcher icon's sage, from Design Baseline v1. The icon itself was
