@@ -114,7 +114,8 @@ the repo and are never copied into it or the report.
     time: no word breaks inside itself; Cook this again, Edit review, ‹ Home,
     Screen on and Finish & review keep their words on one line, wrapping onto
     lines of their own when they do not fit; Who ate it?'s stars, N/A and
-    pencil sit beside the name or under it as one group; New Cook never covers
+    pencil sit beside the name or under it as one row, never split (part 6);
+    "N/A" and "1 N/A" never break across lines; New Cook never covers
     the chips, the search box or a card; every card and chevron fits inside its
     pane. Then fold, unfold and fold again, and turn sideways, upright and
     sideways mid-cook: no pane keeps its old width, nothing runs off an edge,
@@ -122,6 +123,22 @@ the repo and are never copied into it or the report.
     "Note deleted · Undo", and Undo works. Put the density and the font scale
     back as found (`adb shell wm density reset` only if it was the default)
     and say so in the report.
+12. **A live font-scale change (part 6).** With the app open on the inner
+    display at the bench's own density and font scale, open a review with
+    the meal chips in sight and screenshot it. Change the font scale with
+    `adb shell settings put system font_scale 1.3`, wait, and screenshot the
+    same review, then Home. Put the font scale back, screenshot again, then
+    `adb shell am force-stop com.cookinglab.personal.test`, relaunch and
+    screenshot the same review. Say for each whether any label is cut short
+    ("Breakfas", "Lunch/", "COOKING" without "NOW"). Part 6 found the cause
+    inside React Native and left it, so cut labels until the restart are
+    expected; say if they are gone, or worse.
+13. **The title on Back (part 6).** On an open cook, tap the title, type
+    "Acceptance title <commit>" and close the keyboard with Back, without
+    tapping Save title. The editor closes and the page shows the new title.
+    Tap Finish & review: the review shows it too, not "Untitled cook". Then
+    tap the title, clear it and press Back: the title is kept (an empty title
+    saves nothing on leaving). Relaunch: the title is still there.
 
 ## The report
 

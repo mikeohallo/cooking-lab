@@ -1,6 +1,6 @@
 # Release 0.4.0 — the new look, and the cover and inner screens
 
-**Status:** built, tests green on the desktop; part 5 not yet tried on a device
+**Status:** built, tests green on the desktop; part 6 not yet tried on a device
 **Date:** 2 November 2026
 **Version:** 0.4.0 (`versionCode` 7)
 **Schema:** version 5 · **Backup format:** version 5
@@ -9,11 +9,12 @@
 Mike (product owner) approved the 0.4.0 plan and its design on 2 November
 2026. The release was built in three parts, and a fourth, Delete note, was
 added on 2 November at his request. A fifth, an adaptive layout and the faults
-from the first test build, followed the same day. Parts 1 and 2 have records
-of their own, kept as they are; this is the whole release in one record, with
-parts 3, 4 and 5 in full. Code, tests and docs only.
+from the first test build, followed the same day, and a sixth, four small
+fixes from the second test build. Parts 1 and 2 have records of their own,
+kept as they are; this is the whole release in one record, with parts 3 to 6
+in full. Code, tests and docs only.
 
-## The release in five parts
+## The release in six parts
 
 1. **The foundation and the data** (`RELEASE_0.4.0_PART1.md`, to `13432bf`).
    The design system's tokens in light and dark, following the phone's own
@@ -44,6 +45,10 @@ parts 3, 4 and 5 in full. Code, tests and docs only.
    after Delete note on the cover, Home keeping the inner width after a fold,
    the Notes card overflowing after a turn, Edit review in Home's right pane
    opening the cook page, New Cook covering controls, and "°C °C".
+6. **Four small fixes from the second test build** (below, after part 5).
+   N/A never breaks; Who ate it?'s stars, N/A and pencil never split; the
+   cause of labels cut short after a live font-size change (inside React
+   Native, left as it is); typed words never dropped without warning.
 
 ## Part 3: what was built
 
@@ -447,8 +452,8 @@ line length, a pane's minimum and maximum) and they live in
    and a line each if they do not fit beside each other. Who ate it?: the
    name, then the stars, N/A and pencil as one group, beside the name when it
    fits and under it as one block when not (only on the cover does the group
-   wrap inside itself). Other button rows (title edit, the household prompt)
-   wrap too.
+   wrap inside itself; part 6 ends that). Other button rows (title edit, the
+   household prompt) wrap too.
 3. **New Cook** is docked at the foot of the list (or Home's list pane), on
    the page colour with a soft fade above it; the list ends above it.
 4. **Search** draws its own placeholder: one line, ending with an ellipsis.
@@ -518,3 +523,167 @@ checks", step 11, runs each inner screen at several simulated sizes and font
 scales (`wm density` and `font_scale` on the bench). Whether the fade shows
 as drawn, and the native cause of the fold and turn faults, can only be seen
 there.
+
+## Part 6: four small fixes from the second test build
+
+The test build of `ae0cc2f` was run on the Fold 6 bench on 2 November at
+several simulated sizes and font scales (`..\runs\20261102-ae0cc2f-test.md`).
+Every fault from the first build was fixed there. It found four new things.
+
+### 1. N/A never breaks
+
+The Last time card read "3 ratings, 1 N/" with "A" on the next line (792
+and 640 upright, at font 1.15). Every N/A the app shows now comes from one
+place in `src/content/product.ts`:
+
+- `NOT_EATEN` is `N⁠/⁠A`: word joiners (U+2060) either side of the
+  slash, so no line can end inside it;
+- `notEatenCount(n)` holds the number to it with a no-break space (U+00A0),
+  so "1 N/A" never splits between the two.
+
+The Last time summary, the cook page's ratings, Who ate it?'s N/A buttons
+and Who's eating's words all use them. The export file keeps a plain "N/A
+(didn't eat it)": it is a text file for other apps, not a screen.
+
+### 2. Who ate it?'s stars, N/A and pencil are one row
+
+At 640 upright the pencil fell onto a line of its own under the stars and
+N/A. The three are now one row that never wraps inside itself
+(`flexWrap: 'nowrap'`). The row sits beside the name when it fits, and
+under it when it does not. Where even the line under the name is too
+narrow, the space either side of each star closes up first: a star button
+goes from 38 dp (`starTarget`) down to the star's own 30 dp (`starButton`,
+now on `widthTokens`' touch-target list). N/A and the pencil never shrink.
+
+How wide the row is, worked out from the tokens. N/A's own width is an
+estimate from the font (about 50 dp at font scale 1.0, 54 at 1.15 and 57 at
+1.3), since Jest cannot measure text:
+
+| Font scale | Row, stars at 38 | Row, stars closed up to 30 |
+|---|---|---|
+| 1.0 | about 296 dp | about 256 dp |
+| 1.15 | about 300 dp | about 260 dp |
+| 1.3 | about 303 dp | about 263 dp |
+
+The line under the name is the pane less 68 dp (the gutters, the rail and
+its gap). So:
+
+- **Cover, one column:** the window less 68. 412 gives 344 and 369 gives
+  301, so the row fits as drawn, or nearly. 340 gives 272, so the stars
+  close up a little. It stays on one line in a window as narrow as about
+  328 dp.
+- **The review on two panes:** the right-hand pane is the window less the
+  left pane (45 %, 320 to 400). The row fits as drawn from a window about
+  688 dp wide (the bench's 707 gives 319), and closed up from about 648.
+- **Below that, the row is wider than the line:** a window 640 to 647 dp
+  wide upright, with two panes, like the test run's 640 upright. There the
+  line is 252 dp, so at font 1.15 the row is about 8 dp wider (4 at 1.0, 11
+  at 1.3). It stays whole and runs into the pane's 20 dp right gutter, not
+  off the pane. Neither Fold's own sizes come near it.
+
+### 3. Text cut off after a live font-size or density change
+
+After the font size or density was changed with the app open, labels were
+clipped ("Breakfas", "Lunch/", "Sid", "COOKING" without "NOW", "Cooking Lab"
+without "Test") until a restart. **The cause is inside React Native, and the
+app cannot fix it.**
+
+- **Nothing in the app keeps either value.** No module reads the font scale
+  or density once. The font scale is read only through `useWindowDimensions`,
+  on every render. The styles `makeStyles` keeps are built from the theme
+  alone, in dp, and Android scales the text in them itself. The one size
+  worked out from the font scale (a multiline box's tallest height) follows
+  a live change. `liveFontScale.test.tsx` holds all of this.
+- **React Native keeps the old sizes.** React Native 0.86's text layout
+  (`TextLayoutManager`, in `ReactCommon/react/renderer/textlayoutmanager`)
+  keeps a cache of measured text. Its key is the words, their font, size,
+  line height and letter spacing, and the space allowed
+  (`TextMeasureCache.h`). The phone's font scale and density are not part of
+  it: Android applies them only when it measures. After a live change, a
+  label with the same words and space gets back the size measured at the old
+  scale. It is then drawn at the new scale inside that box, so its end is
+  cut off. On a font-scale change React Native only asks the root view to
+  lay out again (`enableFontScaleChangesUpdatingLayout`). It never clears
+  that cache. Only a restart does, which is what the test run saw.
+- **Why the app cannot fix it.** The only way in from the app would be to
+  change something in that key on every font-scale change: either nudge a
+  size by a fraction, or work the sizes out in the app instead of leaving
+  them to Android. The first would change every line of text the app draws
+  just to get round React Native's internals. The second would lose Android
+  14's non-linear font scaling, which draws large text less large. Neither
+  could be checked on a device in this part. So, as the line asks, it is
+  left as it is. It is React Native's to fix.
+
+### 4. Typed words are never dropped without warning
+
+In the acceptance run a title typed into the title box was lost when Back
+closed the keyboard without Save title, and the cook was reviewed as
+"Untitled cook". `src/state/useSaveOnLeave.ts` saves a one-line field's
+words when the field is left: it loses focus, or the keyboard closes while
+it has focus. Android's Back closes the keyboard and leaves the field
+focused, so that counts as leaving too. It saves as the field's Save would,
+and never twice for one leave. Only the field with focus answers the
+keyboard closing.
+
+| Edit | On leaving the field |
+|---|---|
+| The cook's title | **Saves**, as Save title does. Unchanged or empty saves nothing; Save title still clears a title. |
+| Rename on Who's eating | **Saves**, as Save does. Unchanged or empty saves nothing. |
+| Other's cuisine words | **Saves**, as Save does. Unchanged or empty saves nothing. |
+| A person's own line (Who ate it?) | **Saves**, as Save line does. Unchanged or empty saves nothing; Save line still clears a line. |
+| A tag | **Keeps the words**, with Add in sight. The field is also the search for existing tags, so typing part of one must not add it. **Done** on the cook page now adds words typed but not added before it closes the field. If adding fails, the field stays open with the problem. |
+| A note being edited | **Keeps the words**, with Save in sight. A note spans lines and every save keeps a version. **Edit on another note**, which closes this editor, now saves its changed words as a new version instead of dropping them. |
+| The Add a reading value | **Keeps the number**, with Add reading in sight. Closing the sheet is Cancel. |
+| A guest's name (Who ate it?) | **Keeps the words**, with Add in sight. |
+| A new person's name (Who's eating) | **Keeps the words**, with Add in sight. |
+
+Rename and Other now mark a save as under way at once rather than after the
+next render, so Return (which also blurs the field) saves once.
+
+### Part 6: the decisions
+
+1. **N/A is joined on screen only.** The export keeps the plain letters, so
+   a search in another app still finds "N/A".
+2. **The intro on Who's eating** ("Anyone can be N/A on the day") joins
+   "be" to N/A as well, so N/A never starts a line on its own there.
+3. **The stars close up before anything else gives.** The line asked only
+   that the row never split. Closing up the space either side of each star
+   (38 down to 30 dp, the star itself never smaller) keeps it on the line at
+   every size the bench runs except the 640 two-pane review. N/A and the
+   pencil keep their size because they are the smaller targets.
+4. **The review's panes are unchanged.** Widening the right-hand pane on a
+   window under about 648 dp would end the 640 case. The line asked for the
+   width to be reported rather than for the panes to change.
+5. **An empty title, line or name saves nothing on leaving**, as the line
+   says, so leaving can never clear one. Their Save buttons still clear a
+   title or a line, as before.
+6. **Too many characters saves nothing on leaving.** The field stays open
+   with its warning and its Save.
+7. **Tags and notes keep their words rather than saving them**, for the
+   reasons in the table. The two ways they could still vanish (Done, and Edit
+   on another note) were closed.
+8. **The multiline fields on the review** (Your notes, Next time) and the
+   Ingredients box were left as they are. They are not one-line edits, and
+   the review's are saved by Finish review.
+
+### Part 6: verification
+
+On the desktop: `check:secrets`, `typecheck`, `lint` (no warnings) and the
+suite pass: **85 suites, 1685 tests**, up from 82 and 1646 at the end of
+part 5. No package added; `package-lock.json` unchanged.
+
+| Test file | What it pins down |
+|---|---|
+| `notApplicableWhole.test.tsx` (new, 9) | `NOT_EATEN` and `notEatenCount`; the Last time summary and the Who's eating words; no plain "N/A" in the code of screens, components, content or routes; every N/A drawn on a reviewed cook's ratings, the Last time card, Who ate it? and Who's eating is joined, and Last time's is held to its number |
+| `innerScreens.test.tsx`, `adaptiveLayout.test.tsx` | Who ate it?'s row never wraps inside itself, on the cover and the inner screen, upright and sideways, at every size and font scale; the stars close up to 30 dp; N/A and the pencil never shrink |
+| `liveFontScale.test.tsx` (new, 5) | No `PixelRatio` or `Dimensions.get`; the font scale read only from `useWindowDimensions`; kept styles built from the theme alone; a multiline box's tallest height re-derived on a live font-scale change |
+| `saveOnLeave.test.tsx` (new, 22) | Each edit in the table above: the title saved on Back and on blur, once, and not when empty, unchanged or cancelled; Rename, Other and a person's line saved on leaving, once with Return; only the focused field saves; a tag, a note, a reading, a guest's name and a new person's name kept with their Save; Done adding a typed tag; Edit on another note saving the first note's changes |
+| `CookScreen.test.tsx`, `update2Screens.test.tsx` | Save title still saves while typing; the ratings card and Last time show the joined N/A |
+
+### Part 6: not tried on a device
+
+The line said no device work. `ACCEPTANCE.md` → "0.4.0 checks" adds step 12
+(a live font-scale change, which is expected to still cut labels short until
+a restart, for the reason in fix 3) and step 13 (the title on Back). Whether
+the word joiners hold N/A together in Android's line breaker, and how the
+closed-up stars look, can only be seen there.
