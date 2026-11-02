@@ -6,7 +6,7 @@
 
 **Try it:** the app is built from this repo and installed on your own phone (see "Building the TEST APK"); there's nothing to download. Everything but the build runs anywhere with Node: `npm ci && npm test`.
 
-**What's measured:** 1061 automated tests across 65 suites, run with typecheck, lint, a secrets check and a dependency audit on every push (badge above). The public repository has been through three outside assessments. The third called it "a substantial personal product with strong automated coverage", and found a screenshot showing the test phone's whole app drawer, wording that contradicted itself about privacy and history, a test-build screenshot that wasn't the test build, and a critical dependency advisory. Each was fixed: the screenshots were cropped in every commit (`build-control/history-rewrites.md` explains both history rewrites), a guard now stops mixed test builds, and advisories are triaged in `build-control/dependency-triage.md` with CI failing on any critical one.
+**What's measured:** 1473 automated tests across 77 suites, run with typecheck, lint, a secrets check and a dependency audit on every push (badge above). The public repository has been through three outside assessments. The third called it "a substantial personal product with strong automated coverage", and found a screenshot showing the test phone's whole app drawer, wording that contradicted itself about privacy and history, a test-build screenshot that wasn't the test build, and a critical dependency advisory. Each was fixed: the screenshots were cropped in every commit (`build-control/history-rewrites.md` explains both history rewrites), a guard now stops mixed test builds, and advisories are triaged in `build-control/dependency-triage.md` with CI failing on any critical one.
 
 **Where the AI is:** not in the app yet. Next, without AI, the app brings back last time's note when the same dish comes round again. After that, Claude may propose a summary and next-time suggestions after a review; the cook keeps, edits or discards them, and nothing enters the record without the cook's approval. Claude built the app as architect and engineer; the product owner set direction, made the product calls and tested on the phone. Privacy is the architecture: an encrypted database on the phone, no account, no cloud storage, no analytics.
 
@@ -43,47 +43,62 @@ database on the phone. There is no account, no cloud backend, no cloud storage
 and no analytics, and none is planned. The only remote call the app is planned
 to make is to an AI model, in a later slice.
 
-**Current state (0.3.0, built 30 October, not yet on a device):** a cook can
+**Current state (0.4.0, built 2 November, not yet on a device):** a cook can
 be started in one tap and captured as it happens:
 
-* **Notes and photos.** A photo chosen from the Gallery goes into the timeline
-  at the time it was taken, read from its own date and time (never its
-  location); one taken with the camera goes in as it is taken.
-* **Oven and Internal readings** in Celsius, each labelled with what it was
-  taken of, plus a free-text reading for anywhere else.
-* **Tags and search.** Cooks can be tagged in the kitchen's own words. Home
-  searches titles, tags and ingredients together, saying which cooks matched
-  everything you typed and which matched part of it, and filters by meal type
-  and by who gave how many stars.
-* **Editing with history.** Any note, and the verdict once a cook is reviewed,
-  can be edited. The edit is kept beside the earlier words rather than over
-  them: the timeline shows the latest, marked "edited", and every earlier
-  version can be read with its time. The title can be changed on any cook.
-* **Deleting a cook.** Long-press a cook, or use ⋯ on its page, then confirm.
-  "Cook deleted · Undo" stays up for a few seconds; after that the cook, its
-  notes, readings, photos and edits are gone for good.
+* **The new look.** A modern test kitchen: an off-white page, white cards that
+  hold the cook's own photos, and a handful of colours that each do one job —
+  orange for the one thing to do next, amber for Next time, sage for a place,
+  navy for the words — set in Plus Jakarta Sans
+  (`build-control/design/DESIGN_BASELINE_V3.md`).
+* **Light and dark, following the phone.** The app uses the phone's own light
+  or dark setting and changes the moment it switches; there is no switch in
+  the app, and the status and navigation bars turn with it.
+* **Home.** *Cooking now* for each open cook; *Your cooks* with the search bar
+  (titles, tags, ingredients and cuisine), a Filters sheet (who and stars,
+  cuisine, tags) and the meal chips; every reviewed cook, newest first, ten to
+  a page, each card with its own first photo — or the photo from the cook it
+  was made again from, or a tile with its meal's icon — its meal, cuisine,
+  date and stars. New Cook floats at the foot.
+* **The cover and inner layouts.** The cover display is one column. On the
+  unfolded inner display, upright or sideways, Home's list sits beside the
+  chosen cook's page; a cook takes the whole screen with a side column for
+  Next time, Last time and the ingredients (Notes and Photos side by side when
+  it is turned); and the review has two panes. Folding, unfolding or turning
+  keeps the same screen, the same cook, the scroll position and anything half
+  typed.
+* **The grouped cook page.** Never a timeline: under the title and tags come
+  Next time (from last time, first), Last time, the ingredients, then
+  Readings, Notes and Photos, each under its own heading. The composer is
+  pinned to the foot: Oven °C and Internal °C, then one field with the
+  camera, the note and Send. Times stay in the data: a note's in its options,
+  a photo's in the viewer.
+* **Notes, photos and readings.** A photo chosen from the Gallery is placed at
+  the time it was taken, read from its own date and time (never its
+  location). Oven and Internal readings in Celsius, each labelled with what it
+  was taken of, plus a reading for anywhere else in the cook's own words.
+* **What a cook records.** Its meal type — Breakfast, Lunch/Dinner, Dessert,
+  Snack or Side — always with its word and icon; an optional cuisine (ten
+  named ones, or Other in the cook's own words); the ingredients, every
+  version kept; tags; and, on the review, who ate it (one to five stars, or
+  N/A for someone who didn't, a line, guests) and what to do next time.
+  *Cook this again* starts a new cook with the same title, tags, meal type,
+  cuisine and ingredients and shows what was said last time.
+* **Editing with history.** Any note, and the review's notes and next-time
+  lines once a cook is reviewed, can be edited; the edit is kept beside the
+  earlier words, and every earlier version can be read with its time. The
+  title can be changed on any cook. Notes are never deleted.
+* **Deleting a cook.** Long-press a cook, or use ⋯ on a reviewed cook's page,
+  then confirm. "Cook deleted · Undo" stays up for a few seconds; after that
+  the cook, its notes, readings, photos and edits are gone for good.
 * **The screen stays on** while an open cook is in front, so it doesn't sleep
-  mid-cook. A toggle on the cook's page turns it off for that cook.
+  mid-cook. *Screen on* on the cook's page turns it off for that cook.
+* **The ⋯ menu** on Home holds Export everything, Who's eating (the people who
+  usually eat, renamed or retired, never deleted), and the app's version and
+  build commit with the window's size in dp, which changes as the phone folds
+  and turns.
 
-* **What a cook records (0.3.0).** A meal type — Breakfast, Lunch/Dinner,
-  Dessert, Snack — each with its own colour and always its word; an
-  Ingredients box at the top of every cook, every version kept; and, on the
-  review, who ate it (one to five stars, or N/A for someone who didn't, a line,
-  guests) from a household list kept on the phone. *Cook this again* starts a
-  new cook with the same title, tags, meal type and ingredients and shows what
-  was said last time.
-* **Home is History (0.3.0).** New Cook, then *Cooking now*, then the search
-  and every reviewed cook, newest first, ten to a page. Each card shows its
-  meal type, its whole title, the date, the stars in one line and the first
-  lines of the notes.
-* **Two panes on the unfolded inner display (0.3.0).** Home's list beside the
-  chosen cook's whole page; an open cook's timeline beside *Last time* and the
-  ingredients; the review's ratings beside the notes. The cover display stays
-  one column, and folding mid-cook keeps the note being typed.
-* **The look (0.3.0).** Colour scheme A, "Paprika", set in Plus Jakarta Sans
-  (`build-control/design/DESIGN_BASELINE_V2.md`).
-
-See `build-control/slices/RELEASE_0.3.0.md` for what is in 0.3.0 and what has
+See `build-control/slices/RELEASE_0.4.0.md` for what is in 0.4.0 and what has
 not been tried on a device yet.
 
 A cook is then reviewed in the cook's own words and found again from Home. The
@@ -279,13 +294,14 @@ from one pure function, `computeLayoutMetrics` in `src/layout/responsive.ts`,
 rather than ad-hoc width checks:
 
 * usable down to 320 dp with no horizontal scrolling;
-* touch targets of 48 dp minimum, 64 dp for primary actions;
+* touch targets of 48 dp minimum, 56 dp for a screen's main action;
 * safe-area insets on all edges;
 * content column centred and capped at 560 dp so text never stretches across an
   unfolded screen;
 * two panes side by side from 600 dp wide when the shorter side is 600 dp too —
-  the unfolded inner display — and one column on the cover display either way
-  up;
+  the unfolded inner display, upright or sideways — and one column on the
+  cover display either way up; the panes' widths come from the design tokens
+  (Home's list is `pane-list`, 400 dp, both ways round);
 * no fixed heights, so Android font scaling grows the layout instead of clipping.
 
 ## Licence

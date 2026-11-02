@@ -5,11 +5,17 @@
  * Sentence case throughout; British spelling; Celsius. Nothing here promises
  * a feature the current milestone does not have.
  *
- * As of 0.3.0: Home is also History — New Cook, Cooking now, the search and
- * its filters, and every reviewed cook ten to a page, with Export everything
- * and Who's eating in its ⋯ menu. A cook records its meal type, ingredients
- * and who ate it; Cook this again shows what was said last time. There is no
- * separate History screen, so nothing here names one.
+ * As of 0.4.0: Home is also History — Cooking now, Your cooks with the
+ * search bar, the Filters sheet (who and stars, cuisine, tags) and the meal
+ * chips, every reviewed cook ten to a page with its photo or meal tile, and
+ * New Cook floating at the foot, with Export everything, Who's eating and the
+ * version and screen size in its ⋯ menu. A cook records its meal type (Side
+ * among them), an optional cuisine, ingredients and who ate it; its page is
+ * grouped by section with Next time first; Cook this again shows what was
+ * said last time. The look follows the phone's light or dark setting. On the
+ * inner display Home's list sits beside the chosen cook, a cook's page has a
+ * side column, and the review has two panes, upright and sideways. There is
+ * no separate History screen, so nothing here names one.
  */
 
 export const PRODUCT_TAGLINE =

@@ -47,6 +47,48 @@ identifiers in the text. Never screenshot the share sheet: it shows contacts.
    screenshot Home on the cover display. If he isn't there, write "cover
    display: not checked" rather than skipping it silently.
 
+## 0.4.0 checks (test build)
+
+For a TEST build of 0.4.0 or later, after the steps above. Synthetic data
+only; each check *passed* or what happened instead, in the report. The
+pictures are the approved design pack's screens 01 to 15, which sit next to
+the repo and are never copied into it or the report.
+
+1. **Schema 5 over 0.3.0 data, nothing lost.** Install 0.3.0 TEST at its
+   commit, add synthetic cooks covering every 0.3.0 meal type, ingredients
+   with an edit, ratings with N/A and a guest, a photo, a reading and an
+   edited note; then install 0.4.0 over it without uninstalling. Every cook,
+   meal type, ingredient version, rating, photo, reading and note is there
+   and unchanged; no cook has a cuisine.
+2. **Every screen against its picture, on both displays.** Cover display:
+   01 to 09. Inner display upright: 10, 11, 12; sideways: 13, 14, 15. Each in
+   light and in dark (switch the phone's setting with the app open: the app
+   and its status and navigation bars follow at once). Note each difference;
+   the ones left on purpose are listed in `RELEASE_0.4.0.md`.
+3. **Next time stands out** on a cook made again, in both themes, on the
+   cover page and in the inner side column.
+4. **Side and cuisine end to end.** Set Side and a cuisine on a review, then
+   Other with words of your own; change and clear them in Edit review; filter
+   Home by Side and by each cuisine; search for the cuisine and for Other's
+   words; Export this cook's text carries "Meal: Side · <cuisine>" (checked as
+   a file by the test suite, as step 6).
+5. **Backups.** A backup round trip carrying Side and cuisine (checked as a
+   file by the test suite: `backupV5.test.ts`), and a format 4 file loading
+   into schema 5 (the same test file).
+6. **Card photos and the meal tile.** A cook with its own photo shows it on
+   its card; a cook made again with none shows the earlier cook's; a cook with
+   neither shows the sage tile with its meal's icon; the same on Cooking now.
+7. **Folding and turning keep the place.** Mid-cook with a note half typed:
+   fold, unfold, turn upright and sideways. Mid-review with notes, next time
+   and a person's line half typed: the same. On Home with a cook chosen and a
+   search typed: the same. Each time the same screen, the same cook, the
+   scroll position and the words.
+8. **The ⋯ menu** on Home shows "0.4.0 (<the named commit>) · <width> ×
+   <height>", and the size changes on the cover display, inner upright and
+   inner sideways.
+9. **The Fold 6 bench and the Fold 8** both, where both are to hand: the
+   inner layouts on each, upright and sideways.
+
 ## The report
 
 `..\runs\<date>-acceptance-<commit>.md`, in the runs folder next to the
