@@ -13,6 +13,8 @@ type ShellHeaderProps = {
   subtitle?: string;
   /** Home's ⋯ menu, on the right. */
   trailing?: ReactNode;
+  /** The inner display's list pane: the app's name a size down (30 / 36). */
+  compact?: boolean;
 };
 
 /**
@@ -20,12 +22,12 @@ type ShellHeaderProps = {
  * build), and on the Test build only, the notice saying what this build is.
  * Production shows neither.
  */
-export function ShellHeader({ subtitle, trailing }: ShellHeaderProps) {
+export function ShellHeader({ subtitle, trailing, compact = false }: ShellHeaderProps) {
   const styles = useStyles();
   const identity = getAppIdentity();
   return (
     <View style={styles.header}>
-      <TopBar appTitle={identity.name} actions={trailing} />
+      <TopBar appTitle={identity.name} actions={trailing} compact={compact} />
       {subtitle ? (
         <AppText variant="secondary" tone="inkMuted">
           {subtitle}

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { UndoSlot, usePendingDeletion } from '../state/PendingDeletion';
@@ -35,6 +35,8 @@ import {
   HOME_MORE,
   NEW_COOK_HINT,
   NEW_COOK_TITLE,
+  NO_COOK_CHOSEN_BODY,
+  NO_COOK_CHOSEN_TITLE,
   NO_MATCHES_BODY,
   NO_MATCHES_TITLE,
   PAGE_NEXT,
@@ -140,8 +142,13 @@ export function entriesFor(
  * and the scroll position live in this screen, which stays mounted under a
  * cook's page, so coming back finds the same page where it was left.
  *
- * On the unfolded inner display all of that is the left-hand pane and the
- * chosen cook's page the right-hand one (0.3.0); part 3 of 0.4.0 redraws it.
+ * On the inner display (0.4.0, part 3), upright or sideways, all of that is
+ * the left-hand pane, `pane-list` wide, with the meal chips on two rows and
+ * New Cook floating at its foot. The right-hand pane is the chosen cook's
+ * page, as on the cover screen, with Cook this again and Edit review pinned
+ * at its foot; the chosen card has the teal edge. With nothing chosen it is
+ * the most recent cook, or a quiet notice when there is none. An open cook
+ * still opens on its own page, full screen.
  */
 export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 0 }: HomeScreenProps) {
   const styles = useStyles();
@@ -209,12 +216,11 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   const narrowed = searching || meal !== null || sheetFilterCount(sheet) > 0;
   const current = pageOf(entries, page);
   const photoUris = useCardPhotoUris([...openIds, ...current.items.map((entry) => entry.cook.id)], reload);
-  // The cook in the right-hand pane: the one tapped, while it is on this page,
-  // or else the first on the page.
+  // The cook in the right-hand pane: the one tapped, for as long as it is
+  // still a reviewed cook (on any page, through any search), or else the most
+  // recent. Kept on the cover display, so unfolding again shows the same one.
   const chosen: CookId | null = twoPane
-    ? (current.items.find((entry) => entry.cook.id === selected)?.cook.id ??
-      current.items[0]?.cook.id ??
-      null)
+    ? (cooks.find((cook) => cook.id === selected)?.id ?? cooks[0]?.id ?? null)
     : null;
 
   const startCook = async () => {
@@ -290,6 +296,8 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
         chosen !== null
           ? {
               testID: 'home-cook-pane',
+              surface: true,
+              fill: true,
               children: (
                 <CookScreen
                   key={chosen}
@@ -302,11 +310,21 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
                 />
               ),
             }
-          : undefined
+          : loaded
+            ? {
+                testID: 'home-cook-pane-empty',
+                surface: true,
+                children: (
+                  <View style={styles.paneEmpty}>
+                    <Notice title={NO_COOK_CHOSEN_TITLE} body={NO_COOK_CHOSEN_BODY} icon="book" />
+                  </View>
+                ),
+              }
+            : undefined
       }
       fixed={{ pane: 'main', width: HOME_LIST_PANE_WIDTH }}
     >
-      <ShellHeader trailing={more} />
+      <ShellHeader trailing={more} compact={twoPane} />
 
       {menuOpen ? (
         <Card testID="home-menu" style={styles.menu}>
@@ -380,6 +398,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
               timesCooked={timesOf(cook)}
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
+              compact={twoPane}
             />
           ))}
         </View>
@@ -408,15 +427,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
               filtersLabel={FILTERS}
               testID="history-search"
             />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              style={styles.chipScroll}
-              contentContainerStyle={styles.chips}
-              accessibilityLabel={FILTER_MEAL_TYPE}
-              testID="history-meal-filter"
-            >
+            <ChipRow wrap={twoPane}>
               <FilterChip
                 label={FILTER_ALL}
                 selected={meal === null}
@@ -436,7 +447,7 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
                   testID={`history-meal-${mealType}`}
                 />
               ))}
-            </ScrollView>
+            </ChipRow>
           </RevealOnChange>
 
           {narrowed && entries.length === 0 ? (
@@ -508,6 +519,39 @@ export function HomeScreen({ onOpenCook, onHousehold = () => {}, refreshToken = 
   );
 }
 
+/**
+ * The meal chips: one row scrolling sideways on the cover screen; on the inner
+ * display's list pane, wrapped onto two rows, as drawn.
+ */
+function ChipRow({ wrap, children }: { wrap: boolean; children: ReactNode }) {
+  const styles = useStyles();
+  if (wrap) {
+    return (
+      <View
+        style={[styles.chips, styles.chipsWrapped]}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={FILTER_MEAL_TYPE}
+        testID="history-meal-filter"
+      >
+        {children}
+      </View>
+    );
+  }
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      style={styles.chipScroll}
+      contentContainerStyle={styles.chips}
+      accessibilityLabel={FILTER_MEAL_TYPE}
+      testID="history-meal-filter"
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 type PageGroupProps = {
   label: string;
   entries: readonly Entry[];
@@ -565,6 +609,13 @@ const useStyles = makeStyles(() =>
     },
     chips: {
       gap: space.xs,
+    },
+    chipsWrapped: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    paneEmpty: {
+      marginTop: space.xxl,
     },
     list: {
       gap: space.sm,

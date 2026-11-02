@@ -23,6 +23,8 @@ type CookingNowCardProps = {
   timesCooked: number;
   onPress: () => void;
   onLongPress: () => void;
+  /** In the inner display's list pane: the smaller photo (0.4.0). */
+  compact?: boolean;
 };
 
 /**
@@ -40,6 +42,7 @@ export function CookingNowCard({
   timesCooked,
   onPress,
   onLongPress,
+  compact = false,
 }: CookingNowCardProps) {
   const styles = useStyles();
   const title = cook.title ?? UNTITLED_COOK;
@@ -60,13 +63,13 @@ export function CookingNowCard({
       <ZoneOverline icon="flame" label={COOKING_NOW_OVERLINE} />
       <View style={styles.row}>
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={[styles.photo, styles.image]} testID={`cook-${cook.id}-photo`} />
+          <Image source={{ uri: photoUri }} style={[styles.photo, compact && styles.photoCompact, styles.image]} testID={`cook-${cook.id}-photo`} />
         ) : (
-          <View style={[styles.photo, styles.tile]} testID={`cook-${cook.id}-tile`}>
+          <View style={[styles.photo, compact && styles.photoCompact, styles.tile]} testID={`cook-${cook.id}-tile`}>
             <Icon
               name={mealType ? MEAL_ICON[mealType] : 'forkKnife'}
               color={mealType ? mealColorRole[mealType] : 'zoneIcon'}
-              size={size.icon + 8}
+              size={compact ? size.icon : size.icon + 8}
             />
           </View>
         )}
@@ -101,6 +104,10 @@ const useStyles = makeStyles(({ colors }) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.sm,
+    },
+    photoCompact: {
+      width: size.photoCardWInner,
+      height: size.photoCardHInner,
     },
     photo: {
       width: size.photoCardW,

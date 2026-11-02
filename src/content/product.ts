@@ -31,6 +31,10 @@ export const PAGE_NEXT = 'Next';
 export const EMPTY_HOME_TITLE = 'Nothing cooked yet';
 export const EMPTY_HOME_BODY =
   'A cook can be as small as one sentence. Tap New Cook, say what happened, and come back to it after dinner.';
+/** The inner display's right-hand pane on Home, with no reviewed cook to show (0.4.0). */
+export const NO_COOK_CHOSEN_TITLE = 'No reviewed cook yet';
+export const NO_COOK_CHOSEN_BODY =
+  'Once a cook is reviewed it shows here, with what to do next time and who ate it.';
 
 // --- Cook ----------------------------------------------------------------
 
