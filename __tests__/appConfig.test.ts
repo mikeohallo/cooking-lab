@@ -70,12 +70,12 @@ describe('app.config.ts', () => {
     expect(() => resolveAppVariant('staging')).toThrow(/Unknown APP_VARIANT/);
   });
 
-  it('is version 0.4.0, versionCode 7', () => {
+  it('is version 0.4.1, versionCode 8', () => {
     delete process.env.APP_VARIANT;
     const config = appConfig(emptyContext);
 
-    expect(config.version).toBe('0.4.0');
-    expect(config.android?.versionCode).toBe(7);
+    expect(config.version).toBe('0.4.1');
+    expect(config.android?.versionCode).toBe(8);
   });
 
   it('declares no Android permissions', () => {

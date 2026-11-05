@@ -71,7 +71,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // layouts, upright and sideways (part 3).
     // Bump `versionCode` with every production build that follows; Android will
     // not update an installed app to the same code.
-    version: '0.4.0',
+    version: '0.4.1',
     orientation: 'default',
     // 0.4.0: light or dark follows the phone's own setting, and changes live
     // when the phone switches (src/theme/theme.tsx). expo-system-ui carries
@@ -81,7 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     platforms: ['android'],
     android: {
       package: identity.androidPackage,
-      versionCode: 7,
+      versionCode: 8,
       adaptiveIcon: {
         foregroundImage: adaptiveForeground,
         // The launcher icon's sage, from Design Baseline v1. The icon itself was
