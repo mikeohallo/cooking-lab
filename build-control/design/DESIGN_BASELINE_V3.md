@@ -3,6 +3,8 @@
 **Status:** ACCEPTED — replaces [Design Baseline v2](./DESIGN_BASELINE_V2.md)
 **Approved by:** Mike (product owner), on 2 November 2026, with the 0.4.0 plan
 **Applies from:** 0.4.0
+**Updated:** 0.4.1, 3 November 2026, by Mike's call: the type a step smaller,
+wrapping meal buttons, a slimmer Cooking now (sections 3, 4 and 5)
 **Tokens:** `src/theme/tokens.ts` (colours in light and dark, type, corners,
 shadows, spacing, sizes, breakpoints), `src/theme/theme.tsx` (light or dark)
 and `src/theme/fonts.ts` (the typeface). A screen styles itself from these and
@@ -62,25 +64,35 @@ One family, Plus Jakarta Sans, bundled with the app, as in v2. Since 0.4.0
 part 7 the sizes sit at Material 3's, and 800 is kept for the app's name and
 titles only; headings and cards are 700, Next time and buttons 600.
 
-| Style | Size / line | Weight | Was (before part 7) | For |
+**0.4.1: one step smaller, app-wide** (Mike, 3 November 2026). Every style
+below is a step down from 0.4.0; weights and letter spacing are unchanged, and
+so are the drawn sizes (a button 40, a chip 32, the icon circles), the spacing,
+the photos and the 48 dp touch area. The contrast test still passes in both
+themes. `__tests__/typeScale.test.ts` holds the table exactly.
+
+| Style | Size / line | Weight | Was (0.4.0) | For |
 |---|---:|---:|---|---|
-| `appTitle` | 26 / 32 | 800 | 34 / 40, 800 | "Cooking Lab" on Home, once |
-| `appTitleInner` | 24 / 30 | 800 | 30 / 36, 800 | The same on the inner screen |
-| `title` | 22 / 28 | 800 | 28 / 33, 800 | A cook's title on the cook and review screens |
-| `titleCompact` | 20 / 26 | 800 | 24 / 29, 800 | The title beside its photo in an inner pane |
-| `heading` | 18 / 24 | 700 | 22 / 28, 800 | Section headings: Your cooks, Readings, Notes, Photos, Who ate it? |
-| `cardTitle` | 16 / 22 | 700 | 17 / 22, 800 | A cook on a card; a person's name |
-| `nextTime` | 16 / 24 | 600 | 17 / 25, 700 | Next time's words |
-| `nextTimeLarge` | 17 / 25 | 600 | 18 / 26, 700 | The same in the inner side column |
-| `body` | 16 / 22 | 400 | 16 / 24, 400 | Notes, Your notes, ingredients. Never under 16 on the cook screen |
-| `bodyStrong` | 16 / 22 | 600 | 16 / 24, 700 | The same, stressed |
-| `secondary` | 13 / 18 | 400 | 14 / 20, 400 | Dates, counts, times |
-| `overline` | 12 / 16 | 700, tracking 0.8 | 13 / 18, 800, tracking 1 | NEXT TIME, COOKING NOW, written in capitals in the copy |
-| `label` | 12 / 16 | 600 | 13 / 18, 700 | The meal label, cuisine pill, status and tag chips |
-| `chip` | 13 / 18 | 600 | 14 / 18, 700 | Filter chips and the composer's reading chips |
-| `button` | 14 / 20 | 600 | 16 / 20, 800 | Every button |
-| `buttonMain` | 15 / 20 | 700 | 17 / 22, 800 | New Cook and a screen's foot button |
-| `readingNumber` | 24 / 28 | 700 | 30 / 34, 800 | A temperature, Celsius only |
+| `appTitle` | 24 / 30 | 800 | 26 / 32 | "Cooking Lab" on Home, once |
+| `appTitleInner` | 22 / 28 | 800 | 24 / 30 | The same on the inner screen |
+| `title` | 20 / 26 | 800 | 22 / 28 | A cook's title on the cook and review screens |
+| `titleCompact` | 18 / 24 | 800 | 20 / 26 | The title beside its photo in an inner pane |
+| `heading` | 16 / 22 | 700 | 18 / 24 | Section headings: Your cooks, Readings, Notes, Photos, Who ate it? |
+| `cardTitle` | 15 / 20 | 700 | 16 / 22 | A cook on a card; a person's name |
+| `nextTime` | 15 / 22 | 600 | 16 / 24 | Next time's words |
+| `nextTimeLarge` | 16 / 23 | 600 | 17 / 25 | The same in the inner side column |
+| `body` | 15 / 21 | 400 | 16 / 22 | Notes, Your notes, ingredients. Notes on the cook page are 15, by Mike's call on 3 November 2026; this replaces "never under 16 on the cook screen" |
+| `bodyStrong` | 15 / 21 | 600 | 16 / 22 | The same, stressed |
+| `secondary` | 12 / 16 | 400 | 13 / 18 | Dates, counts, times |
+| `overline` | 11 / 16 | 700, tracking 0.8 | 12 / 16 | NEXT TIME, COOKING NOW, written in capitals in the copy |
+| `label` | 11 / 16 | 600 | 12 / 16 | The meal label, cuisine pill, status and tag chips |
+| `chip` | 12 / 16 | 600 | 13 / 18 | Filter chips and the composer's reading chips |
+| `button` | 13 / 18 | 600 | 14 / 20 | Every button |
+| `buttonMain` | 14 / 20 | 700 | 15 / 20 | New Cook and a screen's foot button |
+| `readingNumber` | 20 / 24 | 700 | 24 / 28 | A temperature, Celsius only |
+
+Before part 7 (0.4.0) the sizes were larger again: `appTitle` 34 / 40,
+`title` 28 / 33, `heading` 22 / 28, `body` 16 / 24, `button` 16 / 20, all
+heavier; the part 7 record in `build-control/slices/RELEASE_0.4.0.md` has them.
 
 Titles keep a little negative tracking, scaled down with their size
 (`appTitle` and `appTitleInner` −0.6, `title` −0.5, `titleCompact` −0.4,
@@ -108,6 +120,16 @@ Titles keep a little negative tracking, scaled down with their size
   space around a control, not by drawing it at 48.
   `__tests__/touchArea.test.tsx` measures every pressable on every screen and
   sheet, on the cover and inner screens, and holds it to 48.
+- **Touch areas never overlap** (0.4.1). Rows of wrapped controls (the meal
+  buttons, the review's meal and cuisine choices, the Filters sheet, tags,
+  the composer's reading chips, Add a reading's choices) sit **16 apart**
+  (`space.md`): a chip is drawn 32 and reaches out 8 above and below, so two
+  rows 8 apart shared 8 dp of touch area. Stacked controls are spaced the
+  same way. `__tests__/touchOverlap.test.tsx` checks every screen and sheet,
+  cover and inner. One exception, kept from part 6: the five stars of one
+  person's rating, 38 wide with 5 either side, share 10 dp between
+  neighbours (a tap there goes to the later star); five stars 48 apart do not
+  fit a cover-screen row.
 - **Sizes (dp), drawn:**
 
 | What | Now | Was |
@@ -131,9 +153,26 @@ Titles keep a little negative tracking, scaled down with their size
 | A star: drawn width, own width, height | 30, 38, 48 | unchanged; its hit area now reaches 5 either side |
 | Running text, widest | 680 | 680 |
 
-- **Cooking now** is a compact card: a 56 photo, the title, and one row of
-  meta (meal, cuisine, when it started, notes, which time) that wraps only
-  where it has to.
+- **Cooking now** shows just the dish (0.4.1): a 56 photo, the title, the
+  meal label and cuisine pill, and the chevron. When it started, how many notes
+  and which time it is cooked are no longer drawn; TalkBack still reads all of
+  it in the card's label. The meal and cuisine are a line of their own inside
+  the text column and wrap there, never under the chevron.
+  *Was (0.4.0):* one row of meta (meal, cuisine, when it started, notes,
+  which time) under the title.
+- **Meal buttons wrap, everywhere** (0.4.1). Home's meal filter (All, then the
+  five meals) wraps onto as many rows as the width needs, on the cover screen
+  as on the inner one; the sideways-scrolling row is gone. Rows sit 16 apart.
+  Each button has 12 either side of its words (was 14). At 360 dp wide that
+  is two rows at font size 1.0 and three at 1.3.
+  *Was (0.4.0):* one row scrolling sideways on the cover screen.
+- **A heading's trailing word never clips** (0.4.1): "Optional", "12
+  reviewed", "0 of 12", the average badge. The heading gives way first; the
+  trailing word never shrinks, and when the two do not fit on a line it moves
+  under the heading (`src/components/HeadingRow.tsx`).
+- **Lists end clear of the dock's fade** (0.4.1): with New Cook docked, the
+  list ends with 20 and the fade's 24 besides, so its last control is never
+  under the fade.
 - **Icons:** rounded line icons on a 24 grid, a 2 px line, round caps and
   joins, after Material Symbols Rounded. The app draws its own
   (`src/components/Icon.tsx`) and names the nearest Material Symbol for each.
@@ -166,14 +205,21 @@ that is nearly square, about 792 × 880 upright and 880 × 792 sideways.
   Content flows to fit with flex wrapping and natural sizes: no label breaks
   inside a word; a row of buttons that does not fit wraps, a button a line at
   full width, the main action first; Who ate it?'s stars, N/A and pencil sit
-  beside the name or wrap under it as one group. The only fixed numbers are
+  beside the name or under it as one group, and since 0.4.1 the whole list
+  takes one layout: beside on every row when every row fits, under on every
+  row when any one does not, worked out afresh from each measurement so a
+  wider window brings them back beside. The only fixed numbers are
   limits (touch targets, line length, a pane's minimum and maximum) and marks
   drawn at their own size, and they live in `src/theme/tokens.ts`.
   Why: fixed widths taken from one phone broke on the Fold 6 bench (707 and
   823 dp wide, font size 1.15) — words broke letter by letter and the detail
   side was crushed to about 300 dp.
 - **Unfolding or turning keeps your place:** the same cook, scroll position
-  and half-typed note.
+  and half-typed note. Since 0.4.1 so does a live font-size or display-size
+  change, which makes Android recreate the app's screens: the same screen and
+  cook, the scroll position, and half-typed words (a note, a title, a rating
+  line, Next time, Your notes), held in memory through the recreation
+  (`src/layout/KeptPlace.ts`).
 
 ## 6. The grouped cook page
 
@@ -228,6 +274,7 @@ targets; narrow first, from 320 dp with no sideways scrolling; calm empty,
 loading and failure states that say what happened and what to do; sentence
 case, British spelling, Celsius; no emoji and no exclamation marks in the
 app's own voice; no invented household names in designs, tests or seed data
-("You" and "Guest" in tests).
+("You" and "Guest" in tests; the web preview also has "Guest 2" and, since
+0.4.1, the made-up "Guest with a longer name").
 
 **DESIGN BASELINE V3 — ACCEPTED**
