@@ -29,9 +29,14 @@ type CookingNowCardProps = {
 
 /**
  * One open cook at the top of Home (0.4.0): a sage zone with COOKING NOW, the
- * cook's photo, what it is, its title, when it started, how many notes it has
- * and how many times the dish has been cooked, and a round chevron. The whole
- * card is one tap back into the cook; a long-press offers Delete cook.
+ * cook's photo, its title, what it is (the meal and the cuisine pill), and a
+ * round chevron. The whole card is one tap back into the cook; a long-press
+ * offers Delete cook.
+ *
+ * Just the dish (0.4.1): when it started, how many notes it has and how many
+ * times the dish has been cooked are no longer drawn, but TalkBack still reads
+ * all of it in the card's label. The meal and cuisine are a line of their own
+ * in the text column and wrap there, never under the chevron.
  */
 export function CookingNowCard({
   cook,
@@ -76,18 +81,12 @@ export function CookingNowCard({
           <AppText variant="cardTitle" tone={cook.title ? 'ink' : 'inkMuted'} testID={`cook-title-${cook.id}`}>
             {title}
           </AppText>
-          {/* One line of meta where it fits: meal, cuisine and the started line wrap only when they must. */}
-          <View style={styles.meta}>
-            {mealType !== null || cuisine ? (
-              <View style={styles.labels}>
-                <MealLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
-                <CuisinePill label={cuisine} />
-              </View>
-            ) : null}
-            <AppText variant="secondary" tone="inkMuted" style={styles.line}>
-              {line}
-            </AppText>
-          </View>
+          {mealType !== null || cuisine ? (
+            <View style={styles.labels} testID={`cook-labels-${cook.id}`}>
+              <MealLabel mealType={mealType} testID={`cook-meal-${cook.id}`} />
+              <CuisinePill label={cuisine} />
+            </View>
+          ) : null}
         </View>
         <View style={styles.chevron}>
           <Icon name="chevronRight" color="ink" size={size.iconSmall + 2} />
@@ -122,25 +121,20 @@ const useStyles = makeStyles(({ colors }) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    // The text column takes what the photo and chevron leave, and may shrink
+    // below its words' width, so they wrap inside it (0.4.1).
     text: {
       flex: 1,
-      gap: space.xxs / 2,
+      minWidth: 0,
+      gap: space.xxs,
     },
-    meta: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      columnGap: space.xs,
-      rowGap: space.xxs / 2,
-    },
+    // The meal and cuisine: a line of their own, wrapping within the column.
     labels: {
+      flexBasis: '100%',
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: space.xs,
-    },
-    line: {
-      flexShrink: 1,
     },
     chevron: {
       width: size.iconCircle,

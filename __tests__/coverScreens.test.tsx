@@ -68,7 +68,7 @@ async function seed(): Promise<void> {
 }
 
 describe('Home', () => {
-  it('draws a Cooking now card per open cook: overline, photo, labels, title and its started line', async () => {
+  it('draws a Cooking now card per open cook: overline, photo, title and labels, just the dish (0.4.1)', async () => {
     await seed();
     await harness.render(<HomeScreen onOpenCook={() => {}} />);
     const card = await screen.findByTestId('cook-card-cook-new');
@@ -76,7 +76,20 @@ describe('Home', () => {
     expect(within(card).getByText('Apple muffins')).toBeOnTheScreen();
     expect(within(card).getByTestId('cook-meal-cook-new')).toHaveTextContent('Breakfast');
     expect(within(card).getByLabelText('Cuisine: American')).toBeOnTheScreen();
-    await waitFor(() => expect(within(card).getByText(/^Started \d{1,2}:\d\d (am|pm) · 1 note · 2nd time$/)).toBeOnTheScreen());
+    // No visible started line, note count or "2nd time" (0.4.1): TalkBack still reads all of it.
+    await waitFor(() =>
+      expect(card.props.accessibilityLabel).toMatch(
+        /^Cooking now: Apple muffins\. Started \d{1,2}:\d\d (am|pm) · 1 note · 2nd time$/,
+      ),
+    );
+    expect(within(card).queryByText(/Started/)).toBeNull();
+    expect(within(card).queryByText(/note/)).toBeNull();
+    expect(within(card).queryByText(/2nd time/)).toBeNull();
+    // The meal and cuisine are a line of their own, wrapping inside the text
+    // column, never under the chevron; the column may shrink below its words.
+    const labels = within(card).getByTestId('cook-labels-cook-new');
+    expect(StyleSheet.flatten(labels.props.style)).toMatchObject({ flexBasis: '100%', flexWrap: 'wrap' });
+    expect(StyleSheet.flatten(labels.parent!.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
     // Its own photo, as the card's picture.
     await waitFor(() => expect(within(card).getByTestId('cook-cook-new-photo')).toBeOnTheScreen());
   });

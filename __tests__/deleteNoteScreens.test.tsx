@@ -182,6 +182,10 @@ describe('Delete note', () => {
 });
 
 describe('the counts', () => {
+  // Since 0.4.1 Cooking now shows just the dish: the count is read out in the
+  // card's accessibility label, not drawn.
+  const spoken = (testID: string) => String(screen.getByTestId(testID).props.accessibilityLabel);
+
   it('Cooking now’s “3 notes” becomes “2 notes”, and back with Undo', async () => {
     await harness.render(
       <View>
@@ -189,18 +193,14 @@ describe('the counts', () => {
         <CookScreen cookId="cook-roast" onBack={() => {}} onReview={() => {}} />
       </View>,
     );
-    const card = await screen.findByTestId('cook-card-cook-roast');
-    await waitFor(() => expect(card).toHaveTextContent('3 notes', { exact: false }));
+    await screen.findByTestId('cook-card-cook-roast');
+    await waitFor(() => expect(spoken('cook-card-cook-roast')).toContain('3 notes'));
 
     await openDelete('n-1');
-    await waitFor(() =>
-      expect(screen.getByTestId('cook-card-cook-roast')).toHaveTextContent('2 notes', { exact: false }),
-    );
-    expect(screen.getByTestId('cook-card-cook-other')).toHaveTextContent('1 note', { exact: false });
+    await waitFor(() => expect(spoken('cook-card-cook-roast')).toContain('2 notes'));
+    expect(spoken('cook-card-cook-other')).toContain('1 note');
 
     await fireEvent.press(screen.getAllByTestId('undo-delete')[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId('cook-card-cook-roast')).toHaveTextContent('3 notes', { exact: false }),
-    );
+    await waitFor(() => expect(spoken('cook-card-cook-roast')).toContain('3 notes'));
   });
 });
