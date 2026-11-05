@@ -15,6 +15,7 @@ import {
 } from '../../content/product';
 import { NOTE_MAX_LINES, maxTextBoxHeight } from '../../layout/footerLimit';
 import { fontStyleFor, useFontsReady } from '../../theme/fonts';
+import { useKeptState } from '../../layout/KeptState';
 import { makeStyles, useColors } from '../../theme/theme';
 import { space, type } from '../../theme/tokens';
 import type { WriteState } from '../../state/useWrite';
@@ -48,7 +49,8 @@ export function Composer({ onSendNote, onReading, onCamera, writeState, photoPen
   const colors = useColors();
   const fontsReady = useFontsReady();
   const { fontScale } = useWindowDimensions();
-  const [note, setNote] = useState('');
+  // Kept through a font-size change (0.4.1): the activity is recreated.
+  const [note, setNote] = useKeptState('composer-note', '');
   const [blankRefused, setBlankRefused] = useState(false);
   const pending = writeState.status === 'pending';
 

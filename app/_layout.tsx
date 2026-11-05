@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { KeepPlace } from '../src/layout/KeepPlace';
 import { FontGate } from '../src/state/FontGate';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { StartupGate } from '../src/state/StartupGate';
@@ -55,6 +56,8 @@ function AppLayout() {
       <StorageProvider start={initialiseStorage} newId={newDeviceId} onStarted={logStartup}>
         {/* Above every screen, so "Cook deleted · Undo" shows wherever the cook lands. */}
         <PendingDeletionProvider>
+          {/* Your place, through a live font-size or display-size change (0.4.1). */}
+          <KeepPlace />
           <Stack
             screenOptions={{
               headerShown: false,

@@ -9,6 +9,7 @@ import { TextField } from '../../components/TextField';
 import { CANCEL, EDIT, EDITED, EDIT_UNCHANGED, SAVE_EDIT, UNSAVED_KEPT } from '../../content/product';
 import { MAX_TEXT_LENGTH } from '../../domain/invariants';
 import { useScreenScroll } from '../../layout/ScreenScroll';
+import { useKeptState } from '../../layout/KeptState';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
 import { touchSlop } from '../../theme/touch';
@@ -95,8 +96,9 @@ export function EditableWords({
     setEditingOwn(next);
     onEditingChange?.(next);
   };
-  const [opened, setOpened] = useState(editing);
-  const [draft, setDraft] = useState(words);
+  // Kept through a font-size change (0.4.1): the activity is recreated.
+  const [opened, setOpened] = useKeptState(`${testID ?? 'words'}-opened`, editing);
+  const [draft, setDraft] = useKeptState(`${testID ?? 'words'}-draft`, words);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const editorRef = useRef<View>(null);

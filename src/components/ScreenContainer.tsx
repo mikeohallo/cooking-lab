@@ -1,8 +1,9 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { footerMaxHeight } from '../layout/footerLimit';
+import { useKeptStoreHere } from '../layout/KeptState';
 import { PaneOverlayHost } from '../layout/panes';
 import { paneWidths, type PaneScreen, type PaneWidths } from '../layout/responsive';
 import { ScreenScrollContext, type ScreenScroll } from '../layout/ScreenScroll';
@@ -226,6 +227,9 @@ type PaneProps = {
   dock?: ReactNode;
 };
 
+/** How often a scroll position is noted, at most. */
+const SCROLL_THROTTLE_MS = 100;
+
 const ONE_COLUMN: PaneWidths = { mode: 'one', main: '100%', side: null };
 
 /**
@@ -269,6 +273,24 @@ function Pane({
   const styles = useStyles();
   const scrollRef = useRef<ScrollView>(null);
   const columnRef = useRef<View>(null);
+  // The scroll position, kept in the screen's store (0.4.1): drawn again
+  // after a font-size change, the pane scrolls back to it once its content
+  // is tall enough, unless the person has started scrolling first.
+  const store = useKeptStoreHere();
+  const scrollKey = `scroll:${scrollTestID}`;
+  const [startAt] = useState(() => {
+    const y = store?.get(scrollKey);
+    return typeof y === 'number' && y > 0 ? y : null;
+  });
+  const restoreTo = useRef<number | null>(startAt);
+  const viewport = useRef(0);
+  const tryRestore = (contentHeight: number) => {
+    const y = restoreTo.current;
+    if (y !== null && contentHeight - viewport.current >= y) {
+      restoreTo.current = null;
+      scrollRef.current?.scrollTo({ y, animated: false });
+    }
+  };
 
   // Lets a control ask for itself to be scrolled into sight while the
   // keyboard is up; see `src/layout/ScreenScroll.tsx`.
@@ -302,6 +324,16 @@ function Pane({
         ref={scrollRef}
         testID={scrollTestID}
         style={styles.flex}
+        contentOffset={startAt === null ? undefined : { x: 0, y: startAt }}
+        scrollEventThrottle={SCROLL_THROTTLE_MS}
+        onScroll={(event) => store?.set(scrollKey, event.nativeEvent.contentOffset.y)}
+        onScrollBeginDrag={() => {
+          restoreTo.current = null;
+        }}
+        onLayout={(event) => {
+          viewport.current = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_width, height) => tryRestore(height)}
         contentContainerStyle={[styles.scrollContent, dock !== undefined && styles.scrollAboveDock, { paddingHorizontal: gutter }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}

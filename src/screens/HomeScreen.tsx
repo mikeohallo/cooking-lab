@@ -56,6 +56,7 @@ import { getBuildStamp, versionLine } from '../config/appIdentity';
 import { MEAL_TYPE_LABELS, cuisineLabel, timesCooked } from '../domain/cookRecord';
 import type { Cook, CookCuisine, CookId } from '../domain/entities';
 import { STORED_MEAL_TYPES, type StoredMealType } from '../domain/enums';
+import { KeptStateProvider, useKeptStore, useStoreState } from '../layout/KeptState';
 import { RevealOnChange } from '../layout/RevealOnChange';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
@@ -176,22 +177,25 @@ export function HomeScreen({
   const index = useHistoryIndex(ids, reload);
   const noteCounts = useNoteCounts(openIds, reload, pendingNote);
 
-  const [typed, setTyped] = useState('');
-  const [meal, setMeal] = useState<StoredMealType | null>(null);
-  const [sheet, setSheet] = useState<SheetFilters>(NO_SHEET_FILTERS);
+  // The search, the filters, the page and the scroll position are kept
+  // through a font-size change (0.4.1): the activity is recreated.
+  const kept = useKeptStore('home');
+  const [typed, setTyped] = useStoreState(kept, 'typed', '');
+  const [meal, setMeal] = useStoreState<StoredMealType | null>(kept, 'meal', null);
+  const [sheet, setSheet] = useStoreState<SheetFilters>(kept, 'sheet', NO_SHEET_FILTERS);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useStoreState(kept, 'page', 1);
   const [pageMoves, setPageMoves] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
-  const [selected, setSelected] = useState<CookId | null>(null);
+  const [selected, setSelected] = useStoreState<CookId | null>(kept, 'selected', null);
   const { twoPane } = useLayoutMetrics();
   const create = useWrite();
   const exportAll = useExport();
 
   // A new search or filter starts again at page 1.
   const queryKey = JSON.stringify([typed, meal, sheet]);
-  const [pagedFor, setPagedFor] = useState(queryKey);
+  const [pagedFor, setPagedFor] = useStoreState(kept, 'paged-for', queryKey);
   if (pagedFor !== queryKey) {
     setPagedFor(queryKey);
     setPage(1);
@@ -298,6 +302,7 @@ export function HomeScreen({
   );
 
   return (
+    <KeptStateProvider store={kept}>
     <ScreenContainer
       testID="home-screen"
       dock={dock}
@@ -523,6 +528,7 @@ export function HomeScreen({
 
       <CookActions cook={actionsFor} onClose={() => setActionsFor(null)} />
     </ScreenContainer>
+    </KeptStateProvider>
   );
 }
 

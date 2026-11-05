@@ -34,3 +34,15 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => {
     default: () => ({ ...actual.default(), width: 369 }),
   };
 });
+
+/**
+ * Each test starts with no place held (0.4.1). Unmounting the app at the end
+ * of one test looks, to `src/layout/KeptPlace.ts`, like Android taking the
+ * screens down for a font-size change, and the next test, drawn within the
+ * hold, would come back to the last one's screen. The test of that itself
+ * (`__tests__/keepPlace.test.tsx`) drives it on purpose.
+ */
+afterEach(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('./src/layout/KeptPlace').resetKeptPlaceForTests();
+});

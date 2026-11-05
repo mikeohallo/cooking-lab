@@ -56,7 +56,7 @@ import {
 import { activeMembers } from '../domain/household';
 import { MAX_TEXT_LENGTH } from '../domain/invariants';
 import { formatDayAndTime } from '../format/dateTime';
-import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
+import { KeptStateProvider, useKeptStore, useStoreState } from '../layout/KeptState';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { makeStyles } from '../theme/theme';
 import { radius, size, space, type ColorRole } from '../theme/tokens';
@@ -94,17 +94,18 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   // notes on the left; who ate it and next time on the right, with Finish
   // review pinned at its foot.
   const { twoPane: split } = useLayoutMetrics();
-  // Words being typed for a person, kept while Who ate it? moves between panes.
-  const kept = useKeptStore();
+  // Words being typed, kept while Who ate it? moves between panes, and
+  // through a font-size change (0.4.1), with the scroll position.
+  const kept = useKeptStore(`review:${cookId}`);
   const { data, newId, now } = useStorage();
   const { load, reload, acceptCook } = useCook(cookId);
   const openWrite = useWrite();
   const saveWrite = useWrite();
   // `null` until the person types: the field shows the words the cook already
   // carries, and keystrokes are never overwritten by a reload.
-  const [verdictDraft, setVerdictDraft] = useState<string | null>(null);
-  const [takeaway, setTakeaway] = useState('');
-  const [lessonDrafts, setLessonDrafts] = useState<Readonly<Record<LessonId, string>>>({});
+  const [verdictDraft, setVerdictDraft] = useStoreState<string | null>(kept, 'verdict-draft', null);
+  const [takeaway, setTakeaway] = useStoreState(kept, 'takeaway-draft', '');
+  const [lessonDrafts, setLessonDrafts] = useStoreState<Readonly<Record<LessonId, string>>>(kept, 'lesson-drafts', {});
   const [problem, setProblem] = useState<string | null>(null);
   const [lessonProblem, setLessonProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

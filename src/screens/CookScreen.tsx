@@ -76,7 +76,7 @@ import type { Cook, CookEvent, CookEventId, CookId, JsonObject, Revision } from 
 import { latestWords } from '../domain/evidence';
 import { photoPlacedWhenAdded } from '../domain/photoTime';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
-import { KeptStateProvider, useKeptStore } from '../layout/KeptState';
+import { KeptStateProvider, useKeptState, useKeptStore, useStoreState } from '../layout/KeptState';
 import { notesAndPhotosLayout } from '../layout/responsive';
 import { useLayoutMetrics } from '../layout/useLayoutMetrics';
 import { formatDayAndTime, formatTime } from '../format/dateTime';
@@ -189,8 +189,9 @@ export function CookScreen({
   const split = twoPane && !embedded;
   const sideways = split && turned;
   const beside = split && notesAndPhotosLayout(window.width, window.height).layout === 'beside';
-  // Words being typed, kept while a part moves between columns on folding.
-  const kept = useKeptStore();
+  // Words being typed, kept while a part moves between columns on folding,
+  // and through a font-size change (0.4.1), with the scroll position.
+  const kept = useKeptStore(embedded ? `home-pane:${cookId}` : `cook:${cookId}`);
   const back = embedded ? undefined : onBack;
   const { data, exporter, photoWorkflow, newId, now } = useStorage();
   // A note deleted (0.4.0) is left out at once, while its Undo is up; when the
@@ -219,7 +220,7 @@ export function CookScreen({
   const [reading, setReading] = useState<ReadingChoice | null>(null);
   const [photoSheet, setPhotoSheet] = useState(false);
   const [noteMenu, setNoteMenu] = useState<CookEvent | null>(null);
-  const [editingNote, setEditingNote] = useState<CookEventId | null>(null);
+  const [editingNote, setEditingNote] = useStoreState<CookEventId | null>(kept, 'editing-note', null);
   const [staysOn, setStaysOn] = useScreenStaysOn(cookId);
   // On while an open cook's page is in front and its toggle says so; the hook
   // also lets go whenever the app leaves the foreground.
@@ -882,8 +883,8 @@ type EditableTitleProps = {
  */
 function EditableTitle({ cook, onSave, writeState, compact = false }: EditableTitleProps) {
   const styles = useStyles();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(cook.title ?? '');
+  const [editing, setEditing] = useKeptState('title-editing', false);
+  const [draft, setDraft] = useKeptState('title-draft', cook.title ?? '');
   const leaving = useSaveOnLeave(async () => {
     const trimmed = draft.trim();
     if (
