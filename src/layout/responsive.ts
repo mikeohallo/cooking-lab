@@ -195,3 +195,43 @@ export function notesAndPhotosLayout(width: number, height?: number): NotesAndPh
   const each = beside ? besideEach : column;
   return { layout: beside ? 'beside' : 'stacked', column, besideEach, notes: each, photos: each };
 }
+
+/** What one row of Who ate it? measured: its name's own width, N/A's, and the room it has. */
+export type RatingRowFit = {
+  /** The name (and "(guest)") on one line, at its own width. */
+  readonly name: number;
+  /** The N/A chip. */
+  readonly na: number;
+  /** The width of the row, beside the rail. */
+  readonly room: number;
+};
+
+export type WhoAteItLayout = 'beside' | 'under';
+
+/** The gap between the name and the controls beside it. */
+export const RATING_NAME_GAP = space.sm;
+/** The gap between the stars, N/A and the pencil. */
+export const RATING_CONTROLS_GAP = space.xs;
+
+/** The stars, N/A and the pencil at full width: five 38 dp stars, N/A, a 40 dp pencil. */
+export function ratingControlsWidth(na: number): number {
+  return 5 * size.starTarget + na + size.iconButton + 2 * RATING_CONTROLS_GAP;
+}
+
+/**
+ * Who ate it?'s one layout per list (0.4.1): the stars, N/A and pencil beside
+ * every row's name when every row has room for its name and all of them at
+ * full width; under every row's name when any one does not. A row not yet
+ * measured counts as fitting. Worked out from the latest measurements every
+ * time, never kept, so a window that widens brings them back beside.
+ */
+export function whoAteItLayout(rows: readonly Partial<RatingRowFit>[]): WhoAteItLayout {
+  const tooNarrow = rows.some(
+    (row) =>
+      row.name !== undefined &&
+      row.na !== undefined &&
+      row.room !== undefined &&
+      row.name + RATING_NAME_GAP + ratingControlsWidth(row.na) > row.room,
+  );
+  return tooNarrow ? 'under' : 'beside';
+}

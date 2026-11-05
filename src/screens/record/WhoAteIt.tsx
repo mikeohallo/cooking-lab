@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { AppText } from '../../components/AppText';
@@ -28,6 +28,13 @@ import type { RatingAnswer, RatingPerson } from '../../domain/evidence';
 import { activeMembers } from '../../domain/household';
 import { MAX_PERSON_NAME_LENGTH, MAX_RATING_LINE_LENGTH } from '../../domain/invariants';
 import { useKeptState } from '../../layout/KeptState';
+import {
+  RATING_CONTROLS_GAP,
+  RATING_NAME_GAP,
+  whoAteItLayout,
+  type RatingRowFit,
+  type WhoAteItLayout,
+} from '../../layout/responsive';
 import { useSaveOnLeave } from '../../state/useSaveOnLeave';
 import { makeStyles } from '../../theme/theme';
 import { radius, size, space } from '../../theme/tokens';
@@ -112,11 +119,19 @@ function rowsFor(
  */
 export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: WhoAteItProps) {
   const styles = useStyles();
+  // What each row measured, live: its name's own width, N/A's, and the room.
+  const [fits, setFits] = useState<Readonly<Record<string, Partial<RatingRowFit>>>>({});
+  const measured = useCallback((key: string, part: keyof RatingRowFit, width: number) => {
+    setFits((now) => (now[key]?.[part] === width ? now : { ...now, [key]: { ...now[key], [part]: width } }));
+  }, []);
   // Kept across folding: on the inner display this part moves to the other pane.
   const [pendingGuests, setPendingGuests] = useKeptState<readonly string[]>(`${testID}-pending-guests`, []);
   const [addingGuest, setAddingGuest] = useKeptState(`${testID}-adding-guest`, false);
   const [guestDraft, setGuestDraft] = useKeptState(`${testID}-guest-draft`, '');
   const rows = rowsFor(household, ratings, pendingGuests);
+  // One layout for the whole list (0.4.1), worked out afresh from every
+  // measurement, so a wider window brings the controls back beside the names.
+  const layout = whoAteItLayout(rows.map((row) => fits[row.key] ?? {}));
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -143,6 +158,8 @@ export function WhoAteIt({ household, ratings, onRate, testID = 'who-ate-it' }: 
             first={index === 0}
             last={index === rows.length - 1}
             onRate={onRate}
+            layout={layout}
+            onMeasure={(part, width) => measured(row.key, part, width)}
             testID={`${testID}-${row.key}`}
           />
         ))}
@@ -192,12 +209,17 @@ function RatingRow({
   first,
   last,
   onRate,
+  layout,
+  onMeasure,
   testID,
 }: {
   row: Row;
   first: boolean;
   last: boolean;
   onRate: WhoAteItProps['onRate'];
+  /** Beside the name, or under it: the same for every row of the list. */
+  layout: WhoAteItLayout;
+  onMeasure: (part: keyof RatingRowFit, width: number) => void;
   testID: string;
 }) {
   const styles = useStyles();
@@ -248,7 +270,29 @@ function RatingRow({
         <View style={[styles.railBottom, last && styles.railHidden]} />
       </View>
       <View style={[styles.body, !last && styles.divided]}>
-        <View style={styles.controls}>
+        <View
+          style={[styles.controls, layout === 'beside' ? styles.beside : styles.under]}
+          onLayout={widthOf((width) => onMeasure('room', width))}
+          testID={`${testID}-row`}
+        >
+          {/* The name at its own width, on one line, unseen and unread: what
+              it needs beside the controls, whatever the layout is now. */}
+          <View
+            style={styles.measure}
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <AppText
+              variant="cardTitle"
+              numberOfLines={1}
+              onLayout={widthOf((width) => onMeasure('name', width))}
+              testID={`${testID}-name-measure`}
+            >
+              {row.name}
+              {row.guest ? <AppText variant="secondary">{`  ${GUEST_MARK}`}</AppText> : null}
+            </AppText>
+          </View>
           <AppText variant="cardTitle" tone={notEaten ? 'inkMuted' : 'ink'} style={styles.name}>
             {row.name}
             {row.guest ? <AppText variant="secondary" tone="inkMuted">{`  ${GUEST_MARK}`}</AppText> : null}
@@ -262,14 +306,16 @@ function RatingRow({
               disabled={pending}
               testID={testID}
             />
-            <NotApplicableToggle
-              label={NOT_EATEN}
-              accessibilityLabel={NOT_EATEN_LONG}
-              on={notEaten}
-              onPress={tapNotEaten}
-              disabled={pending}
-              testID={`${testID}-na`}
-            />
+            <View style={styles.na} onLayout={widthOf((width) => onMeasure('na', width))} testID={`${testID}-na-box`}>
+              <NotApplicableToggle
+                label={NOT_EATEN}
+                accessibilityLabel={NOT_EATEN_LONG}
+                on={notEaten}
+                onPress={tapNotEaten}
+                disabled={pending}
+                testID={`${testID}-na`}
+              />
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${EDIT_LINE}, ${row.name}`}
@@ -347,6 +393,11 @@ function RatingRow({
   );
 }
 
+/** A layout event's width, to a whole dp. */
+function widthOf(take: (width: number) => void) {
+  return (event: LayoutChangeEvent) => take(Math.round(event.nativeEvent.layout.width));
+}
+
 /** The pencil is drawn 40 round; a line and "Someone else" 40 tall. Their hit areas make 48. */
 const PENCIL_SLOP = touchSlop(size.iconButton, size.iconButton);
 const BUTTON_SLOP = touchSlop(size.button);
@@ -388,32 +439,51 @@ const useStyles = makeStyles(({ colors }) =>
     dotOff: {
       backgroundColor: colors.controlLine,
     },
+    // 8 between the controls and the line under them: N/A and the pencil
+    // reach 8 and 4 past their drawn size (0.4.1).
     body: {
       flex: 1,
-      gap: space.xxs,
+      minWidth: 0,
+      gap: space.xs,
       paddingBottom: space.xs,
     },
     divided: {
       borderBottomWidth: size.hairline,
       borderBottomColor: colors.line,
     },
+    // The name, then the stars, N/A and pencil as one row (0.4.0, part 6).
+    // One layout per list (0.4.1): beside the name on every row when every
+    // row fits, under the name on every row when any one does not
+    // (`whoAteItLayout`). The controls never wrap inside themselves. Where
+    // even the line under the name is too narrow, the space either side of
+    // each star closes up first (`StarButtons`, 38 down to 30 dp a star); N/A
+    // and the pencil never shrink.
     controls: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
       gap: space.xxs,
     },
-    // The name, then the stars, N/A and pencil as one row (0.4.0, part 6).
-    // The row sits beside the name when it fits and under it when it does
-    // not, and never wraps inside itself. Where even the line under the name
-    // is too narrow, the space either side of each star closes up first
-    // (`StarButtons`, 38 down to 30 dp a star); N/A and the pencil never
-    // shrink.
+    beside: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: RATING_NAME_GAP,
+    },
+    under: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+    },
+    measure: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      opacity: 0,
+    },
     name: {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
+      minWidth: 0,
     },
+    // 8 between the stars, N/A and the pencil: the last star reaches 5 to its
+    // right (0.4.1).
     controlsRight: {
       flexGrow: 0,
       flexShrink: 1,
@@ -421,7 +491,10 @@ const useStyles = makeStyles(({ colors }) =>
       flexDirection: 'row',
       flexWrap: 'nowrap',
       alignItems: 'center',
-      gap: space.xxs,
+      gap: RATING_CONTROLS_GAP,
+    },
+    na: {
+      flexShrink: 0,
     },
     pencil: {
       flexShrink: 0,

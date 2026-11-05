@@ -27,7 +27,7 @@ import {
   PreviewSteps,
   type PreviewPerformer,
 } from '../src/preview/PreviewScreen.web';
-import { PREVIEW_GUEST_NAME, PREVIEW_IDS } from '../src/preview/seed.web';
+import { PREVIEW_GUEST_NAME, PREVIEW_IDS, PREVIEW_LONGER_NAME, PREVIEW_MEMBERS } from '../src/preview/seed.web';
 import { openPreviewStorage } from '../src/preview/storage.web';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { ReadyStorageProvider, type AppStorage } from '../src/state/StorageProvider';
@@ -129,7 +129,9 @@ describe('the preview’s URL options', () => {
   });
 
   it('never scales the app’s own type outside a browser', () => {
-    expect(type.body.fontSize).toBe(16);
+    // Body is 15 since 0.4.1's step down; unscaled here, as on Android.
+    expect(type.body.fontSize).toBe(15);
+    expect(type.body.lineHeight).toBe(21);
   });
 });
 
@@ -177,11 +179,12 @@ describe('the preview notebook', () => {
   it('has ratings from You, Guest and Guest 2, with an N/A and a line, and no other names', async () => {
     const { data } = await notebook();
     const members = await data.household.list();
-    expect(members.map((member) => member.name)).toEqual(['You', 'Guest']);
+    // The third preview person (0.4.1) is in the household, with no ratings yet.
+    expect(members.map((member) => member.name)).toEqual(['You', 'Guest', PREVIEW_LONGER_NAME]);
     const cooks = await data.cooks.list();
     const ratings = await data.ratings.listForCooks(cooks.map((cook) => cook.id));
     const byMember = new Set(ratings.map((rating) => rating.memberId).filter((id) => id !== null));
-    expect(byMember).toEqual(new Set(members.map((member) => member.id)));
+    expect(byMember).toEqual(new Set([PREVIEW_MEMBERS.you, PREVIEW_MEMBERS.guest]));
     expect(await data.ratings.listGuestNames()).toEqual([PREVIEW_GUEST_NAME]);
     expect(ratings.some((rating) => rating.notEaten)).toBe(true);
     expect(ratings.some((rating) => rating.line !== null)).toBe(true);

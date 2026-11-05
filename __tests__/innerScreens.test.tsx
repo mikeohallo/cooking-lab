@@ -424,10 +424,12 @@ describe('the review on the inner screen (12, 15)', () => {
     const flat = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props.style);
     const row = StyleSheet.flatten((await screen.findByTestId(`${id}-controls`)).props.style);
 
-    // The person's line wraps, so the whole row can go under the name ...
-    const line = StyleSheet.flatten(screen.getByTestId(`${id}-controls`).parent?.props.style);
-    expect(line.flexWrap).toBe('wrap');
-    // ... and the row itself never does.
+    // The person's line never wraps on its own (0.4.1): the whole list is
+    // beside or under together (`__tests__/whoAteItLayout.test.tsx`) ...
+    const line = flat(`${id}-row`);
+    expect(line.flexWrap).toBeUndefined();
+    expect(line.flexDirection).toBe('row');
+    // ... and the row of controls itself never wraps.
     expect(row.flexDirection).toBe('row');
     expect(row.flexWrap).toBe('nowrap');
     expect(row.flexBasis).toBe('auto');

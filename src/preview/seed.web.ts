@@ -13,10 +13,14 @@
  *   them Other) and some without;
  * - ratings from "You" and "Guest" (the household) and "Guest 2" (a guest),
  *   with an N/A and a line;
+ * - a third person in the household, "Guest with a longer name" (0.4.1), with
+ *   no ratings yet: a name long enough to send Who ate it?'s controls under
+ *   the names on a narrow window. Made up, and in the preview only.
  * - ingredients and tags.
  *
  * Photos are flat colour blocks drawn in code (`ports.web.ts`); no image file
- * is involved. The only names are You, Guest and Guest 2.
+ * is involved. The only names are You, Guest, Guest 2 and Guest with a
+ * longer name.
  */
 
 import type { PrivateFileStore } from '../data/adapters';
@@ -43,7 +47,11 @@ export const PREVIEW_IDS = {
 export const PREVIEW_MEMBERS = {
   you: 'preview-member-you',
   guest: 'preview-member-guest',
+  longer: 'preview-member-longer',
 } as const;
+
+/** The third preview person (0.4.1): a long, made-up name, for Who ate it?'s layout. */
+export const PREVIEW_LONGER_NAME = 'Guest with a longer name';
 
 /** A guest who is not in the household, rated by name. */
 export const PREVIEW_GUEST_NAME = 'Guest 2';
@@ -274,9 +282,13 @@ export async function seedPreviewNotebook(target: PreviewSeedTarget, now: number
   };
   const iso = (at: number) => new Date(at).toISOString();
 
-  // The household, in order: You, then Guest.
+  // The household, in order: You, Guest, then Guest with a longer name.
   granted(await data.householdWorkflow.add('You', { id: PREVIEW_MEMBERS.you }, iso(now - 60 * DAY)), 'add You');
   granted(await data.householdWorkflow.add('Guest', { id: PREVIEW_MEMBERS.guest }, iso(now - 60 * DAY)), 'add Guest');
+  granted(
+    await data.householdWorkflow.add(PREVIEW_LONGER_NAME, { id: PREVIEW_MEMBERS.longer }, iso(now - 60 * DAY)),
+    'add Guest with a longer name',
+  );
 
   const personOf = (rated: Rated): RatingPerson => {
     switch (rated.person) {
