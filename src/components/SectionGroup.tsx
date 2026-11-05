@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { makeStyles } from '../theme/theme';
 import { radius, size, space, type ColorRole } from '../theme/tokens';
 import { AppText } from './AppText';
+import { HeadingRow } from './HeadingRow';
 import { Icon, type IconName } from './Icon';
 
 type SectionGroupProps = {
@@ -17,7 +18,7 @@ type SectionGroupProps = {
   iconTint?: ColorRole;
   iconColor?: ColorRole;
   /** Something on the right of the heading: the average badge on Who ate it?. */
-  trailing?: ReactNode;
+  trailing?: ReactElement | null;
   children: ReactNode;
   testID?: string;
 };
@@ -46,18 +47,21 @@ export function SectionGroup({
             <Icon name={icon} color={iconColor} size={size.iconSmall + 2} />
           </View>
         ) : null}
-        <AppText
-          variant="heading"
-          accessibilityRole="header"
-          accessibilityLabel={count === undefined ? title : `${title}, ${count}`}
-          style={styles.title}
-        >
-          {title}
-          {count === undefined ? null : (
-            <AppText variant="secondary" tone="inkMuted">{` · ${count}`}</AppText>
-          )}
-        </AppText>
-        {trailing ?? null}
+        {/* The badge moves under the heading rather than be cut (0.4.1). */}
+        <View style={styles.title}>
+          <HeadingRow
+            heading={
+              <>
+                {title}
+                {count === undefined ? null : (
+                  <AppText variant="secondary" tone="inkMuted">{` · ${count}`}</AppText>
+                )}
+              </>
+            }
+            headingLabel={count === undefined ? title : `${title}, ${count}`}
+            trailing={trailing ?? null}
+          />
+        </View>
       </View>
       {children}
     </View>
@@ -94,6 +98,7 @@ const useStyles = makeStyles(({ colors }) => ({
     },
     title: {
       flex: 1,
+      minWidth: 0,
     },
     badge: {
       flexDirection: 'row',

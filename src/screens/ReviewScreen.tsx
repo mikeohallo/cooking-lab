@@ -9,6 +9,7 @@ import { useWrite } from '../state/useWrite';
 import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
+import { HeadingRow } from '../components/HeadingRow';
 import { Icon, type IconName } from '../components/Icon';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Notice } from '../components/Notice';
@@ -530,21 +531,15 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   );
 }
 
-/** A section of the review: its heading, and on the right a quiet word ("Optional"). */
+/**
+ * A section of the review: its heading, and on the right a quiet word
+ * ("Optional"), which moves under the heading rather than be cut (0.4.1).
+ */
 function Section({ title, trailing, children }: { title: string; trailing?: string; children: ReactNode }) {
   const styles = useStyles();
   return (
     <View style={styles.section}>
-      <View style={styles.headingRow}>
-        <AppText variant="heading" accessibilityRole="header" style={styles.grow}>
-          {title}
-        </AppText>
-        {trailing ? (
-          <AppText variant="secondary" tone="inkMuted">
-            {trailing}
-          </AppText>
-        ) : null}
-      </View>
+      <HeadingRow heading={title} trailing={trailing} />
       {children}
     </View>
   );
@@ -583,11 +578,6 @@ const useStyles = makeStyles(({ colors }) => ({
     section: {
       gap: space.sm,
       marginBottom: space.md,
-    },
-    headingRow: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: space.sm,
     },
     iconRow: {
       flexDirection: 'row',
