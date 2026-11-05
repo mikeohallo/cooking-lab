@@ -230,6 +230,8 @@ const useStyles = makeStyles(({ colors }) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       columnGap: space.xs,
+      // Rows of wrapped controls sit 16 apart, so two rows' 48 dp touch areas never overlap (0.4.1).
+      rowGap: space.md,
     },
     box: {
       minHeight: size.targetMain + space.md,

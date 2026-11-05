@@ -78,7 +78,9 @@ const useStyles = makeStyles(({ colors }) =>
     row: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: space.xs,
+      columnGap: space.xs,
+      // Rows of wrapped controls sit 16 apart, so two rows' 48 dp touch areas never overlap (0.4.1).
+      rowGap: space.md,
     },
     chip: {
       minHeight: size.targetMin,

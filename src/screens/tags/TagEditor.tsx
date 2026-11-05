@@ -294,8 +294,9 @@ export function TagEditor({
 
 const useStyles = makeStyles(() =>
   StyleSheet.create({
+    // 12 between the tags, the field and Show my tags: their hit areas reach 8 and 4 (0.4.1).
     editor: {
-      gap: space.xs,
+      gap: space.sm,
     },
     block: {
       gap: space.xxs,
@@ -303,7 +304,9 @@ const useStyles = makeStyles(() =>
     chips: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: space.xs,
+      columnGap: space.xs,
+      // Rows of wrapped controls sit 16 apart, so two rows' 48 dp touch areas never overlap (0.4.1).
+      rowGap: space.md,
     },
     typing: {
       gap: space.xs,

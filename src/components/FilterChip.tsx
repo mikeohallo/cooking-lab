@@ -91,7 +91,8 @@ const useStyles = makeStyles(({ colors }) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.xxs + 2,
-      paddingHorizontal: space.sm + 2,
+      // 0.4.1: 14 → 12, so a row of meal chips fits more to a line.
+      paddingHorizontal: space.sm,
       borderRadius: radius.pill,
       borderWidth: size.hairline,
     },

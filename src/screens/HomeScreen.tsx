@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { UndoSlot, usePendingDeletion } from '../state/PendingDeletion';
 import { useStorage } from '../state/StorageProvider';
@@ -15,6 +15,7 @@ import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
 import { CoreLoop } from '../components/CoreLoop';
 import { FilterChip } from '../components/FilterChip';
+import { HeadingRow } from '../components/HeadingRow';
 import { MEAL_ICON } from '../components/Icon';
 import { NewCookButton } from '../components/NewCookButton';
 import { Pager } from '../components/Pager';
@@ -133,7 +134,8 @@ export function entriesFor(
  * Top to bottom: "Cooking Lab" and its round ⋯ (Export everything, Who's
  * eating, the version line); a Cooking now card for each open cook; Your
  * cooks with how many are reviewed, the search bar and its round filter
- * button, and the meal chips in one scrolling row; then the reviewed cooks,
+ * button, and the meal chips, wrapped onto as many rows as they need (0.4.1:
+ * on the cover screen too, never a sideways-scrolling row); then the reviewed cooks,
  * newest first, ten to a page. New Cook is docked at the foot of the screen,
  * always in reach, on the page colour with a soft fade above it; the list ends
  * above it, so it never covers a control. The Undo bar after a delete sits
@@ -183,7 +185,7 @@ export function HomeScreen({
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
   const [selected, setSelected] = useState<CookId | null>(null);
-  const { twoPane, gutter } = useLayoutMetrics();
+  const { twoPane } = useLayoutMetrics();
   const create = useWrite();
   const exportAll = useExport();
 
@@ -414,14 +416,12 @@ export function HomeScreen({
       {reviewed.status === 'ready' && cooks.length > 0 ? (
         <>
           <RevealOnChange token={pageMoves} style={styles.section} testID="home-search-block">
-            <View style={styles.headingRow}>
-              <AppText variant="heading" accessibilityRole="header" style={styles.heading}>
-                {YOUR_COOKS}
-              </AppText>
-              <AppText variant="secondary" tone="inkMuted" testID="home-count">
-                {narrowed ? matchCount(entries.length, cooks.length) : reviewedCount(cooks.length)}
-              </AppText>
-            </View>
+            <HeadingRow
+              heading={YOUR_COOKS}
+              trailing={narrowed ? matchCount(entries.length, cooks.length) : reviewedCount(cooks.length)}
+              trailingTestID="home-count"
+              testID="home-heading"
+            />
             <SearchBar
               value={typed}
               onChangeText={setTyped}
@@ -434,7 +434,7 @@ export function HomeScreen({
               filtersLabel={FILTERS}
               testID="history-search"
             />
-            <ChipRow wrap={twoPane} gutter={gutter}>
+            <ChipRow>
               <FilterChip
                 label={FILTER_ALL}
                 selected={meal === null}
@@ -527,37 +527,22 @@ export function HomeScreen({
 }
 
 /**
- * The meal chips: one row scrolling sideways on the cover screen, edge to edge
- * (it runs under the right gutter to the screen's edge, so it reads as
- * scrollable); on the inner display's list pane, wrapped onto as many rows as
- * the pane needs.
+ * The meal chips, wrapped onto as many rows as the width needs, on every
+ * display (0.4.1): every meal is in sight, none behind a sideways scroll. The
+ * rows sit 16 apart, so the 48 dp touch areas of two rows never overlap
+ * (`space.md`; a chip is drawn 32 and reaches out 8 above and below).
  */
-function ChipRow({ wrap, gutter, children }: { wrap: boolean; gutter: number; children: ReactNode }) {
+function ChipRow({ children }: { children: ReactNode }) {
   const styles = useStyles();
-  if (wrap) {
-    return (
-      <View
-        style={[styles.chips, styles.chipsWrapped]}
-        accessibilityRole="radiogroup"
-        accessibilityLabel={FILTER_MEAL_TYPE}
-        testID="history-meal-filter"
-      >
-        {children}
-      </View>
-    );
-  }
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      style={[styles.chipScroll, { marginRight: -gutter }]}
-      contentContainerStyle={[styles.chips, { paddingRight: gutter }]}
+    <View
+      style={styles.chips}
+      accessibilityRole="radiogroup"
       accessibilityLabel={FILTER_MEAL_TYPE}
       testID="history-meal-filter"
     >
       {children}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -604,24 +589,14 @@ const useStyles = makeStyles(() =>
     section: {
       gap: space.sm,
     },
-    headingRow: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      gap: space.sm,
-    },
-    heading: {
-      flexShrink: 1,
-    },
-    chipScroll: {
-      flexGrow: 0,
-    },
+    // 4 more below the search bar than the section's 12: the bar's filter
+    // button reaches 6 below it, a chip 8 above.
     chips: {
-      gap: space.xs,
-    },
-    chipsWrapped: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      columnGap: space.xs,
+      rowGap: space.md,
+      marginTop: space.xxs,
     },
     paneEmpty: {
       marginTop: space.xl,

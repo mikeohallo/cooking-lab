@@ -102,7 +102,8 @@ const useStyles = makeStyles(({ name, colors, shadows }) =>
       paddingHorizontal: space.md,
       paddingTop: space.sm,
       paddingBottom: space.xs,
-      gap: space.xs,
+      // 12 between the reading chips and the field: the chips reach 8 below (0.4.1).
+      gap: space.sm,
       boxShadow: shadows.bar,
       borderTopWidth: name === 'dark' ? size.hairline : 0,
       borderTopColor: colors.line,
@@ -110,7 +111,9 @@ const useStyles = makeStyles(({ name, colors, shadows }) =>
     readings: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: space.xs,
+      columnGap: space.xs,
+      // Rows of wrapped controls sit 16 apart, so two rows' 48 dp touch areas never overlap (0.4.1).
+      rowGap: space.md,
     },
     field: {
       minHeight: size.targetMain,

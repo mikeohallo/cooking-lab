@@ -248,13 +248,16 @@ describe('the screens at each size and font scale', () => {
     expect(styleOf('screen-main-pane').width).toBe(expected === null ? '100%' : expected.list);
     if (expected === null) {
       expect(screen.queryByTestId('screen-side-pane')).toBeNull();
-      // The meal chips scroll sideways, edge to edge.
-      expect(screen.getByTestId('history-meal-filter').props.horizontal).toBe(true);
+      // The meal chips wrap on the cover too (0.4.1), rows 16 apart.
+      expect(screen.getByTestId('history-meal-filter').props.horizontal).toBeUndefined();
+      expect(styleOf('history-meal-filter').flexWrap).toBe('wrap');
+      expect(styleOf('history-meal-filter').rowGap).toBe(16);
       return;
     }
     expect(styleOf('screen-side-pane').width).toBe('auto');
     expect(styleOf('screen-side-pane').flexGrow).toBe(1);
     expect(styleOf('history-meal-filter').flexWrap).toBe('wrap');
+    expect(styleOf('history-meal-filter').rowGap).toBe(16);
     // Cook this again and Edit review in the chosen cook's pane.
     await within(screen.getByTestId('home-cook-pane')).findByTestId('cook-foot-row');
     expectWrappingRow('cook-foot-row', ['cook-this-again', 'edit-review']);
@@ -444,13 +447,20 @@ describe('Home’s right pane', () => {
 describe('the cover’s meal chips', () => {
   beforeEach(notebook);
 
-  it('scroll sideways under the right gutter to the screen’s edge', async () => {
+  it('wrap inside the gutters, never a sideways scroll under the right one (0.4.1)', async () => {
     mockWindow.figures = COVER;
     await harness.render(<HomeScreen onOpenCook={() => {}} />);
     const row = await screen.findByTestId('history-meal-filter');
+    const style = StyleSheet.flatten(row.props.style);
+    expect(row.props.horizontal).toBeUndefined();
+    expect(row.props.contentContainerStyle).toBeUndefined();
+    expect(style.marginRight).toBeUndefined();
+    expect(style.flexWrap).toBe('wrap');
+    expect(style.rowGap).toBe(16);
+    // The screen's own gutter is all the side room there is.
     const gutter = computeLayoutMetrics(COVER.width, COVER.height).gutter;
-    expect(StyleSheet.flatten(row.props.style).marginRight).toBe(-gutter);
-    expect(StyleSheet.flatten(row.props.contentContainerStyle).paddingRight).toBe(gutter);
+    const column = StyleSheet.flatten(screen.getByTestId('screen-scroll').props.contentContainerStyle);
+    expect(column.paddingHorizontal).toBe(gutter);
   });
 });
 
