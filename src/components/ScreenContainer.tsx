@@ -245,6 +245,14 @@ export function paneStyle(panes: PaneWidths, pane: 'main' | 'side'): ViewStyle {
   return { width: 'auto', flexGrow: 1, flexShrink: 1, flexBasis: 0 };
 }
 
+/**
+ * The soft fade drawn above a dock, over the end of the list (0.4.0, part 5).
+ * A list with a dock ends with this much room as well as the usual margin, so
+ * its last control (No matches' Clear filters, the pager) is never under the
+ * fade (0.4.1).
+ */
+export const DOCK_FADE_HEIGHT = space.lg;
+
 /** One pane: its own scrolling area, its own pinned footer, its own reveal. */
 function Pane({
   children,
@@ -294,7 +302,7 @@ function Pane({
         ref={scrollRef}
         testID={scrollTestID}
         style={styles.flex}
-        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
+        contentContainerStyle={[styles.scrollContent, dock !== undefined && styles.scrollAboveDock, { paddingHorizontal: gutter }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         alwaysBounceHorizontal={false}
@@ -355,6 +363,10 @@ const useStyles = makeStyles(({ colors, fades }) =>
       flexGrow: 1,
       paddingVertical: space.ml,
     },
+    // The usual margin, and room for the fade above the dock.
+    scrollAboveDock: {
+      paddingBottom: space.ml + DOCK_FADE_HEIGHT,
+    },
     // Docked under the list, never over it: the list's scrolling area ends
     // at its top edge.
     dock: {
@@ -368,8 +380,8 @@ const useStyles = makeStyles(({ colors, fades }) =>
       position: 'absolute',
       left: 0,
       right: 0,
-      top: -space.lg,
-      height: space.lg,
+      top: -DOCK_FADE_HEIGHT,
+      height: DOCK_FADE_HEIGHT,
       experimental_backgroundImage: fades.page,
     },
     column: {
