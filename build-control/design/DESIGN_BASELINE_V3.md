@@ -4,7 +4,9 @@
 **Approved by:** Mike (product owner), on 2 November 2026, with the 0.4.0 plan
 **Applies from:** 0.4.0
 **Updated:** 0.4.1, 3 November 2026, by Mike's call: the type a step smaller,
-wrapping meal buttons, a slimmer Cooking now (sections 3, 4 and 5)
+wrapping meal buttons, a slimmer Cooking now (sections 3, 4 and 5); 0.5.0,
+6 November 2026, with the brief Mike approved that day: kitchen timers and
+tabletop mode (section 10)
 **Tokens:** `src/theme/tokens.ts` (colours in light and dark, type, corners,
 shadows, spacing, sizes, breakpoints), `src/theme/theme.tsx` (light or dark)
 and `src/theme/fonts.ts` (the typeface). A screen styles itself from these and
@@ -276,5 +278,90 @@ case, British spelling, Celsius; no emoji and no exclamation marks in the
 app's own voice; no invented household names in designs, tests or seed data
 ("You" and "Guest" in tests; the web preview also has "Guest 2" and, since
 0.4.1, the made-up "Guest with a longer name").
+
+## 10. Timers and tabletop mode (0.5.0)
+
+From the pictures Mike approved on 6 November 2026 (the cover screen, the
+inner screen and tabletop mode, drawn from a throwaway prototype). What they
+show is built here properly: every colour, size and type style is a token.
+
+### Timer colours
+
+Five colour pairs, one per timer colour, each with a **fill** (the dot, the
+bar, and the whole row once the timer is done) and a **track** (a running
+timer's tint, behind ink). `onTimer` is the words and dot on a finished
+timer's fill. A name keeps its colour: Meat is warm, Veg green, Rest blue;
+any other name takes the next of plum and gold that no other name has, then
+round again (`colourForName` in `src/timers/model.ts`).
+
+| Token | Light | Dark | Job |
+|---|---|---|---|
+| `timerWarm` / `timerWarmTrack` | #a8481f / #fbe9df | #f29a70 / #3a2219 | Meat |
+| `timerGreen` / `timerGreenTrack` | #2b6e45 / #e2f0e6 | #86d3a2 / #17301f | Veg |
+| `timerBlue` / `timerBlueTrack` | #2a568f / #e5edf8 | #9fc0ee / #172540 | Rest; the Timer chip; tabletop's Timer button |
+| `timerPlum` / `timerPlumTrack` | #7d3a7a / #f3e7f2 | #e5a7e1 / #33203a | The first other name |
+| `timerGold` / `timerGoldTrack` | #7a5c00 / #f5eed6 | #e3c35e / #32301a | The second other name |
+| `onTimer` | #ffffff | #0f1719 | Words on a finished timer |
+
+**Contrast** (`__tests__/contrast.test.ts`, both themes): `ink` and
+`inkMuted` (Paused) on every track, `onTimer` on every fill, and `timerBlue`
+on `timerBlueTrack` (the Timer chip) are text pairs at 4.5:1; every fill on
+its own track (the dot and the bar) is a control pair at 3:1. `ink` on
+`noteIcon` (tabletop's Note button) is a text pair too. All pass.
+
+### Type and sizes
+
+| Style | Size / line | Weight | For |
+|---|---:|---:|---|
+| `timerNumber` | 20 / 24 | 700, tracking −0.3 | A timer's time left, tabular figures |
+| `timerLarge` | 56 / 62 | 800, tracking −1.5 | The same on tabletop mode's tiles, and its Stop |
+| `tableButton` | 16 / 22 | 700 | A tabletop button's word |
+
+Sizes: `timerDot` 10 and `timerBar` 4 (the dock); `timerDotLarge` 14 and
+`timerBarLarge` 8 (tabletop's tiles); `tableButtonMin` 88, the least a
+tabletop button is drawn, and `tableIcon` 32. `timerPairMin` 140 is a limit,
+not a width (below).
+
+### The dock
+
+The running timers on an open cook sit above the composer, on the cover and
+inner screens alike, and inside that cook's Cooking now card on Home.
+
+- Order: finished first (the first to ring on top), then the soonest to
+  finish. A stopped timer is history and is not shown.
+- A row: its colour's tint, a dot, the name, the time left on the right
+  ("4:32", "1:05:00" from an hour up) and a bar along the foot that empties.
+  At least 48 tall. Finished: the solid colour and "Done".
+- **Two to a row only when each half has room for its timer's name and time
+  in full at the current text size**, and each half is at least
+  `timerPairMin`; otherwise one to a row. The words are measured live, as Who
+  ate it? measures its names; until they are, one to a row.
+- **Never more than a third of the window's height** (`TIMER_DOCK_SHARE`).
+  The timers that do not fit are "+ N more", which opens the full list.
+- Tap a running timer for +1 min, +5 min, Pause or Resume, and Stop. Tap a
+  finished one to stop it.
+- One line above the timers when they cannot ring ("Timer alerts are off:
+  tap to turn them on") or not on time ("Timers can't ring on time: tap to
+  allow"); each opens its setting.
+- `src/timers/dock.ts` holds the rules; `__tests__/timerDock.test.ts` checks
+  them at every window from 320 to 1200 dp at font scales 1.0, 1.15 and 1.3.
+
+### Tabletop mode
+
+When the inner screen is half folded with the hinge across it (Jetpack
+WindowManager: a `FoldingFeature` that is `HALF_OPENED` and `HORIZONTAL`), an
+open cook's page is drawn as `TabletopCook`, split where the fold is.
+Nothing is placed across the fold.
+
+- **The upright half**, for reading from across the kitchen: the dish and its
+  meal; up to three timers as big tiles (`timerLarge`), finished first then
+  the soonest; the latest reading and last time's first Next time line. With
+  no timer: "No timers running. Tap Timer below to start one."
+- **The flat half**, for big taps: five buttons, Timer, Oven, Internal, Photo
+  and Note (never "Inside"), each in its own tint and opening what it opens
+  on the cook page. When a timer is done, the flat half is one Stop button
+  in that timer's colour: "Stop", and under it "Rest is done".
+- The screen stays on in tabletop mode. The moment the screen is not
+  tabletop, the usual page is back.
 
 **DESIGN BASELINE V3 — ACCEPTED**
