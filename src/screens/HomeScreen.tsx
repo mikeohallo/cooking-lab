@@ -68,6 +68,9 @@ import { applyFilters, cuisineOptions, peopleToPick, type FilterInputs } from '.
 import { searchCooks, searchable, type SearchHit } from './history/search';
 import { CookCard } from './home/CookCard';
 import { CookingNowCard } from './home/CookingNowCard';
+import { useTimers } from '../state/Timers';
+import { TimerActionsSheet } from './timers/TimerSheets';
+import { timerState } from '../timers/model';
 import { FiltersSheet, NO_SHEET_FILTERS, sheetFilterCount, type SheetFilters } from './home/FiltersSheet';
 import { pageOf, pagePosition } from './home/paging';
 import { starredRatings } from './home/ratingsLine';
@@ -164,6 +167,8 @@ export function HomeScreen({
   const styles = useStyles();
   const window = useWindowDimensions();
   const { data, exporter, newId, now } = useStorage();
+  // Each open cook's running timers, in its Cooking now card (0.5.0).
+  const timersApi = useTimers();
   // A cook deleted, or brought back with Undo, changes the lists too.
   const { version, pendingNote } = usePendingDeletion();
   const reload = refreshToken + version;
@@ -188,6 +193,8 @@ export function HomeScreen({
   const [pageMoves, setPageMoves] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<Cook | null>(null);
+  const [timerActionsId, setTimerActionsId] = useState<string | null>(null);
+  const timerActions = timerActionsId === null ? null : timersApi.timers.find((timer) => timer.id === timerActionsId) ?? null;
   const [selected, setSelected] = useStoreState<CookId | null>(kept, 'selected', null);
   const { twoPane } = useLayoutMetrics();
   const create = useWrite();
@@ -413,6 +420,11 @@ export function HomeScreen({
               onPress={() => onOpenCook(cook.id)}
               onLongPress={() => setActionsFor(cook)}
               compact={twoPane}
+              timers={timersApi.forCook(cook.id)}
+              now={timersApi.now}
+              onTimer={(timer) =>
+                timerState(timer, timersApi.now) === 'finished' ? void timersApi.stop(timer.id) : setTimerActionsId(timer.id)
+              }
             />
           ))}
         </View>
@@ -509,6 +521,19 @@ export function HomeScreen({
           ) : null}
         </>
       ) : null}
+
+      <TimerActionsSheet
+        timer={timerActions}
+        now={timersApi.now}
+        onClose={() => setTimerActionsId(null)}
+        onAdd={(timer, minutes) => void timersApi.add(timer.id, minutes)}
+        onPause={(timer) => void timersApi.pause(timer.id)}
+        onResume={(timer) => void timersApi.resume(timer.id)}
+        onStop={(timer) => {
+          setTimerActionsId(null);
+          void timersApi.stop(timer.id);
+        }}
+      />
 
       <FiltersSheet
         // A fresh draft each time it opens.

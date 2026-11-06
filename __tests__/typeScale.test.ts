@@ -2,7 +2,8 @@
  * The type scale, one step smaller app-wide (0.4.1), exactly as Mike approved
  * it on 3 November 2026. Size / line height; weights and letter spacing are
  * unchanged from 0.4.0, and so are the drawn sizes of buttons (40), chips
- * (32), icon circles, the spacing steps and the 48 dp touch area.
+ * (32), icon circles, the spacing steps and the 48 dp touch area. 0.5.0
+ * adds three styles for timers and tabletop mode, and changes none.
  */
 import { size, space, type } from '../src/theme/tokens';
 
@@ -24,6 +25,10 @@ const SCALE: Readonly<Record<keyof typeof type, readonly [number, number]>> = {
   button: [13, 18],
   buttonMain: [14, 20],
   readingNumber: [20, 24],
+  // Kitchen timers and tabletop mode (0.5.0).
+  timerNumber: [20, 24],
+  timerLarge: [56, 62],
+  tableButton: [16, 22],
 };
 
 /** 0.4.0's weights and tracking, which 0.4.1 keeps. */
@@ -45,6 +50,9 @@ const UNCHANGED: Readonly<Record<keyof typeof type, readonly [string, number | u
   button: ['600', undefined],
   buttonMain: ['700', undefined],
   readingNumber: ['700', -0.5],
+  timerNumber: ['700', -0.3],
+  timerLarge: ['800', -1.5],
+  tableButton: ['700', undefined],
 };
 
 describe('the 0.4.1 type scale', () => {

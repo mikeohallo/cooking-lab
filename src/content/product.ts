@@ -386,3 +386,47 @@ export const RENAME = 'Rename';
 export const SAVE_NAME = 'Save';
 export const REMOVE_PERSON = 'Remove';
 export const NAMES_STAY = 'Names stay on this phone. They are never sent anywhere.';
+
+// --- Timers and tabletop mode (0.5.0) --------------------------------------
+
+/** The composer's chip, beside Oven °C and Internal °C, and tabletop mode's first button. */
+export const TIMER = 'Timer';
+export const NEW_TIMER = 'New timer';
+export const TIMER_NAME_HEADING = 'NAME';
+export const TIMER_LENGTH_HEADING = 'HOW LONG';
+export const TIMER_NAME_PLACEHOLDER = 'Or type a name';
+export const ONE_MINUTE_LESS = 'One minute less';
+export const ONE_MINUTE_MORE = 'One minute more';
+/** "Start Rest · 15 min", with the app's middle dot. */
+export function startTimerLabel(name: string, length: string): string {
+  return `Start ${name} · ${length}`;
+}
+export const TIMER_DONE = 'Done';
+export const TIMER_PAUSED = 'Paused';
+export const ADD_ONE_MINUTE = '+1 min';
+export const ADD_FIVE_MINUTES = '+5 min';
+export const PAUSE_TIMER = 'Pause';
+export const RESUME_TIMER = 'Resume';
+export const STOP_TIMER = 'Stop';
+export const ALL_TIMERS = 'Timers';
+/** "+ 2 more": the timers that do not fit, which opens the full list. */
+export function moreTimers(count: number): string {
+  return `+ ${count} more`;
+}
+export const TIMER_ALERTS_OFF = 'Timer alerts are off: tap to turn them on';
+export const TIMERS_NOT_ON_TIME = 'Timers can’t ring on time: tap to allow';
+/** The review's one line when timers are still running (0.5.0): they keep going. */
+export function timersKeepRunning(names: readonly string[]): string {
+  return names.length === 1
+    ? `${names[0]} is still running. It keeps going after the review.`
+    : `${names.length} timers are still running. They keep going after the review.`;
+}
+/** Tabletop mode's upright half, with no timer. */
+export const TABLETOP_NO_TIMERS = 'No timers running. Tap Timer below to start one.';
+/** Tabletop mode's five big buttons. "Internal", never "Inside". */
+export const TABLETOP_PHOTO = 'Photo';
+export const TABLETOP_NOTE = 'Note';
+/** "Rest is done", under tabletop mode's one big Stop. */
+export function timerIsDone(name: string): string {
+  return `${name} is done`;
+}

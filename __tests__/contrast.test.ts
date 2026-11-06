@@ -16,6 +16,7 @@ import {
   readingRoles,
   statusRoles,
   textPairs,
+  timerRoles,
 } from '../src/theme/tokens';
 
 function channel(value: number): number {
@@ -80,6 +81,28 @@ describe('contrast', () => {
     for (const roles of Object.values(readingRoles)) {
       expect(textPairs).toContainEqual(expect.objectContaining({ fg: roles.ink, bg: roles.tint }));
     }
+  });
+
+  it('lists every timer colour (0.5.0): words on its tint and on its fill, its dot and bar on its tint', () => {
+    expect(Object.keys(timerRoles).sort()).toEqual(['blue', 'gold', 'green', 'plum', 'warm']);
+    for (const roles of Object.values(timerRoles)) {
+      expect(textPairs).toContainEqual(expect.objectContaining({ fg: 'ink', bg: roles.track }));
+      expect(textPairs).toContainEqual(expect.objectContaining({ fg: 'inkMuted', bg: roles.track }));
+      expect(textPairs).toContainEqual(expect.objectContaining({ fg: 'onTimer', bg: roles.fill }));
+      expect(controlPairs).toContainEqual(expect.objectContaining({ fg: roles.fill, bg: roles.track }));
+    }
+    // The Timer chip, and tabletop mode's Note button.
+    expect(textPairs).toContainEqual(expect.objectContaining({ fg: 'timerBlue', bg: 'timerBlueTrack' }));
+    expect(textPairs).toContainEqual(expect.objectContaining({ fg: 'ink', bg: 'noteIcon' }));
+  });
+
+  it('keeps the timer colours as the approved pictures drew them, light and dark (0.5.0)', () => {
+    expect(palettes.light.timerWarm).toBe('#a8481f');
+    expect(palettes.light.timerBlueTrack).toBe('#e5edf8');
+    expect(palettes.light.onTimer).toBe('#ffffff');
+    expect(palettes.dark.timerBlue).toBe('#9fc0ee');
+    expect(palettes.dark.timerGoldTrack).toBe('#32301a');
+    expect(palettes.dark.onTimer).toBe('#0f1719');
   });
 
   it('gives Side its own colour, and five meals five colours', () => {

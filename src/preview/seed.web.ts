@@ -16,7 +16,9 @@
  * - a third person in the household, "Guest with a longer name" (0.4.1), with
  *   no ratings yet: a name long enough to send Who ate it?'s controls under
  *   the names on a narrow window. Made up, and in the preview only.
- * - ingredients and tags.
+ * - ingredients and tags;
+ * - timers on the open muffins (0.5.0): Gravy, Veg and Meat running, and
+ *   Rest, which has run out and is not yet stopped.
  *
  * Photos are flat colour blocks drawn in code (`ports.web.ts`); no image file
  * is involved. The only names are You, Guest, Guest 2 and Guest with a
@@ -42,6 +44,14 @@ export const PREVIEW_IDS = {
   reviewed: 'preview-cook-muffins',
   /** Reviewed, deleted on the Undo screen. */
   deleted: 'preview-cook-pancakes',
+} as const;
+
+/** The open cook's timers (0.5.0): Rest has run out; the other three are running. */
+export const PREVIEW_TIMERS = {
+  rest: 'preview-timer-rest',
+  gravy: 'preview-timer-gravy',
+  veg: 'preview-timer-veg',
+  meat: 'preview-timer-meat',
 } as const;
 
 export const PREVIEW_MEMBERS = {
@@ -424,4 +434,20 @@ export async function seedPreviewNotebook(target: PreviewSeedTarget, now: number
   await addPhoto(PREVIEW_IDS.again, '#c48a52', againStarted + 12 * MINUTE);
   await addPhoto(PREVIEW_IDS.again, '#8f5a33', againStarted + 30 * MINUTE);
   await event(againStarted + 34 * MINUTE, { kind: 'temp', meta: { celsius: 96, readingKind: 'internal' } });
+
+  // Timers (0.5.0), through the timer service as the screens start them:
+  // three running on the open cook, and Rest, which ran out five minutes ago
+  // and has not been stopped yet. Each is started so much before now that
+  // it has the time left the approved pictures show.
+  const SECOND = 1_000;
+  const timer = async (timerId: string, name: string, minutes: number, left: number) =>
+    granted(
+      await data.timerWorkflow.start(PREVIEW_IDS.again, name, minutes * MINUTE, { id: timerId }, 'user', iso(now - (minutes * MINUTE - left))),
+      `start ${name}`,
+    );
+  const rest = await timer(PREVIEW_TIMERS.rest, 'Rest', 15, -5 * MINUTE);
+  granted(await data.timerWorkflow.finish(rest.id, rest.endsAt, 'user'), 'Rest ran out');
+  await timer(PREVIEW_TIMERS.gravy, 'Gravy', 10, 4 * MINUTE + 5 * SECOND);
+  await timer(PREVIEW_TIMERS.veg, 'Veg', 25, 11 * MINUTE + 40 * SECOND);
+  await timer(PREVIEW_TIMERS.meat, 'Meat', 70, 38 * MINUTE + 12 * SECOND);
 }

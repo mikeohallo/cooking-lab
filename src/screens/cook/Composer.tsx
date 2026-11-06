@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppText } from '../../components/AppText';
@@ -11,6 +11,7 @@ import {
   ADD_PHOTO,
   NOTE_FIELD_PLACEHOLDER,
   SEND_NOTE,
+  TIMER,
   UNSAVED_KEPT,
 } from '../../content/product';
 import { NOTE_MAX_LINES, maxTextBoxHeight } from '../../layout/footerLimit';
@@ -32,6 +33,10 @@ type ComposerProps = {
   writeState: WriteState;
   /** True while the camera or the picker is open, or a photo is being saved. */
   photoPending?: boolean;
+  /** Opens New timer (0.5.0). */
+  onTimer?: () => void;
+  /** The running timers, pinned above the chips (0.5.0). */
+  timers?: ReactNode;
 };
 
 /**
@@ -44,7 +49,15 @@ type ComposerProps = {
  * recipe never pushes Send off the screen (0.2.2); the screen pins the whole
  * bar above the keyboard. Nothing typed is cleared until the store has it.
  */
-export function Composer({ onSendNote, onReading, onCamera, writeState, photoPending = false }: ComposerProps) {
+export function Composer({
+  onSendNote,
+  onReading,
+  onCamera,
+  writeState,
+  photoPending = false,
+  onTimer,
+  timers = null,
+}: ComposerProps) {
   const styles = useStyles();
   const colors = useColors();
   const fontsReady = useFontsReady();
@@ -71,6 +84,7 @@ export function Composer({ onSendNote, onReading, onCamera, writeState, photoPen
       {writeState.status === 'failed' ? (
         <Notice title={writeState.message} body={UNSAVED_KEPT} tone="problem" testID="composer-write-failed" />
       ) : null}
+      {timers}
       <ComposerBar
         style={styles.bar}
         readings={
@@ -89,6 +103,9 @@ export function Composer({ onSendNote, onReading, onCamera, writeState, photoPen
               onPress={() => onReading('internal')}
               testID="internal-reading-toggle"
             />
+            {onTimer ? (
+              <ReadingChip kind="timer" label={TIMER} accessibilityHint="Starts a timer" onPress={onTimer} testID="timer-toggle" />
+            ) : null}
           </>
         }
       >

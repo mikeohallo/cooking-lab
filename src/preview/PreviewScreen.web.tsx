@@ -19,7 +19,7 @@ import { HouseholdScreen } from '../screens/HouseholdScreen';
 import { ReviewScreen } from '../screens/ReviewScreen';
 import { usePendingDeletion } from '../state/PendingDeletion';
 import type { PreviewScreenName } from './options.web';
-import { PREVIEW_IDS, PREVIEW_NO_MATCH_WORDS } from './seed.web';
+import { PREVIEW_IDS, PREVIEW_NO_MATCH_WORDS, PREVIEW_TIMERS } from './seed.web';
 
 export type PreviewStep =
   | { readonly kind: 'press'; readonly testID: string }
@@ -40,6 +40,12 @@ export type PreviewPlan = {
   readonly steps: readonly PreviewStep[];
   /** A test id that is on screen once the steps have done their work. */
   readonly shows: string;
+  /**
+   * Tabletop mode (0.5.0): the screen half folded. In the browser the
+   * timers module's stub reports it for these screens; in Jest the test sets
+   * the module's mock.
+   */
+  readonly tabletop?: true;
 };
 
 const HOME: PreviewView = { kind: 'home' };
@@ -87,6 +93,33 @@ export const PREVIEW_PLANS: Readonly<Record<PreviewScreenName, PreviewPlan>> = {
     steps: [{ kind: 'press', testID: `note-${PREVIEW_IDS.editedNote}-more` }],
     shows: `note-${PREVIEW_IDS.editedNote}-menu`,
   },
+  // Three timers running above the composer: Rest, which had run out, is
+  // stopped by tapping it, as a person would.
+  timers: {
+    view: AGAIN,
+    ready: `timer-${PREVIEW_TIMERS.rest}`,
+    steps: [{ kind: 'press', testID: `timer-${PREVIEW_TIMERS.rest}` }],
+    shows: 'timer-dock',
+  },
+  'timer-sheet': {
+    view: AGAIN,
+    ready: 'timer-toggle',
+    steps: [
+      { kind: 'press', testID: 'timer-toggle' },
+      { kind: 'press', testID: 'timer-name-rest' },
+    ],
+    shows: 'timer-start',
+  },
+  // Rest has run out: solid blue, Done.
+  'timer-done': { view: AGAIN, ready: 'timer-dock', steps: [], shows: `timer-${PREVIEW_TIMERS.rest}` },
+  tabletop: {
+    view: AGAIN,
+    ready: 'tabletop-stop',
+    steps: [{ kind: 'press', testID: 'tabletop-stop' }],
+    shows: 'tabletop-timer',
+    tabletop: true,
+  },
+  'tabletop-done': { view: AGAIN, ready: 'tabletop-stop', steps: [], shows: 'tabletop-bottom', tabletop: true },
 };
 
 /** Where a screen's own links go: the app's routes, with the theme and font scale kept. */

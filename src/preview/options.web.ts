@@ -12,6 +12,10 @@
  * - `?fontScale=1.15` multiplies every text style by that much, because a
  *   browser has no font scale of its own. Between 0.5 and 3; anything else
  *   is ignored.
+ * - `?posture=tabletop&foldAt=<dp>` (0.5.0) tells the timers module's web
+ *   stub that the screen is half folded with the fold that far down
+ *   (`modules/cook-timers/src/CookTimersModule.web.ts`); `tabletop` and
+ *   `tabletop-done` say so without being asked.
  *
  * Nothing here is ever bundled for Android: every file in `src/preview/` ends
  * `.web.ts` or `.web.tsx`, and the only references to it from shared code sit
@@ -32,6 +36,12 @@ export const PREVIEW_SCREENS = [
   'no-matches',
   'undo',
   'note-options',
+  // Kitchen timers and tabletop mode (0.5.0).
+  'timers',
+  'timer-sheet',
+  'timer-done',
+  'tabletop',
+  'tabletop-done',
 ] as const;
 
 export type PreviewScreenName = (typeof PREVIEW_SCREENS)[number];

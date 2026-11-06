@@ -7,11 +7,12 @@ import { MealLabel } from '../../components/MealLabel';
 import { Zone, ZoneOverline } from '../../components/Zone';
 import { COOKING_NOW_OVERLINE, DELETE_COOK, UNTITLED_COOK, startedLine } from '../../content/product';
 import { ordinal } from '../../domain/cookRecord';
-import type { Cook } from '../../domain/entities';
+import type { Cook, Timer } from '../../domain/entities';
 import type { StoredMealType } from '../../domain/enums';
 import { formatTime } from '../../format/dateTime';
 import { makeStyles } from '../../theme/theme';
 import { mealColorRole, radius, size, space } from '../../theme/tokens';
+import { TimerDock } from '../timers/TimerDock';
 
 type CookingNowCardProps = {
   cook: Cook;
@@ -25,6 +26,11 @@ type CookingNowCardProps = {
   onLongPress: () => void;
   /** In the inner display's list pane (0.4.0). Since part 7 both sizes draw the same compact card. */
   compact?: boolean;
+  /** Its running timers, in the order shown (0.5.0), and what tapping one does. */
+  timers?: readonly Timer[];
+  now?: number;
+  onTimer?: (timer: Timer) => void;
+  onMoreTimers?: () => void;
 };
 
 /**
@@ -47,6 +53,10 @@ export function CookingNowCard({
   timesCooked,
   onPress,
   onLongPress,
+  timers = [],
+  now = 0,
+  onTimer = () => {},
+  onMoreTimers = onPress,
 }: CookingNowCardProps) {
   const styles = useStyles();
   const title = cook.title ?? UNTITLED_COOK;
@@ -92,6 +102,8 @@ export function CookingNowCard({
           <Icon name="chevronRight" color="ink" size={size.iconSmall + 2} />
         </View>
       </View>
+      {/* Its running timers (0.5.0), each tappable on its own. */}
+      <TimerDock timers={timers} now={now} onPress={onTimer} onMore={onMoreTimers} testID={`cook-timers-${cook.id}`} />
     </Zone>
   );
 }

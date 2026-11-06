@@ -20,6 +20,7 @@ import { PREVIEW_SCREENS, type PreviewScreenName } from '../src/preview/options.
 import { PREVIEW_PLANS, PreviewScreenView, PreviewSteps, type PreviewPerformer } from '../src/preview/PreviewScreen.web';
 import { PREVIEW_IDS } from '../src/preview/seed.web';
 import { openPreviewStorage } from '../src/preview/storage.web';
+import { setPosture } from '../modules/cook-timers/mocks/CookTimersModule';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { ReadyStorageProvider } from '../src/state/StorageProvider';
 import { TOUCH_AREA, touchSlop } from '../src/theme/touch';
@@ -197,6 +198,10 @@ async function draw(name: PreviewScreenName, figures: Figures, more: readonly Mo
   }
   opened = result.storage;
   const plan = PREVIEW_PLANS[name];
+  // Tabletop mode (0.5.0): half folded, the fold half way down the window.
+  if (plan.tabletop) {
+    setPosture({ tabletop: true, foldTop: figures.height / 2, foldBottom: figures.height / 2 });
+  }
   let finished: string | null | undefined;
   let markRendered: () => void = () => {};
   rendered = new Promise((resolve) => {

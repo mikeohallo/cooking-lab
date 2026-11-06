@@ -41,6 +41,7 @@ import {
   WHO_USUALLY_EATS_BODY,
   YOUR_NOTES,
   YOUR_NOTES_PLACEHOLDER,
+  timersKeepRunning,
 } from '../content/product';
 import { HOUSEHOLD_ASKED_KEY } from '../data/sqlite/cookRecord';
 import type { CookId, HouseholdMember, LessonId } from '../domain/entities';
@@ -64,6 +65,8 @@ import { CuisineChips } from './record/CuisineChips';
 import { HouseholdEditor } from './record/HouseholdEditor';
 import { MealTypeChips } from './record/MealTypeChips';
 import { WhoAteIt } from './record/WhoAteIt';
+import { useTimers } from '../state/Timers';
+import { timerState } from '../timers/model';
 
 type ReviewScreenProps = {
   cookId: CookId;
@@ -114,6 +117,12 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   const { record, acceptMealType, acceptRating, acceptHousehold, setCuisine } = useCookRecord(cookId);
   // "Who usually eats?" is asked the first time a review opens with nobody on
   // the list, and never again once answered or skipped.
+  // Finish & review with timers running (0.5.0): they keep going, and the
+  // review says so in one line.
+  const timersApi = useTimers();
+  const runningTimers = timersApi
+    .forCook(cookId)
+    .filter((timer) => ['running', 'paused'].includes(timerState(timer, timersApi.now)));
   const [askHousehold, setAskHousehold] = useState(false);
   const asked = useRef(false);
   const { settings } = data;
@@ -310,7 +319,7 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     onBack();
   };
 
-  const footButton = editing ? (
+  const finishButton = editing ? (
     <Button
       label={SAVE_REVIEW}
       icon="check"
@@ -335,6 +344,17 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
       testID="finish-review"
     />
   );
+  const footButton =
+    !editing && runningTimers.length > 0 ? (
+      <View style={styles.finishFoot}>
+        <AppText variant="secondary" tone="inkMuted" testID="review-timers-running">
+          {timersKeepRunning(runningTimers.map((timer) => timer.name))}
+        </AppText>
+        {finishButton}
+      </View>
+    ) : (
+      finishButton
+    );
 
   const notesSection = (
     <View style={styles.section}>
@@ -558,6 +578,9 @@ function IconCircle({ icon, tint, ink }: { icon: IconName; tint: ColorRole; ink:
 
 const useStyles = makeStyles(({ colors }) => ({
   ...StyleSheet.create({
+    finishFoot: {
+      gap: space.xs,
+    },
     header: {
       gap: space.sm,
       marginBottom: space.md,

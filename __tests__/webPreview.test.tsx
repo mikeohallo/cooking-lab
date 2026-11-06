@@ -29,6 +29,7 @@ import {
 } from '../src/preview/PreviewScreen.web';
 import { PREVIEW_GUEST_NAME, PREVIEW_IDS, PREVIEW_LONGER_NAME, PREVIEW_MEMBERS } from '../src/preview/seed.web';
 import { openPreviewStorage } from '../src/preview/storage.web';
+import { setPosture } from '../modules/cook-timers/mocks/CookTimersModule';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { ReadyStorageProvider, type AppStorage } from '../src/state/StorageProvider';
 import { type } from '../src/theme/tokens';
@@ -214,6 +215,10 @@ describe('every ?screen=', () => {
   it.each(PREVIEW_SCREENS)('%s draws, and its steps reach the state the design shows', async (name: PreviewScreenName) => {
     const plan = PREVIEW_PLANS[name];
     const storage = appStorage(await notebook(name !== 'empty'));
+    // Tabletop mode's screens: the screen half folded, as the module reports it (0.5.0).
+    if (plan.tabletop) {
+      setPosture({ tabletop: true, foldTop: 376, foldBottom: 376 });
+    }
     const errors = jest.spyOn(console, 'error');
     let finished: string | null | undefined;
     let markRendered: () => void = () => {};

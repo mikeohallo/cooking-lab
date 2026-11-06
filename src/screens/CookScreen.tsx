@@ -10,6 +10,7 @@ import { useKeepScreenOn, useScreenStaysOn } from '../state/useKeepScreenOn';
 import { useExport } from '../state/useExport';
 import { usePhotoUris } from '../state/usePhotoUris';
 import { useSaveOnLeave } from '../state/useSaveOnLeave';
+import { useTimers } from '../state/Timers';
 import { useWrite, type WriteState } from '../state/useWrite';
 import { Button } from '../components/Button';
 import { AppText } from '../components/AppText';
@@ -72,7 +73,7 @@ import {
 } from '../content/product';
 import type { PhotoOrigin } from '../data/adapters';
 import { cuisineLabel, nextTimeWords, orderRatings, raterName, timesCookedLine } from '../domain/cookRecord';
-import type { Cook, CookEvent, CookEventId, CookId, JsonObject, Revision } from '../domain/entities';
+import type { Cook, CookEvent, CookEventId, CookId, JsonObject, Revision, Timer, TimerId } from '../domain/entities';
 import { latestWords } from '../domain/evidence';
 import { photoPlacedWhenAdded } from '../domain/photoTime';
 import { MAX_TITLE_LENGTH } from '../domain/invariants';
@@ -96,6 +97,11 @@ import { IngredientsBox } from './record/IngredientsBox';
 import { IngredientsSection } from './record/IngredientsSection';
 import { LastTimeCard, lastTimeNextTime, ratingAverage } from './record/LastTimeCard';
 import { TagEditor } from './tags/TagEditor';
+import { NoteSheet } from './cook/NoteSheet';
+import { TabletopCook, type TabletopButton } from './timers/TabletopCook';
+import { TimerAlertLine, TimerDock } from './timers/TimerDock';
+import { NewTimerSheet, TimerActionsSheet, TimerListSheet } from './timers/TimerSheets';
+import { timerState } from '../timers/model';
 
 type CookScreenProps = {
   cookId: CookId;
@@ -222,9 +228,24 @@ export function CookScreen({
   const [noteMenu, setNoteMenu] = useState<CookEvent | null>(null);
   const [editingNote, setEditingNote] = useStoreState<CookEventId | null>(kept, 'editing-note', null);
   const [staysOn, setStaysOn] = useScreenStaysOn(cookId);
-  // On while an open cook's page is in front and its toggle says so; the hook
-  // also lets go whenever the app leaves the foreground.
-  useKeepScreenOn(load.status === 'ready' && load.cook.status === 'open' && inFront && staysOn);
+  // Kitchen timers (0.5.0): this cook's, in the order they are shown, and the
+  // sheets that start and change them. Which sheet is open is kept through a
+  // font-size change, like the words being typed.
+  const timersApi = useTimers();
+  const cookTimers = timersApi.forCook(cookId);
+  const [timerSheet, setTimerSheet] = useStoreState(kept, 'timer-sheet', false);
+  const [timerList, setTimerList] = useStoreState(kept, 'timer-list', false);
+  const [timerActionsId, setTimerActionsId] = useStoreState<TimerId | null>(kept, 'timer-actions', null);
+  const [noteSheet, setNoteSheet] = useStoreState(kept, 'note-sheet', false);
+  // Tabletop mode: the inner screen half folded, the hinge across it. The
+  // usual page again the moment it is not.
+  const posture = timersApi.posture;
+  const tabletop =
+    !embedded && posture !== null && posture.tabletop && load.status === 'ready' && load.cook.status === 'open';
+  // On while an open cook's page is in front and its toggle says so, and
+  // always in tabletop mode; the hook also lets go whenever the app leaves
+  // the foreground.
+  useKeepScreenOn(load.status === 'ready' && load.cook.status === 'open' && inFront && (staysOn || tabletop));
 
   if (load.status === 'loading') {
     return (
@@ -497,8 +518,26 @@ export function CookScreen({
 
   // Side by side when they fit; otherwise each on its own line at full width,
   // Cook this again first. Never squeezed: a label keeps its words whole.
+  /** A running or paused timer: its actions. A finished one: stopped at once. */
+  const pressTimer = (timer: Timer) => {
+    if (timerState(timer, timersApi.now) === 'finished') {
+      void timersApi.stop(timer.id);
+      return;
+    }
+    setTimerList(false);
+    setTimerActionsId(timer.id);
+  };
+  const dock =
+    cookTimers.length > 0 ? (
+      <View style={styles.timers} testID="cook-timers">
+        <TimerAlertLine alerts={timersApi.alerts} onOpen={timersApi.openAlertSetting} />
+        <TimerDock timers={cookTimers} now={timersApi.now} onPress={pressTimer} onMore={() => setTimerList(true)} />
+      </View>
+    ) : null;
   const footer = readOnly ? (
-    <View style={styles.footRow} testID="cook-foot-row">
+    <View style={styles.reviewedFoot}>
+      {dock}
+      <View style={styles.footRow} testID="cook-foot-row">
       <Button
         label={COOK_THIS_AGAIN}
         icon="refresh"
@@ -518,9 +557,12 @@ export function CookScreen({
         style={styles.footButton}
         testID="edit-review"
       />
+      </View>
     </View>
   ) : (
     <Composer
+      onTimer={() => setTimerSheet(true)}
+      timers={dock}
       onSendNote={sendNote}
       onReading={setReading}
       onCamera={() => setPhotoSheet(true)}
@@ -531,6 +573,89 @@ export function CookScreen({
 
   const ratings = ready ? orderRatings(ready.ratings, ready.household) : [];
   const average = ratingAverage(ratings);
+
+  const timerActions = timerActionsId === null ? null : cookTimers.find((timer) => timer.id === timerActionsId) ?? null;
+  const timerSheets = (
+    <>
+      <NewTimerSheet
+        visible={timerSheet}
+        onClose={() => setTimerSheet(false)}
+        onStart={(name, minutes) => timersApi.start(cook.id, name, minutes)}
+        history={timersApi.history}
+      />
+      <TimerActionsSheet
+        timer={timerActions}
+        now={timersApi.now}
+        onClose={() => setTimerActionsId(null)}
+        onAdd={(timer, minutes) => void timersApi.add(timer.id, minutes)}
+        onPause={(timer) => void timersApi.pause(timer.id)}
+        onResume={(timer) => void timersApi.resume(timer.id)}
+        onStop={(timer) => {
+          setTimerActionsId(null);
+          void timersApi.stop(timer.id);
+        }}
+      />
+      <TimerListSheet
+        visible={timerList}
+        timers={cookTimers}
+        now={timersApi.now}
+        onClose={() => setTimerList(false)}
+        onPress={pressTimer}
+      />
+    </>
+  );
+
+  if (tabletop && posture !== null) {
+    const pressButton = (button: TabletopButton) => {
+      switch (button) {
+        case 'timer':
+          setTimerSheet(true);
+          return;
+        case 'oven':
+        case 'internal':
+          setReading(button);
+          return;
+        case 'photo':
+          setPhotoSheet(true);
+          return;
+        case 'note':
+          setNoteSheet(true);
+          return;
+      }
+    };
+    return (
+      <KeptStateProvider store={kept}>
+        <TabletopCook
+          title={cook.title ?? UNTITLED_COOK}
+          mealType={ready?.mealType?.mealType ?? null}
+          timers={cookTimers}
+          now={timersApi.now}
+          latestReading={readings[readings.length - 1] ?? null}
+          nextTime={nextTimeLines[0] ?? null}
+          foldTop={posture.foldTop}
+          foldBottom={posture.foldBottom}
+          onButton={pressButton}
+          onStop={(timer) => void timersApi.stop(timer.id)}
+          onTimer={pressTimer}
+        />
+        <ReadingSheet
+          opening={reading}
+          onAdd={addTemperature}
+          onClose={() => setReading(null)}
+          pending={eventWrite.state.status === 'pending'}
+          now={now}
+        />
+        <PhotoSourceSheet visible={photoSheet} onPick={(origin) => void addPhoto(origin)} onClose={() => setPhotoSheet(false)} />
+        <NoteSheet
+          visible={noteSheet}
+          onClose={() => setNoteSheet(false)}
+          onSendNote={sendNote}
+          pending={eventWrite.state.status === 'pending'}
+        />
+        {timerSheets}
+      </KeptStateProvider>
+    );
+  }
 
   return (
     <KeptStateProvider store={kept}>
@@ -789,6 +914,8 @@ export function CookScreen({
         <PhotoViewer photo={viewing} onClose={() => setViewing(null)} onRemove={removePhoto} canRemove={!readOnly} />
 
         <VersionsSheet versions={versions} onClose={() => setVersions(null)} />
+
+        {timerSheets}
 
         <CookActions
           cook={actionsOpen ? cook : null}
@@ -1081,6 +1208,12 @@ const useStyles = makeStyles(({ colors }) =>
       flexBasis: 0,
       minWidth: 0,
       alignSelf: 'flex-start',
+    },
+    timers: {
+      gap: space.xs,
+    },
+    reviewedFoot: {
+      gap: space.sm,
     },
     footRow: {
       flexDirection: 'row',

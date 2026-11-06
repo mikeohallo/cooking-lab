@@ -22,7 +22,8 @@
 
 import { Platform, type TextStyle } from 'react-native';
 
-import type { StoredMealType } from '../domain/enums';
+import type { StoredMealType, TimerColour } from '../domain/enums';
+import { TIMER_COLOURS } from '../domain/enums';
 
 export type ThemeName = 'light' | 'dark';
 
@@ -119,6 +120,23 @@ const light = {
   onTestBadge: '#ffffff',
   testSurface: '#fdecea',
   testLine: '#e8a9a3',
+  /**
+   * Kitchen timers (0.5.0): five colour pairs, one per timer colour. The
+   * fill draws the dot, the bar and a finished timer; the track is the
+   * running timer's tint, behind ink. Each name keeps its colour.
+   */
+  timerWarm: '#a8481f',
+  timerWarmTrack: '#fbe9df',
+  timerGreen: '#2b6e45',
+  timerGreenTrack: '#e2f0e6',
+  timerBlue: '#2a568f',
+  timerBlueTrack: '#e5edf8',
+  timerPlum: '#7d3a7a',
+  timerPlumTrack: '#f3e7f2',
+  timerGold: '#7a5c00',
+  timerGoldTrack: '#f5eed6',
+  /** Words and the dot on a finished timer's solid colour. */
+  onTimer: '#ffffff',
 };
 
 export type Palette = { readonly [K in keyof typeof light]: string };
@@ -186,6 +204,17 @@ const dark: Palette = {
   onTestBadge: '#690005',
   testSurface: '#44160f',
   testLine: '#8c3a30',
+  timerWarm: '#f29a70',
+  timerWarmTrack: '#3a2219',
+  timerGreen: '#86d3a2',
+  timerGreenTrack: '#17301f',
+  timerBlue: '#9fc0ee',
+  timerBlueTrack: '#172540',
+  timerPlum: '#e5a7e1',
+  timerPlumTrack: '#33203a',
+  timerGold: '#e3c35e',
+  timerGoldTrack: '#32301a',
+  onTimer: '#0f1719',
 };
 
 export type ColorRole = keyof Palette;
@@ -263,6 +292,15 @@ export const readingRoles = {
 } as const satisfies Record<string, { tint: ColorRole; ink: ColorRole }>;
 
 export type ReadingTreatment = keyof typeof readingRoles;
+
+/** A timer's fill (dot, bar, finished) and track (running tint), by its colour (0.5.0). */
+export const timerRoles = {
+  warm: { fill: 'timerWarm', track: 'timerWarmTrack' },
+  green: { fill: 'timerGreen', track: 'timerGreenTrack' },
+  blue: { fill: 'timerBlue', track: 'timerBlueTrack' },
+  plum: { fill: 'timerPlum', track: 'timerPlumTrack' },
+  gold: { fill: 'timerGold', track: 'timerGoldTrack' },
+} as const satisfies Record<TimerColour, { fill: ColorRole; track: ColorRole }>;
 
 /** The spacing steps. Spacing comes from these and nothing else. */
 export const space = {
@@ -381,7 +419,28 @@ export const size = {
   hairline: 1,
   nextEdge: 1.5,
   ring: 2,
+  /** A running timer's dot, and the bar that empties along its foot (0.5.0). */
+  timerDot: 10,
+  timerBar: 4,
+  /** The same on tabletop mode's big tiles. */
+  timerDotLarge: 14,
+  timerBarLarge: 8,
+  /**
+   * Two timers share a row only when each half is at least this wide and
+   * holds its name and time in full at the current text size. A limit, not
+   * a width.
+   */
+  timerPairMin: 140,
+  /** Tabletop mode's big buttons: never drawn smaller than this either way, and their icons. */
+  tableButtonMin: 88,
+  tableIcon: 32,
 } as const;
+
+/**
+ * The most of the window's height the running timers take above the composer
+ * (0.5.0). Any that do not fit are "+ N more". A share, not a height.
+ */
+export const TIMER_DOCK_SHARE = 1 / 3;
 
 /**
  * The only sizes a style in `src/screens` or `src/components` may give as a
@@ -415,6 +474,8 @@ export const widthTokens = {
     'railDot',
     'badge',
     'avatar',
+    'timerDot',
+    'timerDotLarge',
   ],
 } as const satisfies Record<string, readonly (keyof typeof size)[]>;
 
@@ -458,6 +519,12 @@ export const type = {
   button: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   buttonMain: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
   readingNumber: { fontSize: 20, lineHeight: 24, fontWeight: '700', letterSpacing: -0.5 },
+  /** A timer's time left (0.5.0). */
+  timerNumber: { fontSize: 20, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },
+  /** The same in tabletop mode, read from across the kitchen. */
+  timerLarge: { fontSize: 56, lineHeight: 62, fontWeight: '800', letterSpacing: -1.5 },
+  /** A tabletop button's word. */
+  tableButton: { fontSize: 16, lineHeight: 22, fontWeight: '700' },
 } as const satisfies Record<string, TypeEntry>;
 
 /**
@@ -533,6 +600,14 @@ export const textPairs: readonly ColorPair[] = [
     size: SMALL,
   })),
   ...onEach('onTestBadge', ['testBadge']),
+  // Kitchen timers (0.5.0): a running timer's name, time and Paused on its
+  // tint; a finished one's words on its solid colour; the Timer chip; and
+  // tabletop mode's big buttons.
+  ...TIMER_COLOURS.flatMap((colour) => onEach('ink', [timerRoles[colour].track])),
+  ...TIMER_COLOURS.flatMap((colour) => onEach('inkMuted', [timerRoles[colour].track])),
+  ...TIMER_COLOURS.flatMap((colour) => onEach('onTimer', [timerRoles[colour].fill])),
+  ...onEach('timerBlue', ['timerBlueTrack']),
+  ...onEach('ink', ['noteIcon']),
 ];
 
 /**
@@ -553,4 +628,7 @@ export const controlPairs: readonly ColorPair[] = [
   ...onEach('readingOvenInk', ['readingOven']),
   ...onEach('readingInternalInk', ['readingInternal']),
   ...onEach('ink', ['noteIcon']),
+  // A timer's dot and its bar carry its colour on its tint, and the Timer
+  // chip's icon is drawn in blue on blue's tint (0.5.0).
+  ...TIMER_COLOURS.flatMap((colour) => onEach(timerRoles[colour].fill, [timerRoles[colour].track])),
 ];

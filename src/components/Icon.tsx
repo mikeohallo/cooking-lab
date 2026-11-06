@@ -34,6 +34,7 @@ export type IconName =
   | 'history'
   | 'lightbulb'
   | 'lock'
+  | 'minus'
   | 'more'
   | 'oven'
   | 'page'
@@ -45,6 +46,7 @@ export type IconName =
   | 'search'
   | 'star'
   | 'sun'
+  | 'timer'
   | 'trash';
 
 /** The nearest Material Symbols Rounded icon to each of the app's own. */
@@ -71,6 +73,7 @@ export const MATERIAL_SYMBOL: Readonly<Record<IconName, string>> = {
   history: 'history',
   lightbulb: 'lightbulb',
   lock: 'lock',
+  minus: 'remove',
   more: 'more_horiz',
   oven: 'oven_gen',
   page: 'description',
@@ -82,6 +85,8 @@ export const MATERIAL_SYMBOL: Readonly<Record<IconName, string>> = {
   search: 'search',
   star: 'star',
   sun: 'light_mode',
+  // Kitchen timers (0.5.0): the stopwatch.
+  timer: 'timer',
   trash: 'delete',
 };
 
@@ -191,6 +196,7 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
     { d: 'M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17 14.6c2 .6 3.2 2.4 3.5 4.9' },
   ],
   plus: [{ d: 'M12 5.5v13M5.5 12h13' }],
+  minus: [{ d: 'M5.5 12h13' }],
   probe: [
     { d: 'M10 13.6V5.5a2 2 0 0 1 4 0v8.1a4 4 0 1 1-4 0z' },
     { d: 'M12 9.5v6' },
@@ -206,6 +212,12 @@ const SHAPES: Readonly<Record<IconName, readonly Shape[]>> = {
   sun: [
     { circle: [12, 12, 3.8] },
     { d: 'M12 3v1.8M12 19.2V21M3 12h1.8M19.2 12H21M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M5.6 18.4l1.3-1.3M17.1 6.9l1.3-1.3' },
+  ],
+  timer: [
+    { circle: [12, 13.5, 7.5] },
+    { d: 'M9.5 2.5h5' },
+    { d: 'M12 13.5V9.5' },
+    { d: 'M18.2 7.3l1.3-1.3' },
   ],
   trash: [
     { d: 'M4.5 7h15M9.5 7V4.5h5V7' },

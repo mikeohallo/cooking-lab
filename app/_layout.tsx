@@ -10,6 +10,7 @@ import { FontGate } from '../src/state/FontGate';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { StartupGate } from '../src/state/StartupGate';
 import { StorageProvider } from '../src/state/StorageProvider';
+import { TimersProvider } from '../src/state/Timers';
 import { newDeviceId } from '../src/data/native/expoCrypto';
 import type { StorageStartupResult } from '../src/data/runtime';
 import { describeStartup, initialiseStorage } from '../src/data/startup';
@@ -56,15 +57,18 @@ function AppLayout() {
       <StorageProvider start={initialiseStorage} newId={newDeviceId} onStarted={logStartup}>
         {/* Above every screen, so "Cook deleted · Undo" shows wherever the cook lands. */}
         <PendingDeletionProvider>
-          {/* Your place, through a live font-size or display-size change (0.4.1). */}
-          <KeepPlace />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.page },
-            }}
-            screenLayout={gated}
-          />
+          {/* Kitchen timers (0.5.0): one controller above every screen. */}
+          <TimersProvider>
+            {/* Your place, through a live font-size or display-size change (0.4.1). */}
+            <KeepPlace />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.page },
+              }}
+              screenLayout={gated}
+            />
+          </TimersProvider>
         </PendingDeletionProvider>
       </StorageProvider>
     </SafeAreaProvider>

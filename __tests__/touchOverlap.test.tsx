@@ -23,8 +23,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { CookingLabStorage } from '../src/data/runtime';
 import { PREVIEW_SCREENS, type PreviewScreenName } from '../src/preview/options.web';
 import { PREVIEW_PLANS, PreviewScreenView, PreviewSteps, type PreviewPerformer } from '../src/preview/PreviewScreen.web';
-import { PREVIEW_IDS } from '../src/preview/seed.web';
+import { PREVIEW_IDS, PREVIEW_TIMERS } from '../src/preview/seed.web';
 import { openPreviewStorage } from '../src/preview/storage.web';
+import { setPosture } from '../modules/cook-timers/mocks/CookTimersModule';
 import { PendingDeletionProvider } from '../src/state/PendingDeletion';
 import { ReadyStorageProvider } from '../src/state/StorageProvider';
 import { space } from '../src/theme/tokens';
@@ -263,6 +264,10 @@ async function draw(name: PreviewScreenName, figures: Figures, more: readonly Mo
   }
   opened = result.storage;
   const plan = PREVIEW_PLANS[name];
+  // Tabletop mode (0.5.0): half folded, the fold half way down the window.
+  if (plan.tabletop) {
+    setPosture({ tabletop: true, foldTop: figures.height / 2, foldBottom: figures.height / 2 });
+  }
   let finished: string | null | undefined;
   let markRendered: () => void = () => {};
   rendered = new Promise((resolve) => {
@@ -344,7 +349,27 @@ const FURTHER: readonly (readonly [string, PreviewScreenName, readonly More[]])[
   ['a note’s earlier versions', 'note-options', [{ press: `note-${PREVIEW_IDS.editedNote}-versions`, shows: 'versions-close' }]],
   ['a reviewed cook’s menu', 'reviewed', [{ press: 'cook-more', shows: 'export-cook' }]],
   ['a guest’s name on the review', 'review', [{ press: 'who-ate-it-someone-else', shows: 'who-ate-it-guest-name' }]],
+  // Kitchen timers and tabletop mode (0.5.0).
+  ['a timer’s actions', 'timers', [{ press: `timer-${PREVIEW_TIMERS.meat}`, shows: 'timer-add-1' }]],
+  ['a paused timer’s actions', 'timers', [
+    { press: `timer-${PREVIEW_TIMERS.veg}`, shows: 'timer-pause' },
+    { press: 'timer-pause', shows: 'timer-resume' },
+  ]],
+  ['New timer, with a name typed', 'timer-sheet', [{ press: 'timer-length-45', shows: 'timer-start' }]],
+  ['a timer’s actions from Cooking now', 'home', [{ press: `timer-${PREVIEW_TIMERS.meat}`, shows: 'timer-add-5' }]],
+  ['tabletop mode’s Note', 'tabletop', [{ press: 'tabletop-note', shows: 'note-sheet-send' }]],
+  ['tabletop mode’s New timer', 'tabletop', [{ press: 'tabletop-timer', shows: 'timer-start' }]],
+  ['tabletop mode’s Oven', 'tabletop', [{ press: 'tabletop-oven', shows: 'temperature-save' }]],
 ];
+
+/** A short window: the timers take a third of it, and the rest are "+ N more". */
+const SHORT: Figures = { width: 369, height: 520, scale: 2.625, fontScale: 1 };
+
+describe('the full list of timers', () => {
+  it('"+ N more" and the list it opens: no two overlap', async () => {
+    expect(await draw('timer-done', SHORT, [{ press: 'timer-dock-more', shows: 'timer-list' }])).toEqual([]);
+  });
+});
 
 describe.each([
   ['the cover display', COVER],

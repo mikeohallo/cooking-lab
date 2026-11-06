@@ -31,8 +31,14 @@ export function ComposerBar({ readings, children, style, testID }: ComposerBarPr
   );
 }
 
+/** The composer's chips: the two readings, and Timer (0.5.0) in blue's tint. */
+const CHIP_ROLES = {
+  ...readingRoles,
+  timer: { tint: 'timerBlueTrack', ink: 'timerBlue' },
+} as const;
+
 type ReadingChipProps = {
-  kind: ReadingTreatment;
+  kind: ReadingTreatment | 'timer';
   label: string;
   onPress: () => void;
   accessibilityHint?: string;
@@ -40,10 +46,10 @@ type ReadingChipProps = {
   testID?: string;
 };
 
-/** "Oven °C" or "Internal °C", in the reading's tint, with its icon. */
+/** "Oven °C" or "Internal °C", in the reading's tint, with its icon; or "Timer" (0.5.0). */
 export function ReadingChip({ kind, label, onPress, accessibilityHint, disabled = false, testID }: ReadingChipProps) {
   const styles = useStyles();
-  const roles = readingRoles[kind];
+  const roles = CHIP_ROLES[kind];
   return (
     <Pressable
       accessibilityRole="button"
@@ -56,7 +62,7 @@ export function ReadingChip({ kind, label, onPress, accessibilityHint, disabled 
       hitSlop={CHIP_SLOP}
       style={({ pressed }) => [styles.chip, styles[kind], pressed && styles.pressed, disabled && styles.off]}
     >
-      <Icon name={kind === 'oven' ? 'oven' : 'probe'} color={roles.ink} size={size.iconSmall + 2} />
+      <Icon name={kind === 'oven' ? 'oven' : kind === 'timer' ? 'timer' : 'probe'} color={roles.ink} size={size.iconSmall + 2} />
       <AppText variant="chip" tone={roles.ink}>
         {label}
       </AppText>
@@ -140,6 +146,9 @@ const useStyles = makeStyles(({ name, colors, shadows }) =>
     },
     internal: {
       backgroundColor: colors.readingInternal,
+    },
+    timer: {
+      backgroundColor: colors.timerBlueTrack,
     },
     pressed: {
       opacity: 0.85,
