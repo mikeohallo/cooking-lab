@@ -20,6 +20,7 @@ import type { ExportFile, ExportSink } from '../../src/data/export/sink';
 import { createPrivateFileStore } from '../../src/data/files/privateFileStore';
 import { createPhotoService } from '../../src/data/photos/capture';
 import { createCookDeletionWorkflow } from '../../src/data/deletion/workflow';
+import { cancelTimer } from '../../modules/cook-timers';
 import { createNoteDeletionWorkflow } from '../../src/data/deletion/notes';
 import { LATEST_SCHEMA_VERSION } from '../../src/data/schema/migrations';
 import { countingIds, openTestDatabase, type TestDatabase } from './database';
@@ -174,7 +175,7 @@ export async function openScreenHarness(fileName?: string): Promise<ScreenHarnes
       newId,
       now,
     }),
-    deletions: createCookDeletionWorkflow({ data: db.data, photos, now }),
+    deletions: createCookDeletionWorkflow({ data: db.data, photos, now, cancelTimer }),
     noteDeletions,
     newId,
     now,

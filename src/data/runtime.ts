@@ -44,6 +44,7 @@ import { expoPhotoSource } from './native/expoImagePicker';
 import { expoSecureStorePort } from './native/expoSecureStore';
 import { expoSharingSink } from './native/expoSharing';
 import { expoDatabaseFilePresence, openExpoSqliteConnection } from './native/expoSqlite';
+import { cancelTimer } from '../../modules/cook-timers';
 
 export type CookingLabStorage = {
   readonly data: DataLayer;
@@ -101,7 +102,7 @@ export async function startCookingLabStorage(
   const data = createSqliteDataLayer(database, options.newId);
   const photos = createPrivateFileStore(expoPrivateFileSystemPort, expoDigestPort);
   const now = options.now ?? (() => new Date().toISOString());
-  const deletions = createCookDeletionWorkflow({ data, photos, now });
+  const deletions = createCookDeletionWorkflow({ data, photos, now, cancelTimer });
   const noteDeletions = createNoteDeletionWorkflow({ data });
 
   // A cook whose undo window was cut short by the app closing is deleted now,

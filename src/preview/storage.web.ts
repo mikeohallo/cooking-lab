@@ -24,6 +24,7 @@ import { createSqliteDataLayer } from '../data/sqlite/dataLayer';
 import { runMigrations } from '../data/sqlite/migrationRunner';
 import { previewExportSink, previewFileSystem, previewPhotoEncoder, previewPhotoSource } from './ports.web';
 import { seedPreviewNotebook } from './seed.web';
+import { cancelTimer } from '../../modules/cook-timers';
 
 /** SQLite's own name for a database that lives in memory and nowhere else. */
 export const IN_MEMORY = ':memory:';
@@ -47,7 +48,7 @@ export async function openPreviewStorage(options: PreviewStorageOptions): Promis
   const data = createSqliteDataLayer(database, options.newId);
   const photos = createPrivateFileStore(previewFileSystem(), options.digest);
   const now = () => new Date(options.now()).toISOString();
-  const deletions = createCookDeletionWorkflow({ data, photos, now });
+  const deletions = createCookDeletionWorkflow({ data, photos, now, cancelTimer });
   const noteDeletions = createNoteDeletionWorkflow({ data });
 
   if (options.filled) {

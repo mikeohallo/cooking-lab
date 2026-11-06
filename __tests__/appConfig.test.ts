@@ -78,11 +78,19 @@ describe('app.config.ts', () => {
     expect(config.android?.versionCode).toBe(8);
   });
 
-  it('declares no Android permissions', () => {
+  it('declares only the Android permissions kitchen timers need (0.5.0; none before)', () => {
     delete process.env.APP_VARIANT;
     const config = appConfig(emptyContext);
 
-    expect(config.android?.permissions).toBeUndefined();
+    // The whole merged list is held in `androidPermissions.test.ts`.
+    expect(config.android?.permissions).toEqual([
+      'android.permission.POST_NOTIFICATIONS',
+      'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.VIBRATE',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED',
+    ]);
   });
 
   it.each(['production', 'test'])('gives the %s app its own icon, and the files exist', (variant) => {

@@ -1,0 +1,34 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Cooking Lab's timers (0.5.0). No permissions here: every permission the
+    app holds is declared in app.config.ts, where androidPermissions.test.ts
+    reads it. Nothing is exported: only Android itself and this app reach them.
+  -->
+  <application>
+    <!-- An exact alarm went off: start the ring. -->
+    <receiver android:name="expo.modules.cooktimers.AlarmReceiver" android:exported="false" />
+    <!-- +1 min and Stop on a running timer's notification. -->
+    <receiver android:name="expo.modules.cooktimers.TimerActionReceiver" android:exported="false" />
+    <!--
+      After a restart or an app update (both clear alarms), and when Alarms &
+      reminders is turned on or off: put running timers back, and mark one
+      that ended meanwhile as finished at its own time.
+    -->
+    <receiver android:name="expo.modules.cooktimers.RestartReceiver" android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+      </intent-filter>
+    </receiver>
+    <!--
+      The ring: the alarm sound and vibration until Stop, or five minutes.
+      systemExempted: allowed for an app holding SCHEDULE_EXACT_ALARM that uses
+      it to keep an alarm sounding.
+    -->
+    <service
+      android:name="expo.modules.cooktimers.RingService"
+      android:exported="false"
+      android:foregroundServiceType="systemExempted" />
+  </application>
+</manifest>

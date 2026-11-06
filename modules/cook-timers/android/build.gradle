@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+// Cooking Lab's timers module (0.5.0): exact alarms, their notifications, the
+// ring, and the fold's posture. A local module in ./modules, autolinked.
+group = 'expo.modules.cooktimers'
+version = '0.5.0'
+
+android {
+  namespace "expo.modules.cooktimers"
+  defaultConfig {
+    versionCode 1
+    versionName "0.5.0"
+  }
+}
+
+dependencies {
+  // Jetpack WindowManager: where the fold is and whether the screen is half
+  // opened (tabletop). The one Gradle dependency 0.5.0 adds.
+  implementation "androidx.window:window:1.5.1"
+}

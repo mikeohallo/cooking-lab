@@ -46,3 +46,17 @@ afterEach(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('./src/layout/KeptPlace').resetKeptPlaceForTests();
 });
+
+/**
+ * The timers module (0.5.0) is native: in Jest it is a mock that remembers
+ * what it was asked and lets a test play the phone's part. Each test starts
+ * with nothing running, alerts on and no fold.
+ */
+jest.mock('./modules/cook-timers/src/CookTimersModule', () =>
+  jest.requireActual('./modules/cook-timers/mocks/CookTimersModule'),
+);
+
+beforeEach(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('./modules/cook-timers/mocks/CookTimersModule').resetCookTimersMock();
+});

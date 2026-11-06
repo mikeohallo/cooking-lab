@@ -90,8 +90,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       softwareKeyboardLayoutMode: 'resize',
       predictiveBackGestureEnabled: true,
-      // Cooking Lab asks for one device capability — the camera — and strips
-      // everything else its dependencies declare. A permission on the app's
+      // Cooking Lab asks for the camera, and for what kitchen timers need
+      // (0.5.0, below), and strips everything else its dependencies declare. A permission on the app's
       // listing is a claim about what the app does, and a claim that is not
       // true is the kind of thing this product exists not to make.
       // `__tests__/androidPermissions.test.ts` works out what the merged
@@ -125,10 +125,39 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'android.permission.READ_MEDIA_IMAGES',
         'android.permission.READ_MEDIA_VIDEO',
         'android.permission.SYSTEM_ALERT_WINDOW',
-        'android.permission.VIBRATE',
+        // VIBRATE was blocked here until 0.5.0; it is now asked for on
+        // purpose, below, because a finished timer vibrates as it rings.
         'android.permission.RECORD_AUDIO',
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
+        // Timers use SCHEDULE_EXACT_ALARM, which the person can turn off in
+        // Alarms & reminders. USE_EXACT_ALARM is for alarm-clock and calendar
+        // apps only, and Cooking Lab is neither: it is refused if anything
+        // ever brings it.
+        'android.permission.USE_EXACT_ALARM',
+      ],
+      // Kitchen timers (0.5.0). Each is here because a timer has to ring on
+      // time with the app closed and the phone asleep, and for nothing else.
+      // `__tests__/androidPermissions.test.ts` holds the list to exactly this.
+      permissions: [
+        // To show a running timer's countdown and the "is done" alarm. Asked
+        // for the first time a timer starts, never before.
+        'android.permission.POST_NOTIFICATIONS',
+        // To ring at the timer's end, to the second, with the phone asleep
+        // (setExactAndAllowWhileIdle). The person can turn it off in Alarms &
+        // reminders; the app then says timers can't ring on time.
+        'android.permission.SCHEDULE_EXACT_ALARM',
+        // Restarting the phone clears every alarm: this puts running timers
+        // back, and marks one that ended meanwhile as finished at its time.
+        'android.permission.RECEIVE_BOOT_COMPLETED',
+        // A finished timer vibrates while it rings, as well as sounding.
+        'android.permission.VIBRATE',
+        // The ring keeps sounding for up to five minutes with the app closed,
+        // as a foreground service with its own notification and Stop.
+        'android.permission.FOREGROUND_SERVICE',
+        // That service's type: systemExempted, allowed for an app holding
+        // SCHEDULE_EXACT_ALARM that uses it to keep an alarm sounding.
+        'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED',
       ],
     },
     plugins: [

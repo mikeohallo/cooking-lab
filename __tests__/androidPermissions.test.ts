@@ -43,7 +43,9 @@ const PERMISSION = /android\.permission\.[A-Z_]+/g;
  * Every native module's own `AndroidManifest.xml`.
  *
  * Walks the top level of `node_modules` and one level into each scope, which is
- * where an Expo or React Native module keeps its Android project.
+ * where an Expo or React Native module keeps its Android project, and the
+ * app's own local modules in `./modules` (0.5.0: the timers module), which
+ * are autolinked the same way.
  */
 function moduleManifests(): readonly { readonly module: string; readonly path: string }[] {
   const found: { module: string; path: string }[] = [];
@@ -54,6 +56,13 @@ function moduleManifests(): readonly { readonly module: string; readonly path: s
       found.push({ module, path: manifest });
     }
   };
+
+  const LOCAL_MODULES = join(REPO_ROOT, 'modules');
+  if (existsSync(LOCAL_MODULES)) {
+    for (const entry of readdirSync(LOCAL_MODULES)) {
+      consider(`./modules/${entry}`, join(LOCAL_MODULES, entry));
+    }
+  }
 
   for (const entry of readdirSync(NODE_MODULES)) {
     const directory = join(NODE_MODULES, entry);
@@ -109,12 +118,36 @@ describe('the permissions the APK will carry', () => {
     expect([...declared.keys()]).toContain('android.permission.CAMERA');
   });
 
-  it('is INTERNET and CAMERA, and nothing else', () => {
-    const merged = [...declared.keys()]
-      .filter((permission) => !blocked.includes(permission))
-      .sort();
+  /** What the merged manifest holds: every module's that is not blocked, and the app's own. */
+  const merged = () =>
+    [...new Set([...declared.keys(), ...(requested ?? [])])].filter((permission) => !blocked.includes(permission)).sort();
 
-    expect(merged).toEqual(['android.permission.CAMERA', 'android.permission.INTERNET']);
+  it('is INTERNET and CAMERA, the six kitchen timers need (0.5.0), and nothing else', () => {
+    expect(merged()).toEqual([
+      'android.permission.CAMERA',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED',
+      'android.permission.INTERNET',
+      'android.permission.POST_NOTIFICATIONS',
+      'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.VIBRATE',
+    ]);
+  });
+
+  it('never USE_EXACT_ALARM: that is for alarm-clock and calendar apps (0.5.0)', () => {
+    expect(merged()).not.toContain('android.permission.USE_EXACT_ALARM');
+    expect(blocked).toContain('android.permission.USE_EXACT_ALARM');
+  });
+
+  it('declares no permission in the timers module’s own manifest: they are all in app.config.ts', () => {
+    const local = moduleManifests().filter((entry) => entry.module.startsWith('./modules/'));
+    expect(local.map((entry) => entry.module)).toEqual(['./modules/cook-timers']);
+    for (const entry of local) {
+      expect(readFileSync(entry.path, 'utf8').match(/uses-permission/g)).toBeNull();
+      // The ring's service is declared there, as systemExempted.
+      expect(readFileSync(entry.path, 'utf8')).toContain('android:foregroundServiceType="systemExempted"');
+    }
   });
 
   it('gains nothing from keeping the screen on (0.2.2)', () => {
@@ -136,21 +169,29 @@ describe('the permissions the APK will carry', () => {
     expect(declared.get('android.permission.CAMERA')).toEqual(['expo-image-picker']);
   });
 
-  it('declares no permissions of its own at all', () => {
-    expect(requested).toBeUndefined();
+  it('declares exactly the six kitchen timers need, and no other of its own (0.5.0)', () => {
+    // Until 0.5.0 the app declared none of its own.
+    expect([...(requested ?? [])]).toEqual([
+      'android.permission.POST_NOTIFICATIONS',
+      'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.VIBRATE',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED',
+    ]);
   });
 
-  it('keeps every permission slice 2 blocked', () => {
+  it('keeps every permission slice 2 blocked, but VIBRATE, taken off on purpose for timers (0.5.0)', () => {
     for (const permission of [
       'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE',
       'android.permission.SYSTEM_ALERT_WINDOW',
-      'android.permission.VIBRATE',
       'android.permission.USE_BIOMETRIC',
       'android.permission.USE_FINGERPRINT',
     ]) {
       expect(blocked).toContain(permission);
     }
+    expect(blocked).not.toContain('android.permission.VIBRATE');
   });
 
   it('blocks the three the photo picker brought with it', () => {
@@ -188,7 +229,9 @@ describe('the permissions the APK will carry', () => {
   });
 
   it('asks for nothing to do with location, contacts, the network state or the phone', () => {
-    const merged = [...declared.keys()].filter((permission) => !blocked.includes(permission));
+    // Notifications are asked for from 0.5.0, for timers: POST_NOTIFICATIONS
+    // and nothing else with NOTIFICATION in it (no access to others').
+    const all = merged().filter((permission) => permission !== 'android.permission.POST_NOTIFICATIONS');
 
     for (const forbidden of [
       'LOCATION',
@@ -202,7 +245,7 @@ describe('the permissions the APK will carry', () => {
       'BLUETOOTH',
       'NOTIFICATION',
     ]) {
-      expect(merged.filter((permission) => permission.includes(forbidden))).toEqual([]);
+      expect(all.filter((permission) => permission.includes(forbidden))).toEqual([]);
     }
   });
 });
