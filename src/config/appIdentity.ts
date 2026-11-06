@@ -46,11 +46,16 @@ export function getBuildStamp(): { readonly version: string; readonly commit: st
   return { version, commit };
 }
 
-/** "0.4.0 (abc1234) · 369 × 905": the build, and the window's size in dp, rounded. */
+/**
+ * "0.5.0 (abc1234) · 752 × 835 · text 1.15": the build, the window's size in
+ * dp, rounded, and the text size (Android's font scale) to two places
+ * (0.5.0), so a screenshot says what it was taken at.
+ */
 export function versionLine(
   stamp: { readonly version: string; readonly commit: string },
   width: number,
   height: number,
+  fontScale: number,
 ): string {
-  return `${stamp.version} (${stamp.commit}) · ${Math.round(width)} × ${Math.round(height)}`;
+  return `${stamp.version} (${stamp.commit}) · ${Math.round(width)} × ${Math.round(height)} · text ${fontScale.toFixed(2)}`;
 }

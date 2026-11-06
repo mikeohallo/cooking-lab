@@ -166,6 +166,8 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const styles = useStyles();
   const window = useWindowDimensions();
+  // The text size, for the version line (0.5.0).
+  const { fontScale } = useWindowDimensions();
   const { data, exporter, newId, now } = useStorage();
   // Each open cook's running timers, in its Cooking now card (0.5.0).
   const timersApi = useTimers();
@@ -377,7 +379,7 @@ export function HomeScreen({
             testID="whos-eating"
           />
           <AppText variant="secondary" tone="inkMuted" testID="home-version">
-            {versionLine(getBuildStamp(), window.width, window.height)}
+            {versionLine(getBuildStamp(), window.width, window.height, fontScale)}
           </AppText>
         </Card>
       ) : null}

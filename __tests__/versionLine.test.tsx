@@ -1,7 +1,8 @@
 /**
  * The version line at the foot of Home's ⋯ menu (0.4.0): the version and
  * commit the build carries, and the window's size in dp, rounded, changing
- * when the phone folds, unfolds or turns.
+ * when the phone folds, unfolds or turns; and (0.5.0) the text size, Android's
+ * font scale to two places.
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { readFileSync } from 'fs';
@@ -70,10 +71,16 @@ afterEach(async () => {
 });
 
 describe('the version line', () => {
-  it('reads "<version> (<commit>) · <width> × <height>", rounded', () => {
-    expect(versionLine({ version: '0.4.0', commit: 'abc1234' }, 369.14, 905.6)).toBe(
-      '0.4.0 (abc1234) · 369 × 906',
+  it('reads "<version> (<commit>) · <width> × <height> · text <scale>", rounded, the scale to two places', () => {
+    expect(versionLine({ version: '0.5.0', commit: 'abc1234' }, 752.3, 835.4, 1.15)).toBe(
+      '0.5.0 (abc1234) · 752 × 835 · text 1.15',
     );
+    expect(versionLine({ version: '0.4.0', commit: 'abc1234' }, 369.14, 905.6, 1)).toBe(
+      '0.4.0 (abc1234) · 369 × 906 · text 1.00',
+    );
+    expect(versionLine({ version: '0.4.0', commit: 'abc1234' }, 369, 905, 1.3)).toBe('0.4.0 (abc1234) · 369 × 905 · text 1.30');
+    // With the app's middle dots and times sign.
+    expect(versionLine({ version: '0.4.0', commit: 'abc1234' }, 369, 905, 1)).toMatch(/^\S+ \(\w+\) · \d+ × \d+ · text \d\.\d\d$/);
   });
 
   it('takes the version and commit the build carries, and never guesses', () => {
@@ -93,13 +100,14 @@ describe('the version line', () => {
   it('ends the ⋯ menu, in the secondary style, and follows the window', async () => {
     await harness.render(<HomeScreen onOpenCook={jest.fn()} onHousehold={jest.fn()} />);
     await fireEvent.press(await screen.findByTestId('home-more'));
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905 · text 1.00');
 
     await windowBecomes(INNER);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 707 × 824');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 707 × 824 · text 1.00');
     await windowBecomes(INNER_TURNED);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 824 × 707');
-    await windowBecomes(COVER);
-    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905');
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 824 × 707 · text 1.00');
+    // A live text-size change shows in the line (0.5.0).
+    await windowBecomes({ ...COVER, fontScale: 1.15 });
+    expect(screen.getByTestId('home-version')).toHaveTextContent('0.4.0 (abc1234) · 369 × 905 · text 1.15');
   });
 });
