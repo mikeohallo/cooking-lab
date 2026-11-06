@@ -1,4 +1,7 @@
+import { useRef, type ComponentProps } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+
+import { useKeptScroll } from '../../layout/useKeptScroll';
 
 import { Button } from '../../components/Button';
 import { PaneSheet } from '../../layout/panes';
@@ -58,6 +61,13 @@ type VersionsSheetProps = {
   onClose: () => void;
 };
 
+/** The list of versions, keeping its place through a font-size change (0.5.0). */
+function KeptScrollView(props: ComponentProps<typeof ScrollView>) {
+  const scrollRef = useRef<ScrollView>(null);
+  const kept = useKeptScroll('versions', scrollRef);
+  return <ScrollView {...props} ref={scrollRef} {...kept} testID="versions-scroll" />;
+}
+
 /** Read-only. Nothing here can change or remove a version. */
 export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
   const styles = useStyles();
@@ -79,7 +89,7 @@ export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
             <AppText variant="heading" accessibilityRole="header">
               {EARLIER_VERSIONS}
             </AppText>
-            <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+            <KeptScrollView style={styles.list} contentContainerStyle={styles.listContent}>
               {(versions ?? []).map((version, index) => (
                 <Card key={`${version.at}-${index}`} testID={`version-${index}`}>
                   <AppText variant="body">{version.text}</AppText>
@@ -90,7 +100,7 @@ export function VersionsSheet({ versions, onClose }: VersionsSheetProps) {
                   </AppText>
                 </Card>
               ))}
-            </ScrollView>
+            </KeptScrollView>
             <View style={styles.actions}>
               <Button
                 label={CLOSE_VERSIONS}

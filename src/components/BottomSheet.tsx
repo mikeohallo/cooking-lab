@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { makeStyles } from '../theme/theme';
 import { breakpoint, radius, size, space } from '../theme/tokens';
+import { useKeptScroll } from '../layout/useKeptScroll';
 import { AppText } from './AppText';
 
 type BottomSheetProps = {
@@ -28,6 +29,9 @@ export function BottomSheet({ title, onClose, children, foot, bottomInset = 0, t
   const styles = useStyles();
   const { width, height } = useWindowDimensions();
   const wide = width >= breakpoint.medium;
+  // Its place in a long sheet, kept through a font-size change (0.5.0).
+  const scrollRef = useRef<ScrollView>(null);
+  const kept = useKeptScroll(`sheet:${testID ?? title ?? 'sheet'}`, scrollRef);
   return (
     <View style={[styles.root, wide && styles.rootWide]} testID={testID}>
       <Pressable
@@ -52,7 +56,13 @@ export function BottomSheet({ title, onClose, children, foot, bottomInset = 0, t
             {title}
           </AppText>
         ) : null}
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <ScrollView
+          ref={scrollRef}
+          {...kept}
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          testID={testID ? `${testID}-scroll` : undefined}
+        >
           {children}
         </ScrollView>
         {foot ? <View style={styles.foot}>{foot}</View> : null}

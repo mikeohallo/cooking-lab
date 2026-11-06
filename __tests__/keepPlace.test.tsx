@@ -129,6 +129,30 @@ describe('a simulated activity recreation', () => {
     expect(screen.getByTestId('screen-scroll').props.contentOffset).toEqual({ x: 0, y: 120 });
   });
 
+  it('keeps the cook’s timers, New timer open with its typed name, and every scroll view’s place (0.5.0)', async () => {
+    // A timer started before the change: it lives in the notebook, so it is simply there again.
+    await db.data.timerWorkflow.start(COOK, 'Rest', 15 * 60_000, { id: 'timer-rest' }, 'user', AT);
+    await renderRouter(APP_DIR, { initialUrl: '/' });
+    await fireEvent.press(await screen.findByTestId(`cook-card-${COOK}`, {}, { timeout: 4000 }));
+    await screen.findByTestId('cook-screen', {}, { timeout: 4000 });
+    expect(await screen.findByTestId('timer-timer-rest')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId('timer-toggle'));
+    await fireEvent.changeText(await screen.findByTestId('timer-name-input'), 'Gra');
+    await scroll('timer-sheet-scroll', 90);
+    await scroll('screen-footer-scroll', 30);
+    await scroll('screen-scroll', 150);
+
+    await recreate();
+
+    expect(await screen.findByTestId('cook-screen', {}, { timeout: 4000 })).toBeOnTheScreen();
+    expect(await screen.findByTestId('timer-timer-rest')).toBeOnTheScreen();
+    expect(await screen.findByTestId('timer-name-input')).toHaveDisplayValue('Gra');
+    expect(screen.getByTestId('timer-sheet-scroll').props.contentOffset).toEqual({ x: 0, y: 90 });
+    expect(screen.getByTestId('screen-footer-scroll').props.contentOffset).toEqual({ x: 0, y: 30 });
+    expect(screen.getByTestId('screen-scroll').props.contentOffset).toEqual({ x: 0, y: 150 });
+  });
+
   it('keeps Home’s scroll position', async () => {
     await renderRouter(APP_DIR, { initialUrl: '/' });
     await screen.findByTestId('home-screen', {}, { timeout: 4000 });
