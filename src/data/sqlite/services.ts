@@ -97,6 +97,7 @@ import {
   INGREDIENT_VERSION_COLUMNS,
   LESSON_REVISION_COLUMNS,
   RATING_COLUMNS,
+  TIMER_COLUMNS,
   toBriefing as toBriefingRecord,
   toBriefingSource,
   toCook as toCookRecord,
@@ -114,6 +115,7 @@ import {
   toRating,
   toRevision as toRevisionRecord,
   toTag,
+  toTimer,
 } from './rows';
 
 /** Load a record or say plainly which one is missing. */
@@ -519,6 +521,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         ratings,
         lessonRevisions,
         cookCuisines,
+        timers,
       ] = await Promise.all([
         rowsOf(`SELECT ${cookColumns} FROM cooks WHERE ${KEPT('id')} ORDER BY id ASC`),
         rowsOf(`SELECT ${eventColumns} FROM cook_events WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
@@ -557,6 +560,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         rowsOf(
           `SELECT ${COOK_CUISINE_COLUMNS} FROM cook_cuisines WHERE ${KEPT('cook_id')} ORDER BY cook_id ASC`,
         ),
+        rowsOf(`SELECT ${TIMER_COLUMNS} FROM timers WHERE ${KEPT('cook_id')} ORDER BY id ASC`),
       ]);
 
       return {
@@ -577,6 +581,7 @@ export function createSnapshotService(adapter: DatabaseAdapter): SnapshotService
         ratings: ratings.map(toRating),
         lessonRevisions: lessonRevisions.map(toLessonRevision),
         cookCuisines: cookCuisines.map(toCookCuisine),
+        timers: timers.map(toTimer),
       };
     },
   };

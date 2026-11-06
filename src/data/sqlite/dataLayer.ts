@@ -41,6 +41,7 @@ import {
   createSettingsRepository,
 } from './cookRecord';
 import { createCardPhotoService } from './cardPhotos';
+import { createTimerRepository, createTimerService } from './timers';
 import {
   createBriefingService,
   createCookCaptureService,
@@ -76,6 +77,7 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
   const ratings = createRatingRepository(adapter);
   const lessonRevisions = createLessonRevisionRepository(adapter);
   const settings = createSettingsRepository(adapter);
+  const timers = createTimerRepository(adapter);
 
   return {
     cooks,
@@ -113,5 +115,7 @@ export function createSqliteDataLayer(adapter: DatabaseAdapter, newId: IdSource)
     }),
     householdWorkflow: createHouseholdService(household),
     snapshots: createSnapshotService(adapter),
+    timers,
+    timerWorkflow: createTimerService({ timers, findCook: (id) => cooks.findById(id) }),
   };
 }

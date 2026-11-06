@@ -39,6 +39,7 @@ import type {
   Revision,
   SnapshotEntityKey,
   Tag,
+  Timer,
 } from '../../domain/entities';
 import { SNAPSHOT_ENTITY_KEYS } from '../../domain/entities';
 import type { ValidationIssue } from '../../domain/invariants';
@@ -61,6 +62,7 @@ import {
   validateRating,
   validateRevision,
   validateTag,
+  validateTimer,
 } from '../../domain/invariants';
 import { isSafePhotoLogicalPath } from '../photos/photoPaths';
 import type { BackupEnvelope, BackupPhotoManifestEntry } from './contract';
@@ -68,6 +70,8 @@ import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
   FIRST_CUISINE_FORMAT_VERSION,
+  FIRST_TIMERS_FORMAT_VERSION,
+  FORMAT_6_COLLECTIONS,
   FIRST_REVISIONS_FORMAT_VERSION,
   FIRST_UNTYPED_TAG_FORMAT_VERSION,
   FIRST_UPDATE_2_FORMAT_VERSION,
@@ -166,6 +170,7 @@ const RECORD_VALIDATORS: Readonly<Record<SnapshotEntityKey, RecordValidator>> = 
   ratings: (row) => validateRating(row as unknown as Rating),
   lessonRevisions: (row) => validateLessonRevision(row as unknown as LessonRevision),
   cookCuisines: (row) => validateCookCuisine(row as unknown as CookCuisine),
+  timers: (row) => validateTimer(row as unknown as Timer),
 };
 
 function isUpdate2Collection(key: SnapshotEntityKey): boolean {
@@ -174,6 +179,10 @@ function isUpdate2Collection(key: SnapshotEntityKey): boolean {
 
 function isFormat5Collection(key: SnapshotEntityKey): boolean {
   return (FORMAT_5_COLLECTIONS as readonly string[]).includes(key);
+}
+
+function isFormat6Collection(key: SnapshotEntityKey): boolean {
+  return (FORMAT_6_COLLECTIONS as readonly string[]).includes(key);
 }
 
 /** The natural key of a row, used for duplicate detection and for sorting. */
@@ -310,6 +319,15 @@ export function validateBackup(candidate: unknown): BackupValidation {
       isFormat5Collection(key) &&
       rows === undefined &&
       declaredVersion < FIRST_CUISINE_FORMAT_VERSION
+    ) {
+      collections.set(key, []);
+      continue;
+    }
+    // And the timers before format 6.
+    if (
+      isFormat6Collection(key) &&
+      rows === undefined &&
+      declaredVersion < FIRST_TIMERS_FORMAT_VERSION
     ) {
       collections.set(key, []);
       continue;
@@ -479,6 +497,22 @@ export function validateBackup(candidate: unknown): BackupValidation {
   (collections.get('cookCuisines') ?? []).forEach((row, index) => {
     const cookId = isRecordObject(row) && typeof row.cookId === 'string' ? row.cookId : null;
     checkReference(`entities.cookCuisines[${index}].cookId`, cookId, cookIds, 'cook', issues);
+  });
+  // --- timers, as format 6 carries them -------------------------------------
+  for (const key of FORMAT_6_COLLECTIONS) {
+    if (formatVersion < FIRST_TIMERS_FORMAT_VERSION && (collections.get(key) ?? []).length > 0) {
+      issues.push(
+        problem(
+          `entities.${key}`,
+          'record_needs_a_later_format',
+          `${key} needs backup format ${FIRST_TIMERS_FORMAT_VERSION} or later`,
+        ),
+      );
+    }
+  }
+  (collections.get('timers') ?? []).forEach((row, index) => {
+    const cookId = isRecordObject(row) && typeof row.cookId === 'string' ? row.cookId : null;
+    checkReference(`entities.timers[${index}].cookId`, cookId, cookIds, 'cook', issues);
   });
 
   const memberIds = collectIds(collections.get('householdMembers') ?? []);
@@ -743,6 +777,7 @@ export function canonicaliseBackup(envelope: BackupEnvelope): BackupEnvelope {
     ratings: [...(source.ratings ?? [])].sort(byKey('ratings')),
     lessonRevisions: [...(source.lessonRevisions ?? [])].sort(byKey('lessonRevisions')),
     cookCuisines: [...(source.cookCuisines ?? [])].sort(byKey('cookCuisines')),
+    timers: [...(source.timers ?? [])].sort(byKey('timers')),
   };
 
   return {
@@ -833,7 +868,8 @@ export function deserialiseBackup(text: string): BackupParseResult {
   }
   const envelope = parsed as BackupEnvelope;
   // A file from before format 3 carries no edits, one from before format 4
-  // none of update 2's records, and one from before format 5 no cuisines;
+  // none of update 2's records, one from before format 5 no cuisines, and
+  // one from before format 6 no timers;
   // read each as carrying none, so every reader sees the same shape whatever
   // version the file was.
   const given = envelope.entities as Partial<DatabaseSnapshot>;
@@ -846,6 +882,7 @@ export function deserialiseBackup(text: string): BackupParseResult {
     ratings: given.ratings ?? [],
     lessonRevisions: given.lessonRevisions ?? [],
     cookCuisines: given.cookCuisines ?? [],
+    timers: given.timers ?? [],
   };
   return { ok: true, envelope: { ...envelope, entities } };
 }

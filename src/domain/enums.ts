@@ -223,6 +223,14 @@ export const SCHEMA_META_KEYS = ['schema_version', 'schema_applied_at'] as const
 export type SchemaMetaKey = (typeof SCHEMA_META_KEYS)[number];
 
 /** Membership test used to build every guard below. */
+/**
+ * A timer's colour (schema version 6, 0.5.0). Meat, Veg and Rest have their
+ * own; any other name takes plum, then gold, then round again, and a name
+ * keeps the colour it was first given.
+ */
+export const TIMER_COLOURS = ['warm', 'green', 'blue', 'plum', 'gold'] as const;
+export type TimerColour = (typeof TIMER_COLOURS)[number];
+
 export function isOneOf<T extends string>(
   values: readonly T[],
   candidate: unknown,
@@ -257,3 +265,4 @@ export const isStars = (v: unknown): v is Stars =>
   typeof v === 'number' && (STAR_VALUES as readonly number[]).includes(v);
 export const isImportBatchStatus = (v: unknown): v is ImportBatchStatus =>
   isOneOf(IMPORT_BATCH_STATUSES, v);
+export const isTimerColour = (v: unknown): v is TimerColour => isOneOf(TIMER_COLOURS, v);

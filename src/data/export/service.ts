@@ -157,6 +157,7 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           ratings,
           household,
           lessonRevisions,
+          timers,
         ] = await Promise.all([
           data.cookEvents.listForCook({ cookId, sort: 'oldest_first' }),
           data.lessons.list({ cookId, status: 'approved', sort: 'oldest_first' }),
@@ -168,6 +169,7 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           data.ratings.listForCook(cookId),
           data.household.list(),
           data.lessonRevisions.listForCook(cookId),
+          data.timers.listForCook(cookId),
         ]);
         const { events, revisions } = withoutHeldNotes(allEvents, allRevisions, heldNotes());
         const at = now();
@@ -184,6 +186,7 @@ export function createExportService(deps: ExportServiceDependencies): ExportServ
           ratings,
           household,
           lessonRevisions,
+          timers,
           variant,
           exportedAt: at,
         });

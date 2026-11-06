@@ -14,6 +14,11 @@
  *      failure in between leaves at most a file nothing refers to, never a
  *      timeline entry pointing at nothing.
  *
+ * A cook's timers (0.5.0) are cancelled in step 3, before its rows go: no
+ * alarm, notification or entry in the timers module is left for a cook that
+ * is gone. During the window they keep running, so Undo finds them as they
+ * were.
+ *
  * If the app closes during the window, step 3 runs at the next start
  * (`finishPending`), which also deletes any photo file whose cook is no longer
  * there — the files a step 3 that was interrupted after its transaction would
@@ -47,10 +52,15 @@ export type CookDeletionWorkflow = {
   finishPending(): Promise<number>;
 };
 
+/** The timers module's part in a deletion: cancel one timer's alarm, notification and entry. */
+export type TimerCanceller = (timerId: string) => void;
+
 export type CookDeletionDependencies = {
   readonly data: DataLayer;
   readonly photos: PrivateFileStore;
   readonly now: () => IsoTimestamp;
+  /** Cancels a timer in the timers module (0.5.0). Nothing when not given. */
+  readonly cancelTimer?: TimerCanceller;
 };
 
 function describe(cause: unknown): string {
@@ -59,6 +69,7 @@ function describe(cause: unknown): string {
 
 export function createCookDeletionWorkflow(deps: CookDeletionDependencies): CookDeletionWorkflow {
   const { data, photos, now } = deps;
+  const cancelTimer: TimerCanceller = deps.cancelTimer ?? (() => {});
 
   /** Delete a file and never let a failure stop the rest. */
   async function deleteQuietly(path: string): Promise<void> {
@@ -71,6 +82,16 @@ export function createCookDeletionWorkflow(deps: CookDeletionDependencies): Cook
   }
 
   async function finish(cookId: CookId): Promise<void> {
+    // Its timers first: once the rows are gone nothing would know to cancel them.
+    for (const timer of await data.timers.listForCook(cookId)) {
+      if (timer.stoppedAt === null) {
+        try {
+          cancelTimer(timer.id);
+        } catch {
+          // A timer the module no longer holds needs no cancelling.
+        }
+      }
+    }
     const { photoPaths } = await data.cookDeletions.purge(cookId);
     for (const path of photoPaths) {
       await deleteQuietly(path);

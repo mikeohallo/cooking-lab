@@ -167,7 +167,9 @@ export type EvidenceDenialCode =
   /** Rule 13: only a next-time line the cook approved can be edited by them. */
   | 'only_an_approved_lesson_may_be_reworded'
   /** The household: a name that is blank, too long or already on the list. */
-  | 'name_not_valid';
+  | 'name_not_valid'
+  /** Timers (0.5.0): a start, pause, resume, added time or stop this timer cannot take. */
+  | 'timer_not_valid';
 
 export type EvidenceDenial = {
   readonly allowed: false;

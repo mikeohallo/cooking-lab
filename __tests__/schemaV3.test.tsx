@@ -46,6 +46,8 @@ const V4_TABLES: readonly string[] = [
   'app_settings',
   // Version 5's, which `schemaV5.test.ts` covers.
   'cook_cuisines',
+  // Version 6's (0.5.0).
+  'timers',
 ];
 const V3_TABLES = SCHEMA_TABLES.filter((table) => !V4_TABLES.includes(table));
 const V3 = MIGRATIONS.find((entry) => entry.version === 3);
@@ -160,8 +162,8 @@ describe('version 2 to version 3, with a notebook in it', () => {
     expect(result.applied).toEqual([3]);
     expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(3);
     // And a real start carries straight on to the latest.
-    expect((await runMigrations(opened.adapter)).applied).toEqual([4, 5]);
-    expect(LATEST_SCHEMA_VERSION).toBe(5);
+    expect((await runMigrations(opened.adapter)).applied).toEqual([4, 5, 6]);
+    expect(LATEST_SCHEMA_VERSION).toBe(6);
   });
 
   it('keeps the same row counts and the same content, byte for byte', async () => {

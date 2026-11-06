@@ -300,7 +300,7 @@ describe('export', () => {
     expect(await db.data.snapshots.readSnapshot()).toEqual(whileHeld);
     expect((await exporter.exportEverything()).ok).toBe(true);
     expect(sink.shared[0]?.text).not.toContain('note-gone');
-    expect(sink.shared[0]?.text).toContain('"formatVersion": 5');
+    expect(sink.shared[0]?.text).toContain('"formatVersion": 6');
   });
 
   it('puts the note back in both exports after Undo', async () => {

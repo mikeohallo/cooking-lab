@@ -43,6 +43,8 @@ const LATER_TABLES: readonly string[] = [
   'cook_deletions',
   'cook_meal_types', 'ingredient_versions', 'household_members', 'ratings', 'lesson_revisions', 'app_settings',
   'cook_cuisines',
+  // Version 6's (0.5.0), covered in `migrations.test.ts` and `timersData.test.ts`.
+  'timers',
 ];
 const V2_TABLES: readonly string[] = SCHEMA_TABLES.filter((table) => !LATER_TABLES.includes(table));
 
@@ -177,7 +179,7 @@ describe('version 1 to version 2, with a notebook in it', () => {
     // (5 also rebuilds the meal types, which a version 1 notebook has none
     // of) and touch none of these rows, which is what the rest of this test
     // checks.
-    expect(result.applied).toEqual([2, 3, 4, 5]);
+    expect(result.applied).toEqual([2, 3, 4, 5, 6]);
     expect(result.versionAfter).toBe(LATEST_SCHEMA_VERSION);
 
     expect(await census(opened.adapter)).toEqual(before);

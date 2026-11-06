@@ -126,13 +126,13 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 5 now, and it still reads 1 and 2', () => {
+  it('is 6 now, and it still reads 1 and 2', () => {
     // 0.2.2 moved the format on to 3 (edits), 0.3.0 to 4 (update 2) and then
     // 5 (Side and cuisine); this file still pins that 1 and 2 are read.
     // `backupV3.test.ts`, `backupV4.test.ts` and `backupV5.test.ts` cover what
     // 3, 4 and 5 add.
-    expect(BACKUP_FORMAT_VERSION).toBe(5);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5]);
+    expect(BACKUP_FORMAT_VERSION).toBe(6);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('stamps the format, the envelope version and the schema version', async () => {
@@ -140,9 +140,9 @@ describe('the version this build writes', () => {
     const envelope = await assemble();
 
     expect(envelope.format).toBe(BACKUP_FORMAT);
-    expect(envelope.formatVersion).toBe(5);
+    expect(envelope.formatVersion).toBe(6);
     expect(envelope.schemaVersion).toBe(LATEST_SCHEMA_VERSION);
-    expect(envelope.schemaVersion).toBe(5);
+    expect(envelope.schemaVersion).toBe(6);
   });
 });
 
@@ -263,6 +263,7 @@ describe('reading a version 1 backup', () => {
       ratings: _ratings,
       lessonRevisions: _lessonEdits,
       cookCuisines: _cuisines,
+      timers: _timers,
       ...withoutEdits
     } = envelope.entities;
     return {

@@ -21,8 +21,8 @@
  * history. Its text is frozen from here on; version 2 below is a new entry, as
  * the rule requires, and the first one. Version 2 has run on a device too
  * (0.2.0 and 0.2.1), so it is frozen as well, and version 3 (0.2.2) is the
- * next new entry. Versions 3 and 4 are frozen in their turn; version 5 is the
- * newest entry.
+ * next new entry. Versions 3 and 4 are frozen in their turn, and version 5
+ * after them (0.4.0 and 0.4.1 ran on a device); version 6 is the newest entry.
  *
  * WHAT THE SCHEMA DOES NOT CONTAIN
  * --------------------------------
@@ -565,6 +565,52 @@ INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
 
+// ---------------------------------------------------------------------------
+// Version 6 — kitchen timers (0.5.0)
+// ---------------------------------------------------------------------------
+//
+// One new table, `timers`, and no change to any existing one. A timer
+// belongs to a cook and cascades from it, so deleting a cook for good takes
+// its timers (the app cancels their alarms first), and Undo, which touches
+// nothing, keeps them.
+//
+// A timer is kept as when it ends, never as a ticking count: `ends_at` is the
+// end; `paused_left_ms` holds what was left while it is paused; `ran_out_at`
+// is when it ran out and `stopped_at` when the cook stopped it. The name is
+// stored trimmed, 1 to 40 characters, with the colour it was given. Only the
+// five colours. Times are ISO-8601 UTC text, as everywhere else.
+//
+// If any statement fails, all of it rolls back and the notebook stays at
+// version 5 with every row as it was.
+
+const V6_CREATE_TIMERS = `
+CREATE TABLE timers (
+  id             TEXT PRIMARY KEY NOT NULL,
+  cook_id        TEXT NOT NULL
+                 REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  name           TEXT NOT NULL CHECK (name = trim(name) AND length(name) BETWEEN 1 AND 40),
+  colour         TEXT NOT NULL CHECK (colour IN ('warm','green','blue','plum','gold')),
+  length_ms      INTEGER NOT NULL CHECK (length_ms BETWEEN 1 AND 43200000),
+  started_at     TEXT NOT NULL,
+  ends_at        TEXT NOT NULL,
+  paused_left_ms INTEGER CHECK (paused_left_ms IS NULL OR paused_left_ms >= 0),
+  ran_out_at    TEXT,
+  stopped_at     TEXT,
+  CHECK (paused_left_ms IS NULL OR ran_out_at IS NULL)
+)`.trim();
+
+const V6_INDEX_TIMERS_COOK = 'CREATE INDEX ix_timers_cook ON timers (cook_id, started_at)';
+
+const V6_STAMP_SCHEMA_VERSION = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_VERSION_KEY}', '6')
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
+const V6_STAMP_APPLIED_AT = `
+INSERT INTO schema_meta (key, value)
+VALUES ('${SCHEMA_APPLIED_AT_KEY}', strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
+
 const V2_STAMP_SCHEMA_VERSION = `
 INSERT INTO schema_meta (key, value)
 VALUES ('${SCHEMA_VERSION_KEY}', '2')
@@ -612,6 +658,8 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value`.trim();
  *
  * Version 5 rebuilds `cook_meal_types` so a cook can be a side, keeping every
  * row, and adds `cook_cuisines`.
+ *
+ * Version 6 adds `timers` (0.5.0). It changes no existing table.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -702,6 +750,11 @@ export const MIGRATIONS: readonly Migration[] = [
       V5_STAMP_APPLIED_AT,
     ],
   },
+  {
+    version: 6,
+    name: 'timers',
+    statements: [V6_CREATE_TIMERS, V6_INDEX_TIMERS_COOK, V6_STAMP_SCHEMA_VERSION, V6_STAMP_APPLIED_AT],
+  },
 ];
 
 /** The version a fully migrated database reports. */
@@ -732,6 +785,7 @@ export const SCHEMA_TABLES: readonly string[] = [
   'lesson_revisions',
   'app_settings',
   'cook_cuisines',
+  'timers',
 ];
 
 export type MigrationDefect = {

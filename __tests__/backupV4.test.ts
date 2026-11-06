@@ -77,10 +77,10 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 5 now (Side and cuisine), update 2 arrived with 4, and it reads 1 to 5', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(5);
+  it('is 6 now (timers), update 2 arrived with 4, and it reads 1 to 6', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(6);
     expect(FIRST_UPDATE_2_FORMAT_VERSION).toBe(4);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5]);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });
 
@@ -102,8 +102,8 @@ describe('a round trip with update 2 in it', () => {
     if (!parsed.ok) {
       return;
     }
-    expect(parsed.envelope.formatVersion).toBe(5);
-    expect(parsed.envelope.schemaVersion).toBe(5);
+    expect(parsed.envelope.formatVersion).toBe(6);
+    expect(parsed.envelope.schemaVersion).toBe(6);
     expect(parsed.envelope.entities).toEqual(snapshot);
     // N/A comes back as N/A, not as a number; the retired person is still there.
     expect(parsed.envelope.entities.ratings.find((r) => r.id === 'r-member2')).toMatchObject({ stars: null, notEaten: true });
@@ -126,6 +126,8 @@ function olderFile(version: number): Record<string, unknown> {
   }
   // Format 5's collection too: `backupV5.test.ts` covers it.
   delete entities.cookCuisines;
+  // And format 6's timers (0.5.0): `timersData.test.ts` covers them.
+  delete entities.timers;
   if (version < 3) {
     delete entities.revisions;
   }

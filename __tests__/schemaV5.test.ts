@@ -38,7 +38,8 @@ import { createNodeSqliteHarness, type NodeSqliteHarness } from './support/nodeS
 const UP_TO_V4: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 4);
 const V5 = MIGRATIONS.find((entry) => entry.version === 5);
 const V5_TABLES: readonly string[] = ['cook_cuisines'];
-const V4_TABLES = SCHEMA_TABLES.filter((table) => !V5_TABLES.includes(table));
+// Version 6's timers (0.5.0) are not in a version 4 notebook either.
+const V4_TABLES = SCHEMA_TABLES.filter((table) => !V5_TABLES.includes(table) && table !== 'timers');
 const AT = '2026-11-02T18:00:00.000Z';
 const LATER = '2026-11-02T19:00:00.000Z';
 const FILE = 'v4-to-v5.db';
@@ -205,9 +206,9 @@ describe('version 4 to version 5, with a notebook in it', () => {
   it('applies version 5 only, and lands at the latest version', async () => {
     const result = await runMigrations(opened.adapter);
 
-    expect(result.applied).toEqual([5]);
-    expect(LATEST_SCHEMA_VERSION).toBe(5);
-    expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(5);
+    expect(result.applied).toEqual([5, 6]);
+    expect(LATEST_SCHEMA_VERSION).toBe(6);
+    expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(6);
   });
 
   it('keeps the same row counts and the same content, row for row and rowid for rowid', async () => {
@@ -348,7 +349,7 @@ describe('version 4 to version 5, with a notebook in it', () => {
     expect(await opened.adapter.select({ sql: 'PRAGMA foreign_key_check' })).toEqual([]);
 
     // And the real version 5 still runs afterwards, on the same notebook.
-    expect((await runMigrations(opened.adapter)).applied).toEqual([5]);
+    expect((await runMigrations(opened.adapter)).applied).toEqual([5, 6]);
     expect(await everything(opened.adapter)).toEqual(rowsBefore);
   });
 });

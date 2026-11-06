@@ -42,6 +42,7 @@ import {
   ratingAnswerText,
 } from '../../domain/cookRecord';
 import type {
+  Timer,
   Cook,
   CookCuisine,
   CookEvent,
@@ -59,6 +60,7 @@ import { photoPlacedWhenAdded } from '../../domain/photoTime';
 import type { AppVariant } from '../../config/variants';
 import { celsiusFromEvent, readingKindFromEvent } from '../../domain/invariants';
 import { formatDateTimeWithYear, formatTime } from '../../format/dateTime';
+import { exportedTimer } from '../../timers/model';
 
 export type CookTextInput = {
   readonly cook: Cook;
@@ -82,6 +84,8 @@ export type CookTextInput = {
   readonly household?: readonly HouseholdMember[];
   /** Edits of the next-time lines (0.3.0). */
   readonly lessonRevisions?: readonly LessonRevision[];
+  /** Its kitchen timers, oldest first, stopped ones too (0.5.0). */
+  readonly timers?: readonly Timer[];
   readonly variant: AppVariant;
   /** When the file was made. */
   readonly exportedAt: string;
@@ -290,6 +294,14 @@ export function renderCookAsText(input: CookTextInput): string {
           : `Photo, ${formatTime(photo.ts)}`,
       );
     }
+    lines.push('');
+  }
+
+  // Timers (0.5.0): one line, each with its length and when it ended.
+  const timers = input.timers ?? [];
+  if (timers.length > 0) {
+    const at = Date.parse(exportedAt);
+    lines.push(`Timers: ${timers.map((timer) => exportedTimer(timer, formatTime, at)).join(', ')}`);
     lines.push('');
   }
 

@@ -18,6 +18,7 @@
  */
 
 import type {
+  Timer,
   Briefing,
   BriefingSource,
   Cook,
@@ -49,6 +50,7 @@ import {
   isCookStatus,
   isCreatedBy,
   isCuisine,
+  isTimerColour,
   isFindingClass,
   isImportBatchStatus,
   isProposalStatus,
@@ -82,6 +84,10 @@ export const MAX_FILENAME_LENGTH = 255;
 export const MAX_PERSON_NAME_LENGTH = 40;
 /** Longest words an `other` cuisine may carry, once trimmed (schema version 5). */
 export const MAX_CUISINE_WORDS_LENGTH = 40;
+/** Longest name a timer may have, once trimmed (schema version 6, 0.5.0). */
+export const MAX_TIMER_NAME_LENGTH = 40;
+/** The longest a timer may be set for: twelve hours (0.5.0). */
+export const MAX_TIMER_LENGTH_MS = 12 * 60 * 60 * 1000;
 /** Longest "add a line" under a rating: a short line, not a review (0.3.0). */
 export const MAX_RATING_LINE_LENGTH = 200;
 
@@ -739,5 +745,42 @@ export function validateCookCuisine(row: CookCuisine): readonly ValidationIssue[
     issues.push(issue('otherWords', 'inconsistent_state', 'only an other cuisine carries words'));
   }
   checkTimestamp('setAt', row.setAt, issues);
+  return issues;
+}
+
+/**
+ * A timer (schema version 6, 0.5.0): its name trimmed and 1 to 40
+ * characters, one of the five colours, a whole number of milliseconds from 1
+ * up to twelve hours, and times in order. A paused timer carries what was
+ * left; a stopped or finished one carries when.
+ */
+export function validateTimer(row: Timer): readonly ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  checkId('id', row.id, issues);
+  checkId('cookId', row.cookId, issues);
+  const name: unknown = row.name;
+  if (typeof name !== 'string' || name.trim() === '') {
+    issues.push(issue('name', 'required', 'a timer has a name'));
+  } else if (name !== name.trim()) {
+    issues.push(issue('name', 'inconsistent_state', 'the name is stored trimmed'));
+  } else if (name.length > MAX_TIMER_NAME_LENGTH) {
+    issues.push(issue('name', 'too_long', `keep the name under ${MAX_TIMER_NAME_LENGTH} characters`));
+  }
+  checkEnum('colour', row.colour, isTimerColour, issues);
+  const length: unknown = row.lengthMs;
+  if (!Number.isInteger(length) || (length as number) < 1 || (length as number) > MAX_TIMER_LENGTH_MS) {
+    issues.push(issue('lengthMs', 'invalid_number', 'lengthMs must be a whole number from 1 to twelve hours'));
+  }
+  checkTimestamp('startedAt', row.startedAt, issues);
+  checkTimestamp('endsAt', row.endsAt, issues);
+  checkOrder('startedAt', row.startedAt, 'endsAt', row.endsAt, issues);
+  checkOptionalCount('pausedLeftMs', row.pausedLeftMs, issues);
+  checkOptionalTimestamp('ranOutAt', row.ranOutAt, issues);
+  checkOptionalTimestamp('stoppedAt', row.stoppedAt, issues);
+  checkOrder('startedAt', row.startedAt, 'ranOutAt', row.ranOutAt, issues);
+  checkOrder('startedAt', row.startedAt, 'stoppedAt', row.stoppedAt, issues);
+  if (row.pausedLeftMs !== null && row.ranOutAt !== null) {
+    issues.push(issue('pausedLeftMs', 'inconsistent_state', 'a finished timer is not paused'));
+  }
   return issues;
 }

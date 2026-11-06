@@ -36,6 +36,7 @@ import type {
   Stars,
   StoredMealType,
   TagKind,
+  TimerColour,
 } from './enums';
 
 /**
@@ -54,6 +55,7 @@ export type BriefingId = EntityId;
 export type ImportBatchId = EntityId;
 export type RevisionId = EntityId;
 export type IngredientVersionId = EntityId;
+export type TimerId = EntityId;
 export type HouseholdMemberId = EntityId;
 export type RatingId = EntityId;
 export type LessonRevisionId = EntityId;
@@ -168,6 +170,32 @@ export type CookCuisine = {
   /** The cook's own words for an `other` cuisine; `null` for every named one. */
   readonly otherWords: string | null;
   readonly setAt: IsoTimestamp;
+};
+
+/**
+ * A kitchen timer on a cook (schema version 6, 0.5.0).
+ *
+ * Kept as when it ends, never as a ticking count, so it is right after the
+ * app is closed, the phone sleeps or the screen is recreated. Running: now is
+ * before `endsAt`. Paused: `pausedLeftMs` holds what was left, and `endsAt`
+ * is put back from it on Resume. Finished: `ranOutAt` is when it ran out.
+ * Stopped: `stoppedAt` is when the cook stopped it, early or once it had
+ * rung; a stopped timer is history and is no longer shown.
+ */
+export type Timer = {
+  readonly id: TimerId;
+  readonly cookId: CookId;
+  /** Trimmed, 1 to 40 characters: Meat, Veg, Rest or the cook's own word. */
+  readonly name: string;
+  readonly colour: TimerColour;
+  /** How long it was set for, with any minutes added since. */
+  readonly lengthMs: number;
+  readonly startedAt: IsoTimestamp;
+  readonly endsAt: IsoTimestamp;
+  /** What was left when it was paused; null unless paused. */
+  readonly pausedLeftMs: number | null;
+  readonly ranOutAt: IsoTimestamp | null;
+  readonly stoppedAt: IsoTimestamp | null;
 };
 
 /**
@@ -381,6 +409,8 @@ export type DatabaseSnapshot = {
   readonly lessonRevisions: readonly LessonRevision[];
   /** Backup format 5 and later. */
   readonly cookCuisines: readonly CookCuisine[];
+  /** Backup format 6 and later (0.5.0). */
+  readonly timers: readonly Timer[];
 };
 
 /** The keys of `DatabaseSnapshot`, in a fixed order, for deterministic output. */
@@ -402,6 +432,7 @@ export const SNAPSHOT_ENTITY_KEYS = [
   'ratings',
   'lessonRevisions',
   'cookCuisines',
+  'timers',
 ] as const;
 export type SnapshotEntityKey = (typeof SNAPSHOT_ENTITY_KEYS)[number];
 
@@ -425,5 +456,6 @@ export function emptySnapshot(): DatabaseSnapshot {
     ratings: [],
     lessonRevisions: [],
     cookCuisines: [],
+    timers: [],
   };
 }

@@ -88,6 +88,10 @@ function withEntities(
   const entities = Object.fromEntries(
     Object.entries(envelope.entities).map(([key, rows]) => [key, [...(rows as unknown[])]]),
   ) as Record<string, unknown[]>;
+  // Format 6's timers (0.5.0) are not in a file from before it.
+  if (formatVersion < 6) {
+    delete entities.timers;
+  }
   change(entities);
   return { ...envelope, formatVersion, entities };
 }
@@ -104,11 +108,11 @@ function codes(candidate: unknown): readonly string[] {
 }
 
 describe('the version this build writes', () => {
-  it('is 5, carrying cuisines from 5, and it reads 1 to 5', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(5);
+  it('is 6 now, carrying cuisines from 5, and it reads 1 to 6', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(6);
     expect(FIRST_CUISINE_FORMAT_VERSION).toBe(5);
     expect([...FORMAT_5_COLLECTIONS]).toEqual(['cookCuisines']);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5]);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });
 
@@ -135,8 +139,8 @@ describe('a round trip with Side and cuisines in it', () => {
     if (!parsed.ok) {
       return;
     }
-    expect(parsed.envelope.formatVersion).toBe(5);
-    expect(parsed.envelope.schemaVersion).toBe(5);
+    expect(parsed.envelope.formatVersion).toBe(6);
+    expect(parsed.envelope.schemaVersion).toBe(6);
     expect(parsed.envelope.entities).toEqual(snapshot);
     expect(serialiseBackup(parsed.envelope)).toBe(text);
   });

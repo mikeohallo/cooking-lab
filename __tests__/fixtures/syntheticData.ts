@@ -43,6 +43,7 @@ import type {
   ImportBatch,
   Lesson,
   Tag,
+  Timer,
 } from '../../src/domain/entities';
 import type { BackupEnvelope, BackupPhotoManifestEntry } from '../../src/data/backup/contract';
 import { buildBackupEnvelope } from '../../src/data/backup/validation';
@@ -463,6 +464,34 @@ const SYNTHETIC_COOK_CUISINES: readonly CookCuisine[] = [
   { cookId: COOK_BAKE, cuisine: 'other', otherWords: 'Home baking', setAt: '2026-08-14T19:46:00.000Z' },
 ];
 
+/** Backup format 6 (0.5.0): one timer that rang, and one stopped early. */
+const SYNTHETIC_TIMERS: readonly Timer[] = [
+  {
+    id: 'synthetic-timer-rest',
+    cookId: COOK_BAKE,
+    name: 'Rest',
+    colour: 'blue',
+    lengthMs: 15 * 60_000,
+    startedAt: '2026-08-14T19:20:00.000Z',
+    endsAt: '2026-08-14T19:35:00.000Z',
+    pausedLeftMs: null,
+    ranOutAt: '2026-08-14T19:35:00.000Z',
+    stoppedAt: '2026-08-14T19:36:00.000Z',
+  },
+  {
+    id: 'synthetic-timer-proof',
+    cookId: COOK_BAKE,
+    name: 'Proof',
+    colour: 'plum',
+    lengthMs: 60 * 60_000,
+    startedAt: '2026-08-14T17:00:00.000Z',
+    endsAt: '2026-08-14T18:00:00.000Z',
+    pausedLeftMs: null,
+    ranOutAt: null,
+    stoppedAt: '2026-08-14T17:50:00.000Z',
+  },
+];
+
 const SYNTHETIC_INGREDIENT_VERSIONS: readonly IngredientVersion[] = [
   {
     id: 'synthetic-ingredients-1',
@@ -563,6 +592,7 @@ export function syntheticSnapshot(): DatabaseSnapshot {
     ratings: SYNTHETIC_RATINGS,
     lessonRevisions: SYNTHETIC_LESSON_REVISIONS,
     cookCuisines: SYNTHETIC_COOK_CUISINES,
+    timers: SYNTHETIC_TIMERS,
   };
 }
 

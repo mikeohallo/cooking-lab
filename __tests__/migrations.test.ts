@@ -14,6 +14,7 @@ import {
   REVISED_FIELDS,
   STORED_MEAL_TYPES,
   TAG_KINDS,
+  TIMER_COLOURS,
 } from '../src/domain/enums';
 import type { Migration } from '../src/data/schema/migrations';
 import {
@@ -48,6 +49,9 @@ const V4_STATEMENTS = statementsOf(4);
 /** The table version 5 adds; it also rebuilds `cook_meal_types`, which is version 4's. */
 const V5_TABLES: readonly string[] = ['cook_cuisines'];
 const V5_STATEMENTS = statementsOf(5);
+/** The table version 6 adds (0.5.0). */
+const V6_TABLES: readonly string[] = ['timers'];
+const V6_STATEMENTS = statementsOf(6);
 
 /**
  * A `CREATE TABLE` for a table, out of one migration's statements.
@@ -127,6 +131,13 @@ const FROZEN_V3_STATEMENT_COUNT = 6;
 const FROZEN_V4_DIGEST = '4b0b20598e06c46d4b6f08cabf05f28249c3f9d7dc308d4b0bbd8c6acb4b17da';
 const FROZEN_V4_STATEMENT_COUNT = 14;
 
+/**
+ * Version 5 as 0.4.0 shipped it and 0.4.1 ran it: frozen from 0.5.0, when
+ * version 6 follows it.
+ */
+const FROZEN_V5_DIGEST = 'b6075080aef8dbef6361aba70c72f81f1a0a59a986664f0772f4e3ec6bb12a1c';
+const FROZEN_V5_STATEMENT_COUNT = 8;
+
 const migration = (version: number, statements: readonly string[] = ['CREATE TABLE t (a TEXT)']): Migration => ({
   version,
   name: `m${version}`,
@@ -145,15 +156,23 @@ describe('migration list', () => {
     expect(LATEST_SCHEMA_VERSION).toBe(MIGRATIONS.length);
   });
 
-  it('is the five versions this build knows, in order and named', () => {
+  it('is the six versions this build knows, in order and named', () => {
     expect(MIGRATIONS.map((migration) => [migration.version, migration.name])).toEqual([
       [1, 'local_foundation'],
       [2, 'tags_without_a_kind'],
       [3, 'revisions_and_cook_deletions'],
       [4, 'meal_type_ingredients_household_ratings'],
       [5, 'side_and_cuisine'],
+      [6, 'timers'],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(5);
+    expect(LATEST_SCHEMA_VERSION).toBe(6);
+  });
+
+  it('has not edited version 5, which version 6 now follows (0.4.0 and 0.4.1 ran it on a device)', () => {
+    const digest = createHash('sha256').update(V5_STATEMENTS.join('\n')).digest('hex');
+
+    expect(digest).toBe(FROZEN_V5_DIGEST);
+    expect(V5_STATEMENTS).toHaveLength(FROZEN_V5_STATEMENT_COUNT);
   });
 
   it('has not edited version 4, which version 5 now follows', () => {
@@ -250,9 +269,10 @@ describe('pendingMigrations', () => {
 });
 
 describe('schema v1 columns', () => {
-  it('creates every table the app expects but those of versions 3, 4 and 5, and no others', () => {
+  it('creates every table the app expects but those of versions 3, 4, 5 and 6, and no others', () => {
     const v1Tables = SCHEMA_TABLES.filter(
-      (table) => !V3_TABLES.includes(table) && !V4_TABLES.includes(table) && !V5_TABLES.includes(table),
+      (table) =>
+        !V3_TABLES.includes(table) && !V4_TABLES.includes(table) && !V5_TABLES.includes(table) && !V6_TABLES.includes(table),
     );
     for (const table of v1Tables) {
       expect(() => createStatementFor(table)).not.toThrow();
@@ -667,6 +687,47 @@ describe('schema version 5 — Side, and a cook’s cuisine', () => {
 
   it('stamps version 5', () => {
     expect(sql).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '5')`);
+  });
+});
+
+describe('version 6: timers (0.5.0)', () => {
+  const sql = V6_STATEMENTS.join('\n');
+
+  it('adds one table and an index, alters, drops and writes nothing else', () => {
+    const created = V6_STATEMENTS.filter((statement) => statement.startsWith('CREATE TABLE ')).map(
+      (statement) => statement.split(' ')[2] ?? '',
+    );
+    expect(created).toEqual([...V6_TABLES]);
+    expect(SCHEMA_TABLES).toContain('timers');
+    for (const forbidden of ['ALTER TABLE', 'DROP ', 'DELETE FROM', 'PRAGMA']) {
+      expect(sql).not.toContain(forbidden);
+    }
+    expect(V6_STATEMENTS.filter((statement) => statement.startsWith('UPDATE'))).toEqual([]);
+    expect(V6_STATEMENTS.filter((statement) => statement.startsWith('INSERT') && !statement.startsWith('INSERT INTO schema_meta'))).toEqual([]);
+  });
+
+  it('keeps a timer as its end time, with its colour from the domain’s five, going with its cook', () => {
+    const timers = createStatementIn(V6_STATEMENTS, 'timers');
+    expect(columnsIn(timers)).toEqual([
+      'id',
+      'cook_id',
+      'name',
+      'colour',
+      'length_ms',
+      'started_at',
+      'ends_at',
+      'paused_left_ms',
+      'ran_out_at',
+      'stopped_at',
+    ]);
+    expect(checkListIn(timers, 'colour')).toEqual([...TIMER_COLOURS]);
+    expect(timers).toContain('REFERENCES cooks(id) ON DELETE CASCADE ON UPDATE CASCADE');
+    expect(timers).toContain('name = trim(name) AND length(name) BETWEEN 1 AND 40');
+    expect(timers).toContain('length_ms BETWEEN 1 AND 43200000');
+  });
+
+  it('stamps version 6', () => {
+    expect(sql).toContain(`VALUES ('${SCHEMA_VERSION_KEY}', '6')`);
   });
 });
 

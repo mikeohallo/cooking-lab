@@ -39,6 +39,7 @@ import type {
   Rating,
   Revision,
   Tag,
+  Timer,
 } from '../../domain/entities';
 import type { Stars } from '../../domain/enums';
 import {
@@ -55,6 +56,7 @@ import {
   isStars,
   isStoredMealType,
   isTagKind,
+  isTimerColour,
 } from '../../domain/enums';
 import { isJsonValue } from '../../domain/invariants';
 import type { SqlRow, SqlValue } from '../adapters';
@@ -585,4 +587,42 @@ export function toLessonRevision(row: SqlRow): LessonRevision {
 
 export function lessonRevisionParams(revision: LessonRevision): readonly SqlValue[] {
   return [revision.id, revision.lessonId, revision.cookId, revision.text, revision.revisedAt];
+}
+
+// ---------------------------------------------------------------------------
+// Timers (schema version 6, 0.5.0)
+// ---------------------------------------------------------------------------
+
+export const TIMER_COLUMNS =
+  'id, cook_id, name, colour, length_ms, started_at, ends_at, paused_left_ms, ran_out_at, stopped_at';
+
+export function toTimer(row: SqlRow): Timer {
+  const table = 'timers';
+  return {
+    id: requiredText(table, row, 'id'),
+    cookId: requiredText(table, row, 'cook_id'),
+    name: requiredText(table, row, 'name'),
+    colour: requiredEnum(table, row, 'colour', isTimerColour),
+    lengthMs: requiredCount(table, row, 'length_ms'),
+    startedAt: requiredText(table, row, 'started_at'),
+    endsAt: requiredText(table, row, 'ends_at'),
+    pausedLeftMs: optionalCount(table, row, 'paused_left_ms'),
+    ranOutAt: optionalText(table, row, 'ran_out_at'),
+    stoppedAt: optionalText(table, row, 'stopped_at'),
+  };
+}
+
+export function timerParams(timer: Timer): readonly SqlValue[] {
+  return [
+    timer.id,
+    timer.cookId,
+    timer.name,
+    timer.colour,
+    timer.lengthMs,
+    timer.startedAt,
+    timer.endsAt,
+    timer.pausedLeftMs,
+    timer.ranOutAt,
+    timer.stoppedAt,
+  ];
 }

@@ -32,7 +32,8 @@ const UP_TO_V3: readonly Migration[] = MIGRATIONS.filter((entry) => entry.versio
 // Version 5 follows on in a real start; this file is about 3 → 4, and
 // `schemaV5.test.ts` covers 4 → 5.
 const UP_TO_V4: readonly Migration[] = MIGRATIONS.filter((entry) => entry.version <= 4);
-const V5_TABLES: readonly string[] = ['cook_cuisines'];
+// Tables after version 4: version 5's, and version 6's timers (0.5.0).
+const V5_TABLES: readonly string[] = ['cook_cuisines', 'timers'];
 const V4 = MIGRATIONS.find((entry) => entry.version === 4);
 const V4_TABLES: readonly string[] = [
   'cook_meal_types',
@@ -182,8 +183,8 @@ describe('version 3 to version 4, with a notebook in it', () => {
 
     expect(result.applied).toEqual([4]);
     expect((await readSchemaState(opened.adapter)).schemaVersion).toBe(4);
-    expect((await runMigrations(opened.adapter)).applied).toEqual([5]);
-    expect(LATEST_SCHEMA_VERSION).toBe(5);
+    expect((await runMigrations(opened.adapter)).applied).toEqual([5, 6]);
+    expect(LATEST_SCHEMA_VERSION).toBe(6);
   });
 
   it('keeps the same row counts and the same content, row for row', async () => {

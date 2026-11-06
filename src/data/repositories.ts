@@ -47,6 +47,8 @@ import type {
 } from '../domain/evidence';
 import type {
   Briefing,
+  Timer,
+  TimerId,
   BriefingId,
   BriefingSource,
   Cook,
@@ -659,6 +661,47 @@ export type HouseholdService = {
   move(id: HouseholdMemberId, direction: 'up' | 'down'): Promise<readonly HouseholdMember[]>;
 };
 
+// ---------------------------------------------------------------------------
+// Timers (schema version 6, 0.5.0)
+// ---------------------------------------------------------------------------
+
+/** Kitchen timers. Rows are written whole; nothing here decides anything. */
+export type TimerRepository = {
+  /** Store this timer, replacing the row with its id if there is one. */
+  put(timer: Timer): Promise<Timer>;
+  findById(id: TimerId): Promise<Timer | null>;
+  /** A cook's timers, oldest first, stopped ones too. */
+  listForCook(cookId: CookId): Promise<readonly Timer[]>;
+  /** Every timer not stopped, on every cook still kept, oldest first. */
+  listLive(): Promise<readonly Timer[]>;
+  /** Every timer on every cook still kept, oldest first: names, colours, lengths. */
+  listAll(): Promise<readonly Timer[]>;
+};
+
+/**
+ * Starting and changing timers, as the user (0.5.0). Each is decided by the
+ * pure timer rules in `src/timers/model.ts` and written only if allowed, as a
+ * reading is. `at` is now, as ISO text.
+ */
+export type TimerService = {
+  /** A new timer on an open cook: its colour comes from its name. */
+  start(
+    cookId: CookId,
+    name: string,
+    lengthMs: number,
+    identity: { readonly id: TimerId },
+    actor: Actor,
+    at: IsoTimestamp,
+  ): Promise<EvidenceDecision<Timer>>;
+  pause(id: TimerId, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Timer>>;
+  resume(id: TimerId, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Timer>>;
+  /** +1 min, +5 min. */
+  add(id: TimerId, extraMs: number, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Timer>>;
+  stop(id: TimerId, actor: Actor, at: IsoTimestamp): Promise<EvidenceDecision<Timer>>;
+  /** It ran out, at `endedAt` (its end time), while the app was open or closed. */
+  finish(id: TimerId, endedAt: IsoTimestamp, actor: Actor): Promise<EvidenceDecision<Timer>>;
+};
+
 /**
  * Everything the app needs from storage, assembled in one place.
  *
@@ -691,4 +734,7 @@ export type DataLayer = {
   readonly cookRecord: CookRecordService;
   readonly householdWorkflow: HouseholdService;
   readonly snapshots: SnapshotService;
+  /** Kitchen timers' rows (0.5.0). Read freely; written through `timerWorkflow`. */
+  readonly timers: TimerRepository;
+  readonly timerWorkflow: TimerService;
 };

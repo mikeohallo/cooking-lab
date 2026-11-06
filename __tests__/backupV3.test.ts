@@ -71,10 +71,10 @@ async function assemble(): Promise<BackupEnvelope> {
 }
 
 describe('the version this build writes', () => {
-  it('is 5 now (0.4.0), edits arrived with 3, and it reads 1 to 5', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(5);
+  it('is 6 now (0.5.0), edits arrived with 3, and it reads 1 to 6', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(6);
     expect(FIRST_REVISIONS_FORMAT_VERSION).toBe(3);
-    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5]);
+    expect([...SUPPORTED_BACKUP_FORMAT_VERSIONS]).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });
 
@@ -90,7 +90,7 @@ describe('a round trip with edits in it', () => {
     if (!parsed.ok) {
       return;
     }
-    expect(parsed.envelope.formatVersion).toBe(5);
+    expect(parsed.envelope.formatVersion).toBe(6);
     expect(parsed.envelope.entities).toEqual(snapshot);
 
     const { entities } = parsed.envelope;
@@ -124,6 +124,7 @@ describe('reading versions 1 and 2', () => {
       ratings: _ratings,
       lessonRevisions: _lessonEdits,
       cookCuisines: _cuisines,
+      timers: _timers,
       ...withoutEdits
     } = envelope.entities;
     return {
