@@ -70,12 +70,12 @@ describe('app.config.ts', () => {
     expect(() => resolveAppVariant('staging')).toThrow(/Unknown APP_VARIANT/);
   });
 
-  it('is version 0.4.1, versionCode 8', () => {
+  it('is version 0.5.0, versionCode 9', () => {
     delete process.env.APP_VARIANT;
     const config = appConfig(emptyContext);
 
-    expect(config.version).toBe('0.4.1');
-    expect(config.android?.versionCode).toBe(8);
+    expect(config.version).toBe('0.5.0');
+    expect(config.android?.versionCode).toBe(9);
   });
 
   it('declares only the Android permissions kitchen timers need (0.5.0; none before)', () => {
