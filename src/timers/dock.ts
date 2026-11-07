@@ -108,3 +108,12 @@ export function planDock({ across, windowHeight, fontScale, words }: DockInput):
   }
   return plan(1);
 }
+
+/** The shown timers, a row at a time: one or two to a row, in order. */
+export function inRows<T>(items: readonly T[], perRow: 1 | 2): T[][] {
+  const rows: T[][] = [];
+  for (let at = 0; at < items.length; at += perRow) {
+    rows.push(items.slice(at, at + perRow));
+  }
+  return rows;
+}

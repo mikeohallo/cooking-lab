@@ -8,7 +8,10 @@
  * file (`support/fontMetrics.ts`), as the phone draws them.
  */
 import { TIMER_DOCK_SHARE, size, type } from '../src/theme/tokens';
-import { MORE_HEIGHT, TIMER_DOCK_GAP, planDock, rowHeight, rowNeed, type TimerWords } from '../src/timers/dock';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { MORE_HEIGHT, TIMER_DOCK_GAP, inRows, planDock, rowHeight, rowNeed, type TimerWords } from '../src/timers/dock';
 import { textWidth } from './support/fontMetrics';
 
 const SCALES = [1, 1.15, 1.3] as const;
@@ -109,5 +112,19 @@ describe('the dock’s rules', () => {
   it('grows a row with the text, never below 48', () => {
     expect(rowHeight(1)).toBe(48);
     expect(rowHeight(1.3)).toBeGreaterThan(48);
+  });
+});
+
+describe('the dock’s rows (0.5.0 fix)', () => {
+  it('splits the shown timers into rows of one or two, in order, an odd one last', () => {
+    expect(inRows(['a', 'b', 'c'], 2)).toEqual([['a', 'b'], ['c']]);
+    expect(inRows(['a', 'b', 'c'], 1)).toEqual([['a'], ['b'], ['c']]);
+    expect(inRows([], 2)).toEqual([]);
+  });
+
+  it('draws no width as a percentage, which Android drew past Cooking now’s card on the inner screen', () => {
+    const source = readFileSync(join(__dirname, '..', 'src', 'screens', 'timers', 'TimerDock.tsx'), 'utf8');
+    expect(source).not.toMatch(/flexBasis:\s*'\d+%'/);
+    expect(source).not.toMatch(/width:\s*'\d+%'/);
   });
 });

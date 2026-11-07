@@ -9,7 +9,7 @@ import type { TimerAlertState } from '../../../modules/cook-timers';
 import { makeStyles } from '../../theme/theme';
 import { size, space } from '../../theme/tokens';
 import { touchSlop } from '../../theme/touch';
-import { TIMER_DOCK_GAP, planDock, type TimerWords } from '../../timers/dock';
+import { TIMER_DOCK_GAP, inRows, planDock, type TimerWords } from '../../timers/dock';
 import { clockTemplate, timeLeftMs, timerState } from '../../timers/model';
 import { TimerRow } from './TimerRow';
 
@@ -73,9 +73,15 @@ export function TimerDock({ timers, now, onPress, onMore, testID = 'timer-dock' 
     >
       {shown.length > 0 ? (
         <View style={styles.rows} testID={`${testID}-rows-${plan.perRow}`}>
-          {shown.map((timer) => (
-            <View key={timer.id} style={plan.perRow === 2 ? styles.half : styles.whole}>
-              <TimerRow timer={timer} now={now} onPress={() => onPress(timer)} />
+          {inRows(shown, plan.perRow).map((row) => (
+            <View key={row.map((timer) => timer.id).join('+')} style={styles.row}>
+              {row.map((timer) => (
+                <View key={timer.id} style={styles.cell}>
+                  <TimerRow timer={timer} now={now} onPress={() => onPress(timer)} />
+                </View>
+              ))}
+              {/* An odd last timer keeps half the row, as its neighbours above do. */}
+              {row.length < plan.perRow ? <View style={styles.cell} /> : null}
             </View>
           ))}
         </View>
@@ -156,22 +162,19 @@ const useStyles = makeStyles(() =>
     dock: {
       gap: TIMER_DOCK_GAP,
     },
+    // One timer, or two, to a row: rows stacked, each cell an equal share of
+    // the row's width (0.5.0 fix). No percentages: in 0.5.0 a wrapping row of
+    // percentage-based cells drew past Cooking now's card on Android's inner
+    // screen, wider than the card, while the browser drew it correctly.
     rows: {
+      gap: TIMER_DOCK_GAP,
+    },
+    row: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      columnGap: TIMER_DOCK_GAP,
-      rowGap: TIMER_DOCK_GAP,
+      gap: TIMER_DOCK_GAP,
     },
-    whole: {
-      flexBasis: '100%',
-      flexGrow: 1,
-      minWidth: 0,
-    },
-    // Two to a row: two equal bases that cannot take a third beside them,
-    // each growing to half of what the gap leaves.
-    half: {
-      flexBasis: '40%',
-      flexGrow: 1,
+    cell: {
+      flex: 1,
       minWidth: 0,
     },
     more: {

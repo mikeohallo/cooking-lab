@@ -449,5 +449,5 @@ export async function seedPreviewNotebook(target: PreviewSeedTarget, now: number
   granted(await data.timerWorkflow.finish(rest.id, rest.endsAt, 'user'), 'Rest ran out');
   await timer(PREVIEW_TIMERS.gravy, 'Gravy', 10, 4 * MINUTE + 5 * SECOND);
   await timer(PREVIEW_TIMERS.veg, 'Veg', 25, 11 * MINUTE + 40 * SECOND);
-  await timer(PREVIEW_TIMERS.meat, 'Meat', 70, 38 * MINUTE + 12 * SECOND);
+  await timer(PREVIEW_TIMERS.meat, 'Meat', 180, 146 * MINUTE + 41 * SECOND);
 }
