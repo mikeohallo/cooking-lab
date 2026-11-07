@@ -85,6 +85,7 @@ describe('app.config.ts', () => {
     // The whole merged list is held in `androidPermissions.test.ts`.
     expect(config.android?.permissions).toEqual([
       'android.permission.POST_NOTIFICATIONS',
+      'android.permission.USE_EXACT_ALARM',
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.VIBRATE',

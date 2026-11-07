@@ -122,7 +122,7 @@ describe('the permissions the APK will carry', () => {
   const merged = () =>
     [...new Set([...declared.keys(), ...(requested ?? [])])].filter((permission) => !blocked.includes(permission)).sort();
 
-  it('is INTERNET and CAMERA, the six kitchen timers need (0.5.0), and nothing else', () => {
+  it('is INTERNET and CAMERA, the seven kitchen timers need (0.5.0), and nothing else', () => {
     expect(merged()).toEqual([
       'android.permission.CAMERA',
       'android.permission.FOREGROUND_SERVICE',
@@ -131,13 +131,14 @@ describe('the permissions the APK will carry', () => {
       'android.permission.POST_NOTIFICATIONS',
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.SCHEDULE_EXACT_ALARM',
+      'android.permission.USE_EXACT_ALARM',
       'android.permission.VIBRATE',
     ]);
   });
 
-  it('never USE_EXACT_ALARM: that is for alarm-clock and calendar apps (0.5.0)', () => {
-    expect(merged()).not.toContain('android.permission.USE_EXACT_ALARM');
-    expect(blocked).toContain('android.permission.USE_EXACT_ALARM');
+  it('asks for USE_EXACT_ALARM, granted at install, so timers never depend on a switch (0.5.0 fix)', () => {
+    expect(merged()).toContain('android.permission.USE_EXACT_ALARM');
+    expect(blocked).not.toContain('android.permission.USE_EXACT_ALARM');
   });
 
   it('declares no permission in the timers module’s own manifest: they are all in app.config.ts', () => {
@@ -169,10 +170,11 @@ describe('the permissions the APK will carry', () => {
     expect(declared.get('android.permission.CAMERA')).toEqual(['expo-image-picker']);
   });
 
-  it('declares exactly the six kitchen timers need, and no other of its own (0.5.0)', () => {
+  it('declares exactly the seven kitchen timers need, and no other of its own (0.5.0)', () => {
     // Until 0.5.0 the app declared none of its own.
     expect([...(requested ?? [])]).toEqual([
       'android.permission.POST_NOTIFICATIONS',
+      'android.permission.USE_EXACT_ALARM',
       'android.permission.SCHEDULE_EXACT_ALARM',
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.VIBRATE',

@@ -131,11 +131,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'android.permission.RECORD_AUDIO',
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
-        // Timers use SCHEDULE_EXACT_ALARM, which the person can turn off in
-        // Alarms & reminders. USE_EXACT_ALARM is for alarm-clock and calendar
-        // apps only, and Cooking Lab is neither: it is refused if anything
-        // ever brings it.
-        'android.permission.USE_EXACT_ALARM',
       ],
       // Kitchen timers (0.5.0). Each is here because a timer has to ring on
       // time with the app closed and the phone asleep, and for nothing else.
@@ -145,8 +140,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // for the first time a timer starts, never before.
         'android.permission.POST_NOTIFICATIONS',
         // To ring at the timer's end, to the second, with the phone asleep
-        // (setExactAndAllowWhileIdle). The person can turn it off in Alarms &
-        // reminders; the app then says timers can't ring on time.
+        // (setExactAndAllowWhileIdle), as a clock app's timer does.
+        // USE_EXACT_ALARM (0.5.0 fix, Mike's call 7 Nov): granted at install,
+        // with nothing to ask and nothing to switch on. The 6 Nov and 7 Nov test
+        // builds found SCHEDULE_EXACT_ALARM off out of the box on Android 14
+        // and later, and a timer without it can't ring through silent or Do
+        // Not Disturb. Google Play limits USE_EXACT_ALARM to clock, timer and
+        // calendar apps; Cooking Lab is installed from a file, not from Play.
+        'android.permission.USE_EXACT_ALARM',
+        // The same for Android 12 and earlier, where USE_EXACT_ALARM doesn't
+        // exist; on later versions the app already holds USE_EXACT_ALARM.
         'android.permission.SCHEDULE_EXACT_ALARM',
         // Restarting the phone clears every alarm: this puts running timers
         // back, and marks one that ended meanwhile as finished at its time.
@@ -157,7 +160,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // as a foreground service with its own notification and Stop.
         'android.permission.FOREGROUND_SERVICE',
         // That service's type: systemExempted, allowed for an app holding
-        // SCHEDULE_EXACT_ALARM that uses it to keep an alarm sounding.
+        // USE_EXACT_ALARM or SCHEDULE_EXACT_ALARM that uses it to keep an
+        // alarm sounding.
         'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED',
       ],
     },

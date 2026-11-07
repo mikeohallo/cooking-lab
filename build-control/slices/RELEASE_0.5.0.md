@@ -214,3 +214,13 @@ every timer on that cook. The scripted device test uses them instead of tapping
 through New timer. In the production app the route only goes Home
 (`app/test-timer.tsx`, `__tests__/testTimerLink.test.tsx`).
 
+**USE_EXACT_ALARM (7 Nov 2026, Mike's call after the fixes' test build):** the
+test build showed Alarms & reminders off out of the box (Android 14 and later
+don't grant SCHEDULE_EXACT_ALARM to a fresh install or an update that newly
+asks for it), and the backup ring held back entirely on silent and Do Not
+Disturb. So the app now asks for USE_EXACT_ALARM, which Android grants at
+install and which can't be switched off: every timer uses the normal ring.
+SCHEDULE_EXACT_ALARM stays for Android 12 and earlier; the backup ring stays
+as a fallback that should never be needed. Google Play limits USE_EXACT_ALARM
+to clock, timer and calendar apps; Cooking Lab is installed from a file.
+
