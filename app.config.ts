@@ -171,12 +171,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // held by `src/data/sqlite/keyProvider.ts`. It never appears here, and it
       // never appears in a backup.
       ['expo-sqlite', { android: { useSQLCipher: true } }],
-      // Left at its default `configureAndroidBackup: true`, which is the
-      // module's normal behaviour: the key is excluded from Android Auto
-      // Backup, because a key copied off the device is a key that is no longer
-      // only on the device. This is not the recovery strategy — the portable
-      // Cooking Lab backup is, and it is deliberately independent of this key.
-      'expo-secure-store',
+      // The key is excluded from Android Auto Backup, because a key copied
+      // off the device is a key that is no longer only on the device. This is
+      // not the recovery strategy — the portable Cooking Lab backup is, and it
+      // is deliberately independent of this key. Since the 0.5.0 fix the app
+      // writes its own backup rules (`./plugins/withBackupRules`, below),
+      // which leave out the secure store and the timers' store, so the
+      // module's own rules are turned off here.
+      ['expo-secure-store', { configureAndroidBackup: false }],
       // The camera and Android's photo picker. `microphonePermission: false`
       // is the whole of the configuration and it does two things: it stops the
       // plugin adding RECORD_AUDIO, which it does by default because the module
@@ -196,6 +198,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Both variants: the APK's version name carries the commit it was
       // built from, e.g. `0.1.0 (e24bfd6)`. See CLAUDE.md, "Builds".
       ['./plugins/withBuildCommit', { commit }],
+      // Android Auto Backup: settings files as before, never the timers'
+      // store or the secure store (0.5.0 fix). See the plugin's header.
+      './plugins/withBackupRules',
     ],
     extra: {
       appVariant: requested,
