@@ -1,0 +1,93 @@
+name: Test APK
+
+# Builds the Cooking Lab TEST app (com.cookinglab.personal.test) on every push
+# to main, and on demand, so test builds no longer run on the PC (7 Nov 2026).
+# The APK is kept on the run for 14 days as the artifact "cooking-lab-test-apk"
+# (the APK and its SHA-256); `scripts/phone-check.ps1` fetches the newest one
+# for main with the GitHub CLI and checks it on the bench phone.
+#
+# TEST only, never production. Production is signed with Cooking Lab's own
+# key, which lives on the PC and never comes here; this workflow has no
+# secrets and refuses to build or upload anything that isn't the TEST package.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build the TEST APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      APP_VARIANT: test
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci --no-audit --no-fund
+
+      # The native project is generated, as on the PC. The runner's SDK has
+      # CMake 3.31.5 (the PC uses 3.31.6, from its own SDK), so that is the
+      # version named here; the file ends without a newline, so one goes first.
+      - name: Prebuild (TEST)
+        run: |
+          npx expo prebuild --platform android --clean --no-install
+          printf '\nandroid.cmakeVersion=3.31.5\n' >> android/gradle.properties
+
+      - name: Gradle assembleRelease (TEST, arm64-v8a)
+        working-directory: android
+        run: ./gradlew assembleRelease --max-workers=4 -PreactNativeArchitectures=arm64-v8a
+
+      # The APK says which package and commit it is; anything but the TEST
+      # package built from this exact commit, unmodified, stops here.
+      - name: Check the APK, name it and hash it
+        id: apk
+        run: |
+          set -euo pipefail
+          short="$(git rev-parse --short=7 HEAD)"
+          src=android/app/build/outputs/apk/release/app-release.apk
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2"
+          badging="$("$aapt2" dump badging "$src")"
+          pkg="$(printf '%s\n' "$badging" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+          ver="$(printf '%s\n' "$badging" | sed -nE "s/.*versionName='([^']+)'.*/\1/p")"
+          echo "package=$pkg versionName=$ver"
+          [ "$pkg" = "com.cookinglab.personal.test" ] || { echo "::error::not the TEST package: $pkg"; exit 1; }
+          case "$ver" in *"($short)") ;; *) echo "::error::versionName '$ver' is not this commit ($short)"; exit 1 ;; esac
+          mkdir -p out
+          name="cooking-lab-test-$short.apk"
+          cp "$src" "out/$name"
+          (cd out && sha256sum "$name" > "$name.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          {
+            echo "### TEST APK"
+            echo "- \`$name\`, versionName \`$ver\`, $(stat -c %s "out/$name") bytes"
+            echo "- SHA-256 \`$(cut -d' ' -f1 "out/$name.sha256")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cooking-lab-test-apk
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
