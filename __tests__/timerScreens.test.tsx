@@ -221,6 +221,23 @@ describe('elsewhere', () => {
     );
     expect(screen.getByTestId('finish-review')).toBeEnabled();
   });
+
+  it('shows a timer that rings during the review, Done with its Stop, and stops it there (0.5.0 fix)', async () => {
+    await startTimer('Rest', 15, 'timer-rest', ago(20));
+    await startTimer('Meat', 70, 'timer-meat');
+    await harness.render(<ReviewScreen cookId={COOK} onBack={jest.fn()} onFinished={jest.fn()} />);
+    const ringing = await screen.findByTestId('review-timer-timer-rest');
+    expect(ringing.props.accessibilityLabel).toBe('Rest is done');
+    expect(screen.getByTestId('review-timer-timer-rest-time')).toHaveTextContent('Done');
+    expect(screen.getByTestId('review-timers-running')).toHaveTextContent(
+      'Meat is still running. It keeps going after the review.',
+    );
+    await fireEvent.press(ringing);
+    await waitFor(() => expect(screen.queryByTestId('review-timer-timer-rest')).toBeNull());
+    expect((await harness.db.data.timers.findById('timer-rest'))?.stoppedAt).not.toBeNull();
+    expect(mockState.calls).toContain('cancel timer-rest');
+    expect(screen.getByTestId('review-timers-running')).toBeOnTheScreen();
+  });
 });
 
 describe('tabletop mode', () => {

@@ -66,6 +66,7 @@ import { HouseholdEditor } from './record/HouseholdEditor';
 import { MealTypeChips } from './record/MealTypeChips';
 import { WhoAteIt } from './record/WhoAteIt';
 import { useTimers } from '../state/Timers';
+import { TimerRow } from './timers/TimerRow';
 import { timerState } from '../timers/model';
 
 type ReviewScreenProps = {
@@ -120,9 +121,11 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
   // Finish & review with timers running (0.5.0): they keep going, and the
   // review says so in one line.
   const timersApi = useTimers();
-  const runningTimers = timersApi
-    .forCook(cookId)
-    .filter((timer) => ['running', 'paused'].includes(timerState(timer, timersApi.now)));
+  const cookTimers = timersApi.forCook(cookId);
+  const runningTimers = cookTimers.filter((timer) => ['running', 'paused'].includes(timerState(timer, timersApi.now)));
+  // One that runs out while the review is open rings here too, with its Stop
+  // (0.5.0 fix): tapping its Done row stops it, as on the cook.
+  const ringingTimers = cookTimers.filter((timer) => timerState(timer, timersApi.now) === 'finished');
   const [askHousehold, setAskHousehold] = useState(false);
   const asked = useRef(false);
   const { settings } = data;
@@ -345,11 +348,22 @@ export function ReviewScreen({ cookId, onBack, onFinished }: ReviewScreenProps) 
     />
   );
   const footButton =
-    !editing && runningTimers.length > 0 ? (
+    !editing && (runningTimers.length > 0 || ringingTimers.length > 0) ? (
       <View style={styles.finishFoot}>
-        <AppText variant="secondary" tone="inkMuted" testID="review-timers-running">
-          {timersKeepRunning(runningTimers.map((timer) => timer.name))}
-        </AppText>
+        {ringingTimers.map((timer) => (
+          <TimerRow
+            key={timer.id}
+            timer={timer}
+            now={timersApi.now}
+            onPress={() => void timersApi.stop(timer.id)}
+            testID={`review-timer-${timer.id}`}
+          />
+        ))}
+        {runningTimers.length > 0 ? (
+          <AppText variant="secondary" tone="inkMuted" testID="review-timers-running">
+            {timersKeepRunning(runningTimers.map((timer) => timer.name))}
+          </AppText>
+        ) : null}
         {finishButton}
       </View>
     ) : (
