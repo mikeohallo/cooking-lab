@@ -10,8 +10,9 @@ import android.os.Build
 /**
  * A running timer's exact alarm (0.5.0): `setExactAndAllowWhileIdle`,
  * RTC_WAKEUP, at its end time, so it rings on time with the phone asleep.
- * Without Alarms & reminders (Android 12 and later) the alarm is set inexact,
- * so it still rings, perhaps late, and the app says so.
+ * Without Alarms & reminders (Android 12 and later) the alarm is set inexact:
+ * it goes off perhaps late, rings through the backup channel's notification
+ * (no ring service may start then), and the app says so.
  */
 object TimerAlarms {
   const val EXTRA_ID = "timerId"

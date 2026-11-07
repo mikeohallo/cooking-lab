@@ -7,6 +7,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -16,12 +18,17 @@ import java.util.Calendar
  * The timers' notifications (0.5.0), on two channels:
  *  - "Timers running", quiet: one ongoing notification per running timer,
  *    with Android's own countdown to its end and +1 min and Stop;
- *  - "Timer finished", high importance: the ring's notification, with Stop.
+ *  - "Timer finished", high importance: the ring's notification, with Stop;
+ *  - "Timer finished (backup ring)", high importance, sounding: the ring
+ *    itself when Alarms & reminders is off and no ring service may run.
  * When a ring ends, a quiet "Rest finished at 7:42 pm" is left behind.
  */
 object TimerNotifications {
   const val RUNNING_CHANNEL = "cook_timers_running"
   const val FINISHED_CHANNEL = "cook_timers_finished"
+  /** The ring when Alarms & reminders is off: the channel itself sounds (0.5.0 fix). */
+  const val BACKUP_CHANNEL = "cook_timers_finished_backup"
+  private const val BACKUP_RING_FOR_MS = 5 * 60_000L
   /** The ring's own notification, while the ring service is in the foreground. */
   const val RING_NOTIFICATION = 0x7173
 
@@ -42,8 +49,27 @@ object TimerNotifications {
       enableVibration(false)
       lockscreenVisibility = Notification.VISIBILITY_PUBLIC
     }
+    // With Alarms & reminders off there is no ring service, so this channel
+    // plays the phone's alarm sound itself, through the alarm stream, and
+    // vibrates; the notification repeats it until Stop (FLAG_INSISTENT).
+    val alarmSound = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
+      ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+      ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    val backup = NotificationChannel(BACKUP_CHANNEL, "Timer finished (backup ring)", NotificationManager.IMPORTANCE_HIGH).apply {
+      setSound(
+        alarmSound,
+        AudioAttributes.Builder()
+          .setUsage(AudioAttributes.USAGE_ALARM)
+          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+          .build(),
+      )
+      enableVibration(true)
+      vibrationPattern = longArrayOf(0, 700, 500)
+      lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+    }
     manager.createNotificationChannel(running)
     manager.createNotificationChannel(finished)
+    manager.createNotificationChannel(backup)
   }
 
   /** One id per timer: its ongoing notification, and later its "finished at" line, replace each other. */
@@ -124,6 +150,40 @@ object TimerNotifications {
       .setContentIntent(openApp(context))
       .addAction(0, "Stop", stop)
       .build()
+  }
+
+  /**
+   * The ring without Alarms & reminders (0.5.0 fix): "Rest is done", on the
+   * backup channel, sounding and vibrating again and again until Stop, and
+   * gone after five minutes, as the ring service's is.
+   */
+  fun ringBackup(context: Context, timer: RunningTimer) {
+    ensureChannels(context)
+    val stop = PendingIntent.getBroadcast(
+      context,
+      idFor(timer.id),
+      Intent(context, TimerActionReceiver::class.java)
+        .setAction(TimerActionReceiver.ACTION_STOP_RING)
+        .setData(TimerAlarms.uriFor(timer.id))
+        .putExtra(TimerAlarms.EXTRA_ID, timer.id)
+        .putExtra(TimerActionReceiver.EXTRA_NAME, timer.name)
+        .putExtra(TimerActionReceiver.EXTRA_ENDS, timer.endsAt),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val notification = NotificationCompat.Builder(context, BACKUP_CHANNEL)
+      .setSmallIcon(ICON)
+      .setContentTitle("${timer.name} is done")
+      .setContentText("Ended ${clock(timer.endsAt)}")
+      .setCategory(NotificationCompat.CATEGORY_ALARM)
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+      .setOngoing(true)
+      .setTimeoutAfter(BACKUP_RING_FOR_MS)
+      .setContentIntent(openApp(context))
+      .addAction(0, "Stop", stop)
+      .build()
+    notification.flags = notification.flags or Notification.FLAG_INSISTENT
+    post(context, idFor(timer.id), notification)
   }
 
   /** What a ring leaves behind once it stops: "Rest finished at 7:42 pm", quiet. */

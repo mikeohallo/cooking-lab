@@ -29,6 +29,10 @@ class TimerActionReceiver : BroadcastReceiver() {
   companion object {
     const val ACTION_ADD_MINUTE = "expo.modules.cooktimers.ADD_MINUTE"
     const val ACTION_STOP = "expo.modules.cooktimers.STOP"
+    /** Stop on the backup ring (no Alarms & reminders): it has already run out. */
+    const val ACTION_STOP_RING = "expo.modules.cooktimers.STOP_RING"
+    const val EXTRA_NAME = "name"
+    const val EXTRA_ENDS = "endsAt"
     private const val MINUTE_MS = 60_000L
   }
 
@@ -44,6 +48,13 @@ class TimerActionReceiver : BroadcastReceiver() {
       ACTION_STOP -> {
         TimerAlarms.cancel(context, id)
         TimerStore.enqueue(context, "stopped", id, now)
+      }
+      ACTION_STOP_RING -> {
+        TimerStore.enqueue(context, "stopped", id, now)
+        val name = intent.getStringExtra(EXTRA_NAME) ?: ""
+        val endsAt = intent.getLongExtra(EXTRA_ENDS, now)
+        // Replaces the ringing notification (same id): quiet from here.
+        TimerNotifications.showFinished(context, RunningTimer(id, name, endsAt))
       }
       else -> return
     }

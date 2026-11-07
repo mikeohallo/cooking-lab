@@ -20,7 +20,8 @@ import androidx.core.content.ContextCompat
 /**
  * The ring (0.5.0). Started by a timer's exact alarm, as a foreground service
  * of type systemExempted — allowed for an app holding SCHEDULE_EXACT_ALARM
- * that uses it to keep an alarm sounding. It plays the phone's own alarm
+ * that uses it to keep an alarm sounding. Without that permission it is
+ * never started: `ring` falls back to TimerNotifications.ringBackup. It plays the phone's own alarm
  * sound, looping, through the alarm stream (so the alarm volume decides, and
  * Do Not Disturb treats it as an alarm), vibrates, and shows which timers
  * are done with Stop. It stops on Stop, or after five minutes, and leaves a
@@ -36,12 +37,41 @@ class RingService : Service() {
     private const val RING_FOR_MS = 5 * 60_000L
 
     fun ring(context: Context, timer: RunningTimer) {
+      // Without Alarms & reminders, Android refuses this service's type
+      // (systemExempted needs SCHEDULE_EXACT_ALARM), and an inexact alarm
+      // gives no right to start any foreground service from the background.
+      // So the ring is a notification instead: the backup channel's alarm
+      // sound, repeating until Stop, never a crash (0.5.0 fix).
+      if (!TimerAlarms.canScheduleExact(context)) {
+        ringByNotification(context, timer)
+        return
+      }
       val intent = Intent(context, RingService::class.java)
         .setAction(ACTION_RING)
         .putExtra(TimerAlarms.EXTRA_ID, timer.id)
         .putExtra(EXTRA_NAME, timer.name)
         .putExtra(EXTRA_ENDS, timer.endsAt)
-      ContextCompat.startForegroundService(context, intent)
+      try {
+        ContextCompat.startForegroundService(context, intent)
+      } catch (_: IllegalStateException) {
+        // ForegroundServiceStartNotAllowedException: not allowed to start now.
+        ringByNotification(context, timer)
+      } catch (_: SecurityException) {
+        ringByNotification(context, timer)
+      }
+    }
+
+    /** It ran out: the module keeps it no longer, and the app hears so. */
+    private fun ranOut(context: Context, timer: RunningTimer) {
+      TimerStore.remove(context, timer.id)
+      TimerStore.enqueue(context, "ranOut", timer.id, timer.endsAt)
+      TimerNotifications.cancel(context, timer.id)
+      CookTimersModule.tellQueued()
+    }
+
+    private fun ringByNotification(context: Context, timer: RunningTimer) {
+      ranOut(context, timer)
+      TimerNotifications.ringBackup(context, timer)
     }
 
     /** The app stopped a timer that may be ringing: quiet for that one, nothing queued. */
@@ -86,11 +116,7 @@ class RingService : Service() {
 
   private fun start(timer: RunningTimer) {
     synchronized(ringing) { ringing[timer.id] = timer }
-    // It ran out: the module keeps it no longer, and the app hears so.
-    TimerStore.remove(this, timer.id)
-    TimerStore.enqueue(this, "ranOut", timer.id, timer.endsAt)
-    TimerNotifications.cancel(this, timer.id)
-    CookTimersModule.tellQueued()
+    ranOut(this, timer)
 
     val notification = TimerNotifications.ringing(this, synchronized(ringing) { ringing.values.toList() })
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
