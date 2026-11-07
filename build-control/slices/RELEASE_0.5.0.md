@@ -38,7 +38,10 @@ Baseline v3 has a 0.5.0 section (section 10).
 3. **The timers module** (`modules/cook-timers`, Kotlin, Expo Modules API,
    autolinked from `./modules`): exact alarms (`setExactAndAllowWhileIdle`,
    RTC_WAKEUP, at the end time; inexact if Alarms & reminders is off, so it
-   still rings, late); notification permission, asked the first time a timer
+   goes off late, and then rings through a notification, not the ring
+   service (0.5.0 fix: the first build crashed here instead, because Android
+   refuses the systemExempted type without that permission; see
+   "Fixes after the test build" below); notification permission, asked the first time a timer
    starts; one ongoing notification per running timer with Android's own
    countdown, +1 min and Stop, on a quiet "Timers running" channel; the ring,
    a foreground service of type systemExempted playing the phone's alarm
@@ -175,3 +178,31 @@ On `7ecbab9`, oldest first, all by Claude <noreply@anthropic.com>:
 All of it: the brief said no install and no device work. The ring, the
 notifications, the restart receiver, exact alarms and the posture from
 WindowManager have been compiled, not run.
+
+## Fixes after the test build (7 Nov 2026)
+
+The 0.5.0 test build (`a0e3e0a`, 6 Nov) found three faults, and its review a
+fourth. All four are fixed before 0.5.0 reaches a real phone:
+
+1. **No ring, and a crash, with Alarms & reminders off.** `RingService` asked
+   for the systemExempted type, which Android allows only with
+   SCHEDULE_EXACT_ALARM (`SecurityException` at `RingService.kt:97`); and an
+   inexact alarm gives no right to start any foreground service from the
+   background. Now, without the permission, no service is started: the ring is
+   a notification on a "Timer finished (backup ring)" channel that plays the
+   phone's alarm sound through the alarm stream and vibrates, repeating until
+   Stop, gone after five minutes. Stop leaves the quiet "finished at" line.
+   With the permission, nothing changes. Known difference: a backup ring that
+   times out or is swiped away leaves no "finished at" line; the app still
+   shows the timer Done until it is stopped there.
+2. **Cooking now's timer rows ran off the card on the inner screen.** The
+   dock's rows were percentage-based cells in a wrapping row; Android drew
+   them wider than the card while the browser drew them correctly. Now rows
+   are stacked, each cell an equal share of its row, with no percentages
+   (a Jest test holds the dock to that). The preview's Meat timer is now an
+   hour long (2:26:41), as the test phone's were.
+3. **The review showed nothing about a ringing timer.** It now shows it as
+   its Done row; one tap stops it, as on the cook.
+4. **The timers' store was in Android's backup.** Cooking Lab's own backup
+   rules leave out `cook_timers.xml` and the secure store's files.
+
