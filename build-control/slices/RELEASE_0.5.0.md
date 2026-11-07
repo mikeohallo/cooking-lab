@@ -206,3 +206,11 @@ fourth. All four are fixed before 0.5.0 reaches a real phone:
 4. **The timers' store was in Android's backup.** Cooking Lab's own backup
    rules leave out `cook_timers.xml` and the secure store's files.
 
+**For testing only (7 Nov 2026):** TEST builds open
+`cookinglab://test-timer?cook=<id>&name=<name>&seconds=<n>` (with `title=`,
+a cook with that id is started first), which starts a named timer of an exact
+length and opens the cook; `cookinglab://test-timer?cook=<id>&stop=all` stops
+every timer on that cook. The scripted device test uses them instead of tapping
+through New timer. In the production app the route only goes Home
+(`app/test-timer.tsx`, `__tests__/testTimerLink.test.tsx`).
+
