@@ -113,6 +113,36 @@ Once a `?screen=` page has run its steps, `document.body.dataset.previewReady`
 is `yes` (or `failed`, with a console warning saying why). Wait for it before a
 screenshot. Sheets fade in over a moment after that.
 
+## Screenshot checks
+
+Added 10 Nov 2026 (R-060). `scripts/screenshots.mjs` draws every `?screen=`
+page (the list in `src/preview/options.web.ts`, so a new screen is covered
+without touching the script) at a phone width (369 × 800, the Fold's cover
+display) and a laptop width (1280 × 800), in light and dark: 64 pages today.
+
+```bash
+npm run preview:web
+node scripts/screenshots.mjs shoot preview-web ../shots/before
+# make the change, npm run preview:web again, then:
+node scripts/screenshots.mjs shoot preview-web ../shots/after
+node scripts/screenshots.mjs compare ../shots/before ../shots/after --strict
+```
+
+- **Same pixels every time.** Chrome draws in software in sRGB, the clock is
+  fixed (timers and "today" read the same), carets are hidden, and a page is
+  shot only once three frames in a row match and its photos have decoded.
+  Five runs on 10 Nov (two builds) were identical to the pixel, so the compare is
+  exact: a hairline colour changed on purpose showed on 28 of 64 pages, all
+  light, none dark.
+- **CI** (`.github/workflows/screenshots.yml`) draws the commit before and
+  this one on the same runner and compares them. A page that fails to draw is
+  red; a page that changed is a yellow warning, named in the job summary, so a
+  release that changes the look on purpose stays green. Text only: no image
+  is uploaded.
+- **What it is not:** the phone. It catches a change to how the preview draws
+  a page, not how the Fold draws it (the note field is two lines on the web,
+  for one). Changed pages are then looked at in the preview at real size.
+
 ## Tests
 
 `__tests__/webPreview.test.tsx` opens the preview notebook on the Node SQLite

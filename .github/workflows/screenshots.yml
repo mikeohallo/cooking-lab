@@ -1,0 +1,81 @@
+name: Screenshots
+
+# Draws every ?screen= page of the web preview at a phone width and a laptop
+# width, in light and dark, for the commit before this change and for this
+# change, on this runner, and compares them pixel by pixel
+# (scripts/screenshots.mjs; R-060, 10 Nov 2026).
+#
+# A page that fails to draw turns this red. A page that looks different is a
+# yellow warning, listed by name in the job summary: a release that changes
+# the look on purpose stays green, and the list says exactly which pages
+# moved, to check against what the change meant to do.
+#
+# Text only. No image is uploaded: Actions files on a public repository are
+# public. The preview's notebook is synthetic (build-control/PREVIEW.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screens:
+    name: preview · before and after · phone and laptop · light and dark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Which commit is "before"
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; else base="$PUSH_BEFORE"; fi
+          if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ] \
+             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "::notice::Screenshots compare $(git rev-parse --short "$base") (before) with $(git rev-parse --short HEAD) (after)"
+
+      - name: Install and build the preview (after)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run preview:web
+
+      - name: Install and build the preview (before)
+        env:
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          git worktree add "$RUNNER_TEMP/before" "$BASE"
+          cd "$RUNNER_TEMP/before"
+          npm ci --no-audit --no-fund
+          npm run preview:web || echo "::warning::The before commit's preview did not build; every page will count as new."
+
+      - name: Draw both
+        run: |
+          google-chrome --version
+          node scripts/screenshots.mjs shoot "$RUNNER_TEMP/before/preview-web" "$RUNNER_TEMP/shots/before" \
+            || echo "::warning::Some before pages did not draw; they count as new."
+          node scripts/screenshots.mjs shoot preview-web "$RUNNER_TEMP/shots/after"
+
+      - name: Compare
+        if: success() || failure()
+        run: node scripts/screenshots.mjs compare "$RUNNER_TEMP/shots/before" "$RUNNER_TEMP/shots/after" --github
